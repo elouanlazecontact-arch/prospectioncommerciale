@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=24;
+const APP_V=25;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -189,11 +189,27 @@ const CFG=window.RADAR_CONFIG||{};let SB=null,USER=null,RT=null;
 const LK=()=>'radar-'+(USER?.id||'local');
 function loadLocal(){S.P.clear();for(const p of lsGet(LK()+'-data',[]))if(p&&p.id)S.P.set(p.id,p);
   S.settings={objectif:20,...lsGet(LK()+'-settings',{})};if(S.settings.cal==='live'&&proMail())S.settings.cal='m365';S.queue=new Set(lsGet(LK()+'-queue',[]))}
+/* ---------- Rôles : admin = accès aux fiches de toute l'équipe ---------- */
+const isAdmin=()=>S.role==='admin'||S.role==='owner';
+const ownerOf=p=>p?._owner||USER?.id;
+function vis(p){if(!isAdmin()||S.who==='all')return true;if(!S.who||S.who==='me')return !p._owner||p._owner===USER?.id;return p._owner===S.who}
+const VP=()=>[...S.P.values()].filter(vis);
+const memberName=id=>{if(!id||id===USER?.id)return'Moi';const m=(S.team||[]).find(x=>x.id===id);return m?(m.nom||m.email.split('@')[0]):'Collègue'};
+async function loadRole(){if(!SB||!USER)return;
+  try{await SB.from('profiles').upsert({id:USER.id,email:USER.email,updated_at:new Date().toISOString()},{onConflict:'id'})}catch{}
+  let role='';try{const {data,error}=await SB.from('admins').select('role').eq('user_id',USER.id).maybeSingle();if(!error&&data)role=data.role}catch{}
+  const was=S.role;S.role=role;lsSet(LK()+'-role',role);
+  if(isAdmin()){try{const {data}=await SB.from('profiles').select('id,email,nom').order('email');S.team=data||[]}catch{S.team=[]}
+    try{const {data}=await SB.from('admins').select('user_id,role');S.admins=data||[]}catch{S.admins=[]}
+    if(!lsGet(LK()+'-full',false)){lsSet(LK()+'-since',null);await pullAll();lsSet(LK()+'-full',true)}
+    if(!was)subscribe()}
+  else if(was&&!role){S.who='me'}
+  render()}
 function saveLocal(){lsSet(LK()+'-data',[...S.P.values()]);lsSet(LK()+'-queue',[...S.queue])}
 let saveT=null;const saveLocalSoon=()=>{clearTimeout(saveT);saveT=setTimeout(saveLocal,200)};
 function markDirty(id){S.queue.add(id);saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800);renderStore()}
 function touch(p){p.updatedAt=Date.now();markDirty(p.id)}
-function removeProspect(id){S.P.delete(id);markDirty(id)}
+function removeProspect(id){const p=S.P.get(id);if(p?._owner){S.delOwner=S.delOwner||{};S.delOwner[id]=p._owner}S.P.delete(id);markDirty(id)}
 /* ---------- Doublons de SIRET / SIREN ---------- */
 const sirOf=p=>({siret:/^\d{14}$/.test(p.ent?.siret||'')?p.ent.siret:'',siren:p.ent?.siren||(p.ent?.siret||'').slice(0,9)||p.rne?.siren||''});
 function dupOf(num,exceptId){num=String(num||'').replace(/\D/g,'');if(num.length!==9&&num.length!==14)return null;
@@ -202,7 +218,7 @@ function dupOf(num,exceptId){num=String(num||'').replace(/\D/g,'');if(num.length
     else if(o.siren===num)return p}
   return null}
 function dupGroups(){const m=new Map();
-  for(const p of S.P.values()){const o=sirOf(p);const k=o.siret||(o.siren?'n'+o.siren:'');if(!k)continue;if(!m.has(k))m.set(k,[]);m.get(k).push(p)}
+  for(const p of VP()){const o=sirOf(p);const k=o.siret||(o.siren?'n'+o.siren:'');if(!k)continue;if(!m.has(k))m.set(k,[]);m.get(k).push(p)}
   // un SIREN seul rejoint le SIRET du même SIREN s'il n'y en a qu'un
   for(const [k,ps] of [...m]){if(k[0]!=='n')continue;const siren=k.slice(1);const sk=[...m.keys()].filter(x=>x[0]!=='n'&&x.startsWith(siren));if(sk.length===1){m.get(sk[0]).push(...ps);m.delete(k)}}
   return[...m.values()].filter(g=>g.length>1)}
@@ -229,8 +245,8 @@ async function pushQueue(){
     const rows=ids.map(id=>{
       if(id==='settings-'+USER.id)return{id,owner:USER.id,data:{settings:S.settings},updated_at:now,deleted:false};
       const p=S.P.get(id);
-      return p?{id,owner:USER.id,data:p,updated_at:new Date(Math.max(p.updatedAt||0,Date.now()-1000)).toISOString(),deleted:false}
-              :{id,owner:USER.id,data:{id},updated_at:now,deleted:true}});
+      return p?{id,owner:ownerOf(p),data:p,updated_at:new Date(Math.max(p.updatedAt||0,Date.now()-1000)).toISOString(),deleted:false}
+              :{id,owner:S.delOwner?.[id]||USER.id,data:{id},updated_at:now,deleted:true}});
     for(let i=0;i<rows.length;i+=100){const {error}=await SB.from('prospects').upsert(rows.slice(i,i+100),{onConflict:'id'});if(error)throw error}
     ids.forEach(id=>S.queue.delete(id));S.syncErr='';S.lastSync=Date.now();saveLocal();
   }catch(e){S.syncErr=e?.message||String(e)}
@@ -242,11 +258,11 @@ function mergeRemote(r){
   if(S.queue.has(r.id))return false;
   if(r.deleted){const had=S.P.has(r.id);S.P.delete(r.id);return had}
   const loc=S.P.get(r.id);if(loc&&(loc.updatedAt||0)>(r.data?.updatedAt||0))return false;
-  S.P.set(r.id,r.data);return true}
+  S.P.set(r.id,r.owner&&r.owner!==USER?.id?{...r.data,_owner:r.owner}:r.data);return true}
 async function pullAll(){
   if(!SB||!USER||!navigator.onLine)return;
   try{const since=lsGet(LK()+'-since',null);let last=since,from=0,selChanged=false,any=false;
-    for(let n=0;n<50;n++){let q=SB.from('prospects').select('id,data,updated_at,deleted').order('updated_at',{ascending:true}).range(from,from+999);if(since)q=q.gt('updated_at',since);
+    for(let n=0;n<50;n++){let q=SB.from('prospects').select('id,owner,data,updated_at,deleted').order('updated_at',{ascending:true}).range(from,from+999);if(since)q=q.gt('updated_at',since);
       const {data,error}=await q;if(error)throw error;
       for(const r of data){if(mergeRemote(r)){any=true;if(r.id===S.sel)selChanged=true}last=r.updated_at}
       if(data.length<1000)break;from+=1000}
@@ -254,7 +270,7 @@ async function pullAll(){
   catch(e){S.syncErr=e?.message||String(e);renderStore()}}
 function subscribe(){
   if(!SB||!USER)return;if(RT){SB.removeChannel(RT);RT=null}
-  RT=SB.channel('radar-'+USER.id).on('postgres_changes',{event:'*',schema:'public',table:'prospects',filter:'owner=eq.'+USER.id},pl=>{
+  RT=SB.channel('radar-'+USER.id).on('postgres_changes',{event:'*',schema:'public',table:'prospects',...(isAdmin()?{}:{filter:'owner=eq.'+USER.id})},pl=>{
     const r=pl.new;if(r&&mergeRemote(r)){saveLocalSoon();renderSoft(r.id===S.sel)}}).subscribe()}
 function renderStore(){const el=$('#store');if(!el)return;let s,t,tip='';
   if(!SB){s='local';t='Sur cet appareil';tip='Synchronisation non configurée : voir le guide d’installation.'}
@@ -277,7 +293,8 @@ function onUser(){
   if(SB&&!USER){showAuth();return}
   hideAuth();loadLocal();
   if(SB&&USER){const loc=lsGet('radar-local-data',[]);if(loc.length){for(const p of loc)if(!S.P.has(p.id)){S.P.set(p.id,p);S.queue.add(p.id)}lsSet('radar-local-data',[])}}
-  render();renderStore();if(SB&&USER){pullAll().then(pushQueue);subscribe()}}
+  S.role=lsGet(LK()+'-role','');S.who=lsGet(LK()+'-who','me');
+  render();renderStore();if(SB&&USER){pullAll().then(pushQueue);subscribe();loadRole()}}
 function showAuth(m){const el=$('#auth');el.hidden=false;S.authMode=S.authMode||'login';
   el.innerHTML=`<div class="auth-card"><div class="brand" style="font-size:24px">${$('.brand svg').outerHTML}Radar <small>Data Links</small></div>
    <h1>${S.authMode==='signup'?'Créer ton compte':S.authMode==='reset'?'Mot de passe oublié':'Connexion'}</h1>
@@ -319,17 +336,26 @@ function excluded(p){const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.activite,p.
 function matches(p,q){if(!q)return true;const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.ville,p.ent?.cp,p.ent?.siret,p.ent?.siren,p.ent?.tel,p.ent?.secteur,...(p.contacts||[]).flatMap(c=>[c.prenom,c.nom,c.tel,c.mobile,c.email])].join(' ')).replace(/\s/g,'');
   return norm(q).split(/\s+/).every(w=>s.includes(w.replace(/\s/g,'')))}
 function filtered(){const t=iso(today());
-  return [...S.P.values()].filter(p=>matches(p,S.q)).filter(p=>{
+  return VP().filter(p=>matches(p,S.q)).filter(p=>{
     if(S.filter==='all')return true;if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
     if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
    .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:(a.createdAt||0)-(b.createdAt||0)})}
-function allActions(){const out=[];for(const p of S.P.values())for(const a of (p.actions||[]))out.push({p,a});return out}
-function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;return [...S.P.values()].filter(p=>p.rdvPrisLe&&p.rdvPrisLe.startsWith(m)).length}
-function todayJournal(c){const t=iso(today());let n=0;for(const p of S.P.values())for(const j of (p.journal||[]))if(j.date?.startsWith(t)&&j.canal===c&&j.issue)n++;return n}
+function allActions(){const out=[];for(const p of VP())for(const a of (p.actions||[]))out.push({p,a});return out}
+function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;return VP().filter(p=>p.rdvPrisLe&&p.rdvPrisLe.startsWith(m)).length}
+function todayJournal(c){const t=iso(today());let n=0;for(const p of VP())for(const j of (p.journal||[]))if(j.date?.startsWith(t)&&j.canal===c&&j.issue)n++;return n}
 
 /* ================= Rendu : coquille ================= */
+function teamHtml(){const d=new Date();const mo=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;const all=[...S.P.values()];
+  const rows=(S.team||[]).map(m=>{const ps=all.filter(p=>(p._owner||USER.id)===m.id);const rdv=ps.filter(p=>String(p.rdvPrisLe||'').startsWith(mo)).length;const adm=(S.admins||[]).find(a=>a.user_id===m.id);
+    return `<div class="tm"><b title="${esc(m.email)}">${esc(m.nom||m.email)}</b>${adm?`<span class="tag-adm">${adm.role==='owner'?'Admin principal':'Admin'}</span>`:''}<span>${ps.length} fiches · ${rdv} RDV ce mois</span>
+      <button class="btn btn-q btn-s" data-act="whoset" data-v="${m.id===USER.id?'me':m.id}">Voir</button>
+      ${S.role==='owner'&&m.id!==USER.id&&adm?.role!=='owner'?`<button class="btn btn-g btn-s" data-act="admtoggle" data-v="${m.id}">${adm?'Retirer admin':'Rendre admin'}</button>`:''}</div>`}).join('');
+  return `<div class="f"><span class="lab">Équipe (accès admin)</span><div class="team">${rows||'<span class="cr-sub">Tes collègues apparaissent ici dès leur première connexion.</span>'}</div></div>`}
+function renderWho(){const w=$('#who-wrap');if(!w)return;if(!isAdmin()){w.innerHTML='';return}
+  const opts=[['me','Mes fiches'],['all','Toute l’équipe'],...(S.team||[]).filter(m=>m.id!==USER?.id).map(m=>[m.id,m.nom||m.email])];
+  w.innerHTML=`<label class="who"><span>👁</span><select id="who-sel" aria-label="Fiches affichées">${opts.map(([v,l])=>`<option value="${v}" ${S.who===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`}
 function render(){
-  const app=$('#app');app.className=S.mode;
+  renderWho();const app=$('#app');app.className=S.mode;
   $$('[data-act="view"]').forEach(b=>b.setAttribute('aria-current',String(S.view===b.dataset.v&&!(S.mode==='terrain'&&S.view==='list'&&S.sel&&false))));
   $$('[data-act="mode"]').forEach(b=>b.setAttribute('aria-pressed',String(S.mode===b.dataset.v)));
   const m=$('#main');
@@ -353,7 +379,7 @@ function renderToday(){
   const acts=allActions().filter(x=>!x.a.fait&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1);
   const late=acts.filter(x=>x.a.date<t).length;
   const rdv=monthRdv(),obj=S.settings.objectif||20;
-  const P=[...S.P.values()];
+  const P=VP();
   const counts=STATUTS.map(s=>({...s,n:P.filter(p=>p.statut===s.k).length}));
   const tot=P.length||1;
   const hot=P.filter(p=>p.temperature==='chaud'&&!['gagne','perdu','ko'].includes(p.statut)).slice(0,6);
@@ -402,14 +428,14 @@ function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div class="lh-acts"><button class="btn btn-loc btn-s" data-act="view" data-v="around">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen">+ SIRET / SIREN</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer un fichier</button></div>
-   ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+   ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
    <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
      ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="tdot" data-t="${p.temperature||''}"></span>`}<span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
-     <span class="sub">${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${p.ent?.tel?'📞 '+esc(fmtTel(p.ent.tel))+' · ':S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'📞 recherche… · ':''}${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
-   :S.P.size?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
+     <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${p.ent?.tel?'📞 '+esc(fmtTel(p.ent.tel))+' · ':S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'📞 recherche… · ':''}${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
+   :VP().length?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
 }
 
 /* ================= Fiche ================= */
@@ -420,7 +446,7 @@ function renderFiche(){
   const q=qualif(p),ex=excluded(p);const sub=[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
   el.innerHTML=`<div class="fiche">
    ${S.mode==='terrain'?`<div><button class="back" data-act="back">← Prospects</button></div>`:''}
-   <div class="fhead">
+   <div class="fhead">${p._owner&&p._owner!==USER?.id?`<div class="ownbar">👁 Fiche de <b>${esc(memberName(p._owner))}</b> · tes modifications sont enregistrées sur sa fiche</div>`:''}
     <div class="fhead-top"><div class="fname"><input id="f-ent-nom" data-k="ent.nom" value="${esc(p.ent?.nom||'')}" placeholder="Tape le nom : suggestions du registre" autocomplete="off">
       <div class="fmeta" id="fmeta">${fmetaHtml(p,sub)}</div></div>
       <div class="ring" title="Qualification de la fiche">${ringSvg(q)}<b class="num" id="ringv">${q}%</b><small>qualifiée</small></div></div>
@@ -564,7 +590,8 @@ function helpHtml(){return `<div class="modal" data-act="closem"><div><h2>Raccou
  <button class="btn btn-g" data-act="closem">Fermer</button></div></div>`}
 function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (téléphone)']:['pc.html','Radar Poste (PC)'];
  return `<div class="modal" data-act="closem"><div><h2>Options</h2>
- ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b></span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
+ ${isAdmin()?teamHtml():''}
+ ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b>${isAdmin()?` · <span class="tag-adm">${S.role==='owner'?'Admin principal':'Admin'}</span>`:''}</span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
  <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
  <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
@@ -685,6 +712,11 @@ const ACT={
  del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);openFiche(p.id)})},
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
  calpick:b=>{S.settings.cal=b.dataset.v;saveSettings();renderLayer()},
+ whoset:b=>{S.who=b.dataset.v;lsSet(LK()+'-who',S.who);S.menu=false;S.sel=null;S.filter='all';S.view='list';renderLayer();render()},
+ admtoggle:async b=>{if(S.role!=='owner')return;const id=b.dataset.v;const adm=(S.admins||[]).find(a=>a.user_id===id);b.disabled=true;
+  const {error}=adm?await SB.from('admins').delete().eq('user_id',id):await SB.from('admins').insert({user_id:id,role:'admin'});
+  if(error){toast('Impossible : '+error.message);b.disabled=false;return}
+  const {data}=await SB.from('admins').select('user_id,role');S.admins=data||[];toast(adm?'Droits admin retirés':'Droits admin donnés');renderLayer()},
  calx:()=>{S.calMsg=null;renderNotesOnly()},
  cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
  closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}if(S.menu&&$('#wh-0a')){const h=[0,1].map(i=>[$('#wh-'+i+'a')?.value,$('#wh-'+i+'b')?.value]).filter(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]));if(h.length&&JSON.stringify(h)!==JSON.stringify(workHours())){S.settings.hours=h;saveSettings()}}
@@ -719,8 +751,8 @@ function addAction(p,a){p.actions=p.actions||[];if(!a.date&&!a.type)return false
 
 /* ================= Session d'appels ================= */
 function startSession(){const t=iso(today());
-  const due=[...S.P.values()].map(p=>({p,a:nextAction(p)})).filter(x=>x.a&&['Appel','Rappel','Relance'].includes(x.a.type)&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1).map(x=>x.p.id);
-  const fresh=[...S.P.values()].filter(p=>p.statut==='nouveau'&&!due.includes(p.id)&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))).map(p=>p.id);
+  const due=VP().map(p=>({p,a:nextAction(p)})).filter(x=>x.a&&['Appel','Rappel','Relance'].includes(x.a.type)&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1).map(x=>x.p.id);
+  const fresh=VP().filter(p=>p.statut==='nouveau'&&!due.includes(p.id)&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))).map(p=>p.id);
   const q=[...due,...fresh];if(!q.length){toast('Aucun appel à passer : pas de rappel dû ni de fiche « À qualifier » avec numéro.');return}
   S.session={q,i:0};if(S.mode!=='poste'){S.mode='poste'}openFiche(q[0],'ent');toast(`${q.length} appel${q.length>1?'s':''} dans la session`)}
 function nextInSession(){const s=S.session;if(!s)return;if(s.i>=s.q.length-1){S.session=null;toast('Session terminée, bravo 👏');renderNotesOnly();return}s.i++;S.call=null;openFiche(s.q[s.i],'ent')}
@@ -1054,7 +1086,7 @@ async function exportCsv(){
     ['Besoins',p=>(p.besoins?.sel||[]).join(' / ')],['Échéance',p=>p.besoins?.priorite],['Copieurs',p=>[p.impr?.nb,(p.impr?.marques||[]).join(' ')].filter(Boolean).join(' ')],['Fin contrat impression',p=>p.impr?.finContrat],['Postes',p=>p.it?.postes],['Prestataire IT',p=>p.it?.prestataire],['Opérateur',p=>(p.tel?.operateur||[]).join(' / ')],['Fin engagement télécom',p=>p.tel?.finEngagement],
     ['Prochaine action',p=>{const a=nextAction(p);return a?`${a.type} ${a.date} ${a.heure||''}`.trim():''}],['Qualification %',p=>qualif(p)],['Dernière note',p=>(p.journal||[]).at(-1)?.texte]];
   const q=v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
-  const csv='﻿'+[cols.map(c=>c[0]).join(';'),...[...S.P.values()].map(p=>cols.map(c=>q(c[1](p))).join(';'))].join('\r\n');
+  const csv='﻿'+[cols.map(c=>c[0]).join(';'),...VP().map(p=>cols.map(c=>q(c[1](p))).join(';'))].join('\r\n');
   downloadFile(`prospects-${iso(new Date())}.csv`,csv,'text/csv;charset=utf-8');toast('Export téléchargé')}
 function downloadFile(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
 function exportBackup(){downloadFile(`radar-sauvegarde-${iso(new Date())}.json`,JSON.stringify({version:1,exportedAt:new Date().toISOString(),prospects:[...S.P.values()]}),'application/json');toast('Sauvegarde téléchargée')}
@@ -1442,7 +1474,7 @@ async function exportXlsx(){
   const STC={nouveau:[C.grey,'FFEEF1F4'],contacte:[C.blue,C.blueSoft],rappel:[C.amber,C.amberSoft],rdv:[C.teal,C.tealSoft],rdv_fait:[C.teal,C.tealSoft],devis:['FF7B61C9','FFECE7F8'],gagne:[C.green,C.greenSoft],perdu:[C.red,C.redSoft],ko:[C.red,C.redSoft]};
   const font={name:'Calibri',size:11,color:{argb:C.ink}};
   const border={bottom:{style:'thin',color:{argb:C.line}}};
-  const P=[...S.P.values()].sort((a,b)=>displayName(a).localeCompare(displayName(b),'fr'));
+  const P=VP().sort((a,b)=>displayName(a).localeCompare(displayName(b),'fr'));
   const toDate=s=>{if(!s)return null;const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3])):null};
   const toMonth=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})$/);return m?new Date(Date.UTC(+m[1],+m[2]-1,1)):null};
   const nextRdv=p=>(p.actions||[]).filter(a=>!a.fait&&a.type==='RDV').sort((a,b)=>(a.date||'')<(b.date||'')?-1:1)[0];
@@ -1576,7 +1608,7 @@ async function overpassBbox(b){const q=`[out:json][timeout:25];nwr(${b.s.toFixed
       if(r.ok){const j=await r.json();return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}}catch{}
     if(k<1)await sleep(3000)}
   return null}
-async function phoneAll(){const list=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));if(!list.length)return;
+async function phoneAll(){const list=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));if(!list.length)return;
   const r=S.phoneRun={ids:list.map(p=>p.id),done:[],found:0,step:'Localisation des adresses…'};renderList();
   for(const p of list){if(!p.geo)await posOf(p)}
   const groups=new Map();for(const p of list){if(!p.geo){r.done.push(p.id);continue}const k=Math.floor(p.geo.lat/0.03)+'_'+Math.floor(p.geo.lon/0.03);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)}
@@ -1782,7 +1814,8 @@ document.addEventListener('input',e=>{const el=e.target;
   if(el.dataset.k&&!el.classList.contains('chip-in')){const f=defOf(el.dataset.def||el.dataset.k);let v=el.value;if(f&&f.t==='num')v=v===''?'':+v;if(f&&(f.t==='tel'||/siret|siren/.test(f.k)))v=v.replace(/[^\d+]/g,'');
     setField(el.dataset.k,v);if(el.dataset.k==='ent.nom'||el.dataset.k.startsWith('ent.'))renderList();
     if(el.dataset.k==='ent.siret'&&v.length===14&&!cur().ent.siren){cur().ent.siren=v.slice(0,9);const s=$('#f-ent-siren');if(s)s.value=fmtSiret(cur().ent.siren)}}});
-document.addEventListener('change',e=>{const el=e.target;if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
+document.addEventListener('change',e=>{const el=e.target;
+  if(el.id==='who-sel'){S.who=el.value;lsSet(LK()+'-who',S.who);if(S.sel&&!vis(cur()||{}))S.sel=null;S.filter='all';render();toast(el.value==='me'?'Tes fiches':el.value==='all'?'Fiches de toute l’équipe':'Fiches de '+memberName(el.value));return}if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
   if(el.id==='fimp-in'&&el.files[0]){const f=el.files[0];el.value='';fimpFile(f);return}
   if(el.dataset.fcol!=null&&S.fimp){const j=+el.dataset.fcol,k=el.value;if(k&&k!=='note')S.fimp.map=S.fimp.map.map((x,i)=>i!==j&&x===k?'':x);S.fimp.map[j]=k;renderLayer();return}
   if(el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren'){el.value=fmtSiret(el.value);renderFiche()}if(el.dataset.def==='c.decideur')$('#tabbody').innerHTML=tabBody(cur())});

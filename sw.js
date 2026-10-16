@@ -1,5 +1,5 @@
 /* Radar — fonctionnement hors ligne : l'appli s'ouvre même sans réseau. */
-const V = 'radar-v24';
+const V = 'radar-v25';
 const SHELL = ['./', 'index.html', 'pc.html', 'mobile.html', 'app.css', 'app.js', 'config.js',
   'manifest-pc.webmanifest', 'manifest-mobile.webmanifest',
   'pc-192.png', 'pc-512.png', 'mobile-192.png', 'mobile-512.png'];
