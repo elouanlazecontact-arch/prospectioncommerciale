@@ -1116,7 +1116,7 @@ function reToPatch(r,e){
   set['ent.tva']=(r.tva&&r.tva[0])||tvaOf(r.siren);
   const ec=e?.date_creation||'';if(ec){const y=ec.slice(0,4);set['ent.installe']=ec!==r.date_creation&&ec>(r.date_creation||'')?`depuis ${moisAn(ec)}`:`depuis la création (${y})`}
   const fin=r.finances&&Object.entries(r.finances).sort((a,b)=>b[0]-a[0])[0];
-  if(fin){const [y,f]=fin;if(f.ca!=null)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
+  if(fin){const [y,f]=fin;if(f.ca>0)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
   const idcc=(e?.liste_idcc||r.complements?.liste_idcc||[]).filter(x=>x&&x!=='9999');if(idcc.length)set['ent.convention']=idcc.map(c=>IDCC[c.replace(/^0+/,'')]?`${IDCC[c.replace(/^0+/,'')]} (IDCC ${c})`:`IDCC ${c}`).join(', ');
   const pm=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);if(pm.length)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
   const contacts=(r.dirigeants||[]).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom).slice(0,3)
