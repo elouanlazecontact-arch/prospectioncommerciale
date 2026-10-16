@@ -1684,13 +1684,14 @@ async function resolveEtab(x){const siren=x.sir.slice(0,9);
   const nb=r.nombre_etablissements_ouverts;
   if(!x.cp&&!x.ville&&!x.adresse)return{r,e:r.siege,how:`${nb} établissements et pas d’adresse dans le fichier : siège utilisé (ajoute une colonne adresse / code postal pour cibler l’établissement)`};
   const tries=[];if(x.cp)tries.push([r.nom_complet||nameOf(r),{code_postal:x.cp}]);if(x.adresse||x.ville)tries.push([[r.nom_complet||nameOf(r),x.adresse,x.cp,x.ville].filter(Boolean).join(' '),{}]);if(x.ville)tries.push([[r.nom_complet||nameOf(r),x.ville].join(' '),{}]);
-  let best=null,bs=-1,br=null;
+  let best=null,bs=-1,br=null,closed=null;
   for(const [q,o] of tries){
     const rr=(await reSearch(q,{...o,etabs:true,per_page:20}).catch(()=>[])).find(z=>z.siren===siren);if(!rr)continue;
-    for(const e of (rr.matching_etablissements||[])){if(e.etat_administratif==='F')continue;const a=addrOf(e);const s=(x.cp&&a.cp===x.cp?3:0)+(x.ville&&norm(a.ville).includes(norm(x.ville).split(/[\s-]/)[0])?1:0)+(x.adresse?sim(x.adresse,a.rue)*3+(String(x.adresse).match(/^\d+/)?.[0]===String(a.rue).match(/^\d+/)?.[0]?1:0):0);if(s>bs){bs=s;best=e;br=rr}}
+    for(const e of (rr.matching_etablissements||[])){if(e.etat_administratif==='F'){if(!closed&&(!x.cp||addrOf(e).cp===x.cp))closed=e;continue}const a=addrOf(e);const s=(x.cp&&a.cp===x.cp?3:0)+(x.ville&&norm(a.ville).includes(norm(x.ville).split(/[\s-]/)[0])?1:0)+(x.adresse?sim(x.adresse,a.rue)*3+(String(x.adresse).match(/^\d+/)?.[0]===String(a.rue).match(/^\d+/)?.[0]?1:0):0);if(s>bs){bs=s;best=e;br=rr}}
     if(bs>=4)break}
   if(best&&bs>=3)return{r:br,e:best};
   if(best)return{r:br,e:best,how:`établissement le plus proche de l’adresse du fichier (${addrOf(best).rue}, ${addrOf(best).cp}) : à vérifier`};
+  if(closed)return{r,e:r.siege,how:`l’établissement ${addrOf(closed).rue}, ${addrOf(closed).cp} est FERMÉ au registre : vérifie s’ils sont toujours là (siège utilisé en attendant)`};
   return{r,e:r.siege,how:`aucun établissement trouvé à l’adresse du fichier : siège utilisé`}}
 async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=fimpRows(st).map(r=>rowRec(st,r));const src=st.src||'tel';
   const run=st.run={done:0,total:recs.length,log:[],msg:'Démarrage…',made:[],upd:[],stop:false};renderLayer();const seen=new Set();let nok=0;
