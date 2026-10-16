@@ -247,6 +247,7 @@ textarea.in{height:auto;min-height:80px;padding:9px 11px;resize:vertical;line-he
 .cr-ag li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:13.5px}
 .cr-ag li .cr-sub{width:100%;margin:0}
 .cr .chips .chip{cursor:default}
+.calbtns{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;width:100%}
 /* Contacts */
 .contact{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
 .contact-h{display:flex;justify-content:space-between;align-items:center;gap:10px}

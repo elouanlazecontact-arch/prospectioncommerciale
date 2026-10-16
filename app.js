@@ -457,7 +457,7 @@ function suiviHtml(p){
   const na=S.newAct||{type:'Rappel',date:iso(bizDays(today(),1)),heure:'',note:''};
   return `<div style="display:flex;flex-direction:column;gap:14px">
    <div class="panel"><h3 class="sec-t">Actions à venir <span class="lbl">${acts.filter(a=>!a.fait).length} ouverte(s)</span></h3>
-    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
+    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}${a.type==='RDV'&&!a.fait&&a.date?calBtns(p,a):''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
     <div class="addact"><div class="chips">${ATYPES.map(t=>`<button class="chip" data-act="natype" data-v="${t}" aria-pressed="${na.type===t}">${t}</button>`).join('')}</div>
      <div class="f"><label for="na-date">Date</label><input class="in" type="date" id="na-date" value="${esc(na.date)}"></div>
      <div class="f"><label for="na-heure">Heure</label><input class="in" type="time" id="na-heure" value="${esc(na.heure)}"></div>
@@ -505,6 +505,8 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  return `<div class="modal" data-act="closem"><div><h2>Options</h2>
  ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b></span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
+ <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['live','Outlook.com'],['ics','Autre agenda (.ics)']].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
   <button class="btn btn-p" data-act="xlsx">Exporter en Excel</button>
@@ -585,7 +587,8 @@ const ACT={
  askq:b=>{S.ask.date=iso(bizDays(today(),+b.dataset.v));$('#ask-date').value=S.ask.date},
  asklieu:b=>{S.ask.lieu=b.dataset.v;$$('[data-act="asklieu"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))},
  askok:()=>{const o=OUT[S.mode].find(x=>x.k===S.ask.k);const date=$('#ask-date').value,heure=$('#ask-heure').value;const lieu=S.ask.lieu;S.ask=null;
-  commitNote(cur(),$('#note-in')?.value.trim()||'',o,{date,heure,lieu:o.k==='rdv'?lieu:''})},
+  const pp=cur();commitNote(pp,$('#note-in')?.value.trim()||'',o,{date,heure,lieu:o.k==='rdv'?lieu:''});
+  if(o.k==='rdv'&&S.settings.calAuto!==false){const a=(pp.actions||[]).filter(x=>x.type==='RDV'&&!x.fait&&x.date===date).slice(-1)[0];if(a)addToCal(pp,a)}},
  askno:()=>{S.ask=null;renderNotesOnly()},
  copyph:b=>copy(String(b.dataset.v).replace(/\s/g,''),'Numéro copié'),
  callstart:()=>{S.call={id:S.sel,t0:Date.now()};renderNotesOnly();tick()},
@@ -599,7 +602,9 @@ const ACT={
  del:()=>{S.confirmDel=true;renderFiche()},del0:()=>{S.confirmDel=false;renderFiche()},
  del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);open(p.id)})},
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
- closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;renderLayer()},
+ calpick:b=>{S.settings.cal=b.dataset.v;saveSettings();renderLayer()},
+ cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;renderLayer()},
  export:()=>exportCsv(),backup:()=>exportBackup(),logout:()=>logout(),install:async()=>{const ev=S.installEvt;if(!ev)return;ev.prompt();await ev.userChoice.catch(()=>{});S.installEvt=null;S.menu=false;renderLayer()},
  authmode:b=>{S.authMode=b.dataset.v;showAuth()},
  eitog:()=>{const a=A();a.ei=!a.ei;lsSet('radar-ei',a.ei);filterAround();renderAround()},
@@ -1169,7 +1174,7 @@ function crData(p){
   const besoins={liste:b.sel||[],echeance:b.priorite||'',declencheurs:b.declencheur||[],budget:b.budget||'',details,notes:b.notes||''};
   const t=iso(today());
   const agenda=(p.actions||[]).filter(a=>!a.fait&&['RDV','Rappel','Appel','Relance','Visite'].includes(a.type)).sort((x,y)=>((x.date||'9')+(x.heure||''))<((y.date||'9')+(y.heure||''))?-1:1)
-    .map(a=>({type:a.type,quand:(a.date?fmtDate(a.date):'Sans date')+(a.heure?' à '+a.heure:''),retard:a.date&&a.date<t,note:a.note||''}));
+    .map(a=>({id:a.id,date:a.date,type:a.type,quand:(a.date?fmtDate(a.date):'Sans date')+(a.heure?' à '+a.heure:''),retard:a.date&&a.date<t,note:a.note||''}));
   const derniere=(p.journal||[]).slice().sort((x,y)=>x.date<y.date?1:-1)[0];
   return{ent,contacts,besoins,agenda,derniere,statut:ST[p.statut]?.l||'',temp:TEMPS.find(x=>x.k===p.temperature)?.l||'',canal:canalOf(p)}}
 function crText(p){const d=crData(p);const L=[];
@@ -1191,7 +1196,7 @@ function crHtml(p){const d=crData(p);
    ${sec('Besoins',(d.besoins.liste.length?`<div class="chips">${d.besoins.liste.map(x=>`<span class="chip" aria-pressed="true">${esc(x)}</span>`).join('')}</div>`:'')+
       `<dl>${d.besoins.echeance?`<dt>Échéance</dt><dd>${esc(d.besoins.echeance)}</dd>`:''}${d.besoins.declencheurs.length?`<dt>Déclencheurs</dt><dd>${esc(d.besoins.declencheurs.join(', '))}</dd>`:''}${d.besoins.details.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}${d.besoins.budget?`<dt>Budget</dt><dd>${esc(d.besoins.budget)}</dd>`:''}</dl>`+
       (d.besoins.notes?`<p class="cr-sub">${esc(d.besoins.notes)}</p>`:'')+(!d.besoins.liste.length&&!d.besoins.details.length?'<p class="cr-empty">Aucun besoin identifié pour l’instant : écris-les dans tes notes, ils se rangent ici.</p>':''))}
-   ${sec('Rappels et RDV',d.agenda.length?`<ul class="cr-ag">${d.agenda.map(a=>`<li${a.retard?' class="late"':''}><span class="atype">${esc(a.type)}</span><b>${esc(a.quand)}</b>${a.retard?' <span class="due late">en retard</span>':''}${a.note?`<span class="cr-sub">${esc(a.note)}</span>`:''}</li>`).join('')}</ul>`:'<p class="cr-empty">Rien de planifié.</p>')}
+   ${sec('Rappels et RDV',d.agenda.length?`<ul class="cr-ag">${d.agenda.map(a=>`<li${a.retard?' class="late"':''}><span class="atype">${esc(a.type)}</span><b>${esc(a.quand)}</b>${a.retard?' <span class="due late">en retard</span>':''}${a.note?`<span class="cr-sub">${esc(a.note)}</span>`:''}${a.type==='RDV'&&a.date?calBtns(p,a):''}</li>`).join('')}</ul>`:'<p class="cr-empty">Rien de planifié.</p>')}
   </div>`}
 
 /* ================= Export Excel ================= */
@@ -1268,6 +1273,21 @@ async function exportXlsx(){
   const buf=await wb.xlsx.writeBuffer();
   downloadFile(`Prospection-DataLinks-${iso(new Date())}.xlsx`,buf,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');toast('Fichier Excel téléchargé')}
 
+/* ================= Agenda Outlook ================= */
+function rdvInfo(p,a){const c=(p.contacts||[]).find(x=>x.decideur==='Oui')||p.contacts?.[0]||{};const lieuTxt=/visio/i.test(a.note||'')?'Visio (Teams)':/t[ée]l[ée]phone/i.test(a.note||'')?'Téléphone : '+fmtTel(c.tel||c.mobile||p.ent?.tel||''):[p.ent?.adresse,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const h=a.heure||'10:00';const [H,M]=h.split(':').map(Number);const end=`${pad((H+1)%24)}:${pad(M)}`;
+  const who=[c.civ,c.prenom,c.nom].filter(Boolean).join(' ');
+  return{title:`RDV ${displayName(p)}${who?' — '+who:''}`,start:`${a.date}T${pad(H)}:${pad(M)}:00`,end:`${a.date}T${end}:00`,lieu:lieuTxt,body:crText(p)+'\n\n— Créé depuis Radar (prospection Data Links)'}}
+function outlookUrl(i,host){const u=new URL(`https://${host}/calendar/0/deeplink/compose`);u.searchParams.set('path','/calendar/action/compose');u.searchParams.set('rru','addevent');
+  u.searchParams.set('subject',i.title);u.searchParams.set('startdt',i.start);u.searchParams.set('enddt',i.end);if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.body.slice(0,1800));return u.toString()}
+function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/([,;])/g,'\\$1');
+  return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
+    `DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`,`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).join('\r\n')}
+function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';const i=rdvInfo(p,a);
+  if(mode==='ics'){downloadFile(`RDV-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast('Fichier agenda téléchargé : ouvre-le pour ajouter le RDV');}
+  else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast('Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Outlook » du RDV.');else toast('Outlook s\u2019ouvre avec le RDV prérempli : clique Enregistrer')}
+  a.cal=true;touch(p)}
+function calBtns(p,a){return `<span class="calbtns"><button class="btn btn-g btn-s" data-act="cal" data-id="${p.id}" data-a="${a.id}">📅 ${a.cal?'Outlook ✓':'Ajouter à Outlook'}</button><button class="btn btn-q btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}" title="Fichier pour tout agenda">.ics</button></span>`}
 /* ================= Événements ================= */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==='A'&&b.dataset.act!=='closem')return;f(b,e)}});
 document.addEventListener('input',e=>{const el=e.target;
