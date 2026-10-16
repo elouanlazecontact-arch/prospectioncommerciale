@@ -223,6 +223,13 @@ textarea.in{height:auto;min-height:80px;padding:9px 11px;resize:vertical;line-he
 .row.picking{grid-template-columns:22px minmax(0,1fr) auto}
 .pbox{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--ink-3);display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;grid-row:1}
 .row.picking[aria-current="true"] .pbox{background:var(--accent);border-color:var(--accent)}
+/* PC (souris) : filtres sur plusieurs lignes, barres de défilement visibles */
+#app.poste .filters{flex-wrap:wrap;overflow:visible}
+@media (pointer:fine){
+  .tabs,.filters{scrollbar-width:thin}
+  .tabs::-webkit-scrollbar,.filters::-webkit-scrollbar{display:block;height:6px}
+  .tabs::-webkit-scrollbar-thumb,.filters::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+}
 /* Contacts */
 .contact{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
 .contact-h{display:flex;justify-content:space-between;align-items:center;gap:10px}

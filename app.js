@@ -1178,6 +1178,8 @@ window.addEventListener('pagehide',saveLocal);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();S.installEvt=e;const b=$('#install-btn');if(b)b.hidden=false});
 window.addEventListener('appinstalled',()=>{S.installEvt=null;const b=$('#install-btn');if(b)b.hidden=true;toast('Application installée')});
 
+/* Molette de la souris : défilement horizontal des onglets et filtres */
+document.addEventListener('wheel',e=>{const el=e.target.closest?.('.tabs,.filters');if(!el||el.scrollWidth<=el.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;el.scrollLeft+=e.deltaY;e.preventDefault()},{passive:false});
 /* ================= Démarrage ================= */
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
