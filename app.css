@@ -144,6 +144,7 @@ main{flex:1;min-height:0;display:flex}
 .temp button[data-v="chaud"][aria-pressed="true"]{background:var(--hot);color:#fff}
 .warnbox{display:flex;gap:10px;align-items:flex-start;background:var(--warm-soft);color:var(--ink);border-radius:var(--r-s);padding:9px 12px;font-size:13px}
 .warnbox b{color:var(--warn)}
+.warnbox .btn{margin-left:auto;flex:none}
 
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;position:sticky;top:-18px;background:var(--bg);z-index:3;padding-top:6px}
 .tabs::-webkit-scrollbar{display:none}

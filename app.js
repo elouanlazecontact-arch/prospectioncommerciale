@@ -178,6 +178,31 @@ let saveT=null;const saveLocalSoon=()=>{clearTimeout(saveT);saveT=setTimeout(sav
 function markDirty(id){S.queue.add(id);saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800);renderStore()}
 function touch(p){p.updatedAt=Date.now();markDirty(p.id)}
 function removeProspect(id){S.P.delete(id);markDirty(id)}
+/* ---------- Doublons de SIRET / SIREN ---------- */
+const sirOf=p=>({siret:/^\d{14}$/.test(p.ent?.siret||'')?p.ent.siret:'',siren:p.ent?.siren||(p.ent?.siret||'').slice(0,9)||p.rne?.siren||''});
+function dupOf(num,exceptId){num=String(num||'').replace(/\D/g,'');if(num.length!==9&&num.length!==14)return null;
+  for(const p of S.P.values()){if(p.id===exceptId)continue;const o=sirOf(p);
+    if(num.length===14){if(o.siret===num||(!o.siret&&o.siren===num.slice(0,9)))return p}
+    else if(o.siren===num)return p}
+  return null}
+function dupGroups(){const m=new Map();
+  for(const p of S.P.values()){const o=sirOf(p);const k=o.siret||(o.siren?'n'+o.siren:'');if(!k)continue;if(!m.has(k))m.set(k,[]);m.get(k).push(p)}
+  // un SIREN seul rejoint le SIRET du même SIREN s'il n'y en a qu'un
+  for(const [k,ps] of [...m]){if(k[0]!=='n')continue;const siren=k.slice(1);const sk=[...m.keys()].filter(x=>x[0]!=='n'&&x.startsWith(siren));if(sk.length===1){m.get(sk[0]).push(...ps);m.delete(k)}}
+  return[...m.values()].filter(g=>g.length>1)}
+const richness=p=>(p.journal?.length||0)*3+(p.actions?.length||0)*3+(p.contacts?.length||0)*2+qualif(p)/10+(p.statut!=='nouveau'?5:0);
+function mergeInto(k,o){
+  for(const sec of ['ent','besoins','cyber','impr','it','tel']){k[sec]=k[sec]||{};for(const [f,v] of Object.entries(o[sec]||{})){const cur=k[sec][f];if(cur==null||cur===''||(Array.isArray(cur)&&!cur.length))k[sec][f]=structuredClone(v);else if(Array.isArray(cur)&&Array.isArray(v))k[sec][f]=[...new Set([...cur,...v])]}}
+  const key=c=>norm([c.prenom,c.nom,c.tel,c.mobile,c.email].filter(Boolean).join(' '));const have=new Set((k.contacts||[]).map(key));
+  for(const c of o.contacts||[])if(!have.has(key(c))){k.contacts.push(structuredClone(c));have.add(key(c))}
+  const ids=new Set((k.actions||[]).map(a=>a.id));for(const a of o.actions||[])if(!ids.has(a.id))k.actions.push(structuredClone(a));
+  const jids=new Set((k.journal||[]).map(j=>j.id));for(const j of o.journal||[])if(!jids.has(j.id))k.journal.push(structuredClone(j));
+  if(!k.temperature&&o.temperature)k.temperature=o.temperature;if(k.statut==='nouveau'&&o.statut!=='nouveau')k.statut=o.statut;
+  if(!k.geo&&o.geo)k.geo=o.geo;k.createdAt=Math.min(k.createdAt||Infinity,o.createdAt||Infinity)}
+function mergeDups(){const gs=dupGroups();if(!gs.length)return toast('Aucun doublon de SIRET');const backup=[];let n=0;
+  for(const g of gs){g.sort((a,b)=>richness(b)-richness(a)||(a.createdAt||0)-(b.createdAt||0));const k=g[0];backup.push(structuredClone(k));
+    for(const o of g.slice(1)){backup.push(o);mergeInto(k,o);removeProspect(o.id);if(S.sel===o.id)S.sel=k.id;n++}touch(k)}
+  render();toast(`${n} doublon${n>1?'s':''} fusionné${n>1?'s':''} (aucune info perdue)`,()=>{for(const p of backup){S.P.set(p.id,p);touch(p)}render()})}
 function saveSettings(){lsSet(LK()+'-settings',S.settings);if(SB&&USER){S.settingsDirty=true;markDirty('settings-'+USER.id)}}
 async function pushQueue(){
   if(!SB||!USER||!navigator.onLine||S.pushing){renderStore();return}
@@ -281,7 +306,7 @@ function filtered(){const t=iso(today());
   return [...S.P.values()].filter(p=>matches(p,S.q)).filter(p=>{
     if(S.filter==='all')return true;if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
     if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
-   .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:b.updatedAt-a.updatedAt})}
+   .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:(a.createdAt||0)-(b.createdAt||0)})}
 function allActions(){const out=[];for(const p of S.P.values())for(const a of (p.actions||[]))out.push({p,a});return out}
 function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;return [...S.P.values()].filter(p=>p.rdvPrisLe&&p.rdvPrisLe.startsWith(m)).length}
 function todayJournal(c){const t=iso(today());let n=0;for(const p of S.P.values())for(const j of (p.journal||[]))if(j.date?.startsWith(t)&&j.canal===c&&j.issue)n++;return n}
@@ -361,7 +386,7 @@ function renderList(){
   const el=$('#list');if(!el)return;const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div style="display:flex;gap:6px"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="flex:1">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" style="flex:1">+ SIRET / SIREN</button></div>
-   ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+   ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
@@ -386,6 +411,7 @@ function renderFiche(){
     <div class="fbar"><div class="stsel">${STATUTS.map(s=>`<button data-act="statut" data-v="${s.k}" aria-pressed="${p.statut===s.k}" ${p.statut===s.k?`class="st-${s.k}"`:''}>${esc(s.l)}</button>`).join('')}</div>
      <div class="temp" role="group" aria-label="Température">${TEMPS.map(t=>`<button data-act="temp" data-v="${t.k}" aria-pressed="${p.temperature===t.k}">${t.l}</button>`).join('')}</div></div>
     ${ex?`<div class="warnbox"><b>Hors cible ?</b><span>${esc(ex)}</span></div>`:''}
+    ${(()=>{const d=dupOf(p.ent?.siret||p.ent?.siren,p.id);return d?`<div class="warnbox"><b>Doublon</b><span>Ce SIRET est déjà dans la fiche « ${esc(displayName(d))} ».</span><button class="btn btn-p btn-s" data-act="dupopen">Fusionner dans la fiche existante</button></div>`:''})()}
     ${phoneBox(p)}
    </div>
    <div class="tabs" role="tablist" id="tabs">${tabsHtml(p)}</div>
@@ -602,7 +628,8 @@ const ACT={
  sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
  copy:()=>copy(crText(cur()),'Compte rendu copié'),
  findphone:()=>{const p=cur();if(p)findPhoneUI(p)},
- phoneall:()=>phoneAll(),
+ phoneall:()=>phoneAll(),mergedups:()=>mergeDups(),
+ dupopen:()=>{const p=cur();const d=p&&dupOf(p.ent?.siret||p.ent?.siren,p.id);if(!p||!d)return;mergeInto(d,p);removeProspect(p.id);touch(d);S.id=null;open(d.id,'ent');render();toast('Fiches fusionnées dans la fiche existante')},
  usealt:()=>{const p=cur();if(!p)return;const old=p.ent.tel;p.ent.tel=p.ent.telAlt;p.ent.telAlt=old||'';if(p.ent.telLookup)p.ent.telLookup.status='ok';touch(p);renderFiche();renderNotesOnly()},
  importopen:()=>{S.menu=false;S.imp=S.imp&&S.imp.busy?S.imp:{};S.importing=true;renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  impsrc:b=>{const st=S.imp=S.imp||{};st.text=$('#imp-text')?.value||st.text;st.src=b.dataset.v;renderLayer()},
@@ -1037,7 +1064,8 @@ async function identify(p,raw){
     const cp=(text.match(/\b(\d{5})\b/)||[])[1]||'';return nameSearch(p,text.replace(/\b\d{5}\b/,'').trim(),cp)
   }catch(e){setId(p,{msg:e?.fr||'Recherche impossible pour l’instant.'})}}
 function idDone(p,{r,e,ch,before}){
-  if($('#ident-in'))$('#ident-in').value='';
+  if($('#ident-in'))$('#ident-in').value='';const dup=dupOf(p.ent?.siret||p.ent?.siren,p.id);
+  if(dup){renderFiche();renderList();return setId(p,{dup:dup.id,msg:`⚠ Ce SIRET est déjà en fiche : « ${displayName(dup)} ». Fusionne pour éviter le doublon (rien n’est perdu).`})}
   setId(p,{msg:`${nameOf(r)} identifiée${p.ent?.siret?' · SIRET '+fmtSiret(p.ent.siret):''}${r.etat_administratif==='C'?' · ATTENTION : entreprise fermée':''}. ${ch.length} champ${ch.length>1?'s':''} rempli${ch.length>1?'s':''}.`});
   renderFiche();renderList();toast(`${nameOf(r)} identifiée`,()=>{S.P.set(p.id,before);touch(before);S.id=null;renderFiche();renderList()});
   if(!p.ent?.tel)findPhoneUI(p)}
@@ -1116,11 +1144,11 @@ async function aroundRun(){const a=A();if(!a.pos)return;a.busy=true;a.msg=`Reche
     a.msg=a.res.length?`${a.res.length} entreprise${a.res.length>1?'s':''} à moins de ${a.radius} m${hid?` (${hid} holding${hid>1?'s':''} / SCI masquée${hid>1?'s':''})`:''}.`:`Aucune entreprise de ces types à moins de ${a.radius} m. Élargis le rayon ou coche d’autres types.`}
   catch(e){a.msg=e?.fr||'Recherche impossible pour l’instant.'}a.busy=false;renderAround()}
 function aroundCreate(){const a=A();const items=a.res.filter(x=>a.sel.has(x.id));if(!items.length)return;const ids=[];
-  for(const x of items){const p=blank('terrain');applyPatch(p,reToPatch(x.r,x.e),true);p.rne={status:'ok',siren:x.siren,at:iso(today()),actif:true};p.geo={lat:x.lat,lon:x.lon};
+  let skip=0;for(const [i,x] of items.entries()){if(dupOf(x.e?.siret||x.siren)){skip++;continue}const p=blank('terrain');p.createdAt=Date.now()+i;applyPatch(p,reToPatch(x.r,x.e),true);p.rne={status:'ok',siren:x.siren,at:iso(today()),actif:true};p.geo={lat:x.lat,lon:x.lon};
     p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Repéré autour de moi',texte:`À ${Math.round(x.dist)} m de ${a.pos?.label||'ma position'}${x.naf?' · '+nafLabel(x.naf):''}`});
     p.actions.push({id:rid(),type:'Visite',date:iso(today()),heure:'',note:'Passer sur place',fait:false,createdAt:Date.now()});
     S.P.set(p.id,p);touch(p);ids.push(p.id)}
-  a.batch=ids;S.lastBatch=ids;filterAround();a.msg=`${ids.length} fiche${ids.length>1?'s':''} créée${ids.length>1?'s':''}, déjà identifiée${ids.length>1?'s':''} au registre (SIRET, adresse, dirigeants).`;
+  a.batch=ids;S.lastBatch=ids;filterAround();a.msg=`${ids.length} fiche${ids.length>1?'s':''} créée${ids.length>1?'s':''}, déjà identifiée${ids.length>1?'s':''} au registre (SIRET, adresse, dirigeants).${skip?` ${skip} déjà en fiche, ignorée${skip>1?'s':''}.`:''}`;
   renderAround();toast(`${ids.length} fiches créées`);
   (async()=>{try{const pool=await overpassPhones(a.pos,a.radius+120);let n=0;for(const id of ids){const p=S.P.get(id);if(p&&!p.ent?.tel){const r=await findPhone(p,{pool});if(r.status==='ok')n++}}
     a.msg+=` ${n} numéro${n>1?'s':''} de standard trouvé${n>1?'s':''}.`;if(S.view==='around')renderAround();renderSoft(false)}catch{}})()}
@@ -1383,12 +1411,13 @@ async function runImport(){const txt=$('#imp-text')?.value||'';const st=S.imp=S.
   if(!nums.length){st.msg='Aucun SIRET (14 chiffres) ni SIREN (9 chiffres) reconnu.';renderLayer();return}
   st.busy=true;st.log=[];st.msg=`Création de ${nums.length} fiche${nums.length>1?'s':''}…`;renderLayer();const src=st.src||(S.mode==='terrain'?'terrain':'tel');const made=[];
   for(const [i,n] of nums.entries()){
-    const dup=[...S.P.values()].find(p=>n.length===14?p.ent?.siret===n:(p.ent?.siren===n));
+    const dup=dupOf(n);
     if(dup){st.log.push({ok:false,t:`${fmtSiret(n)} : déjà en fiche (${displayName(dup)})`});continue}
     try{const res=await reSearch(n);const r=res.find(x=>x.siren===n.slice(0,9))||res[0];if(!r)throw{fr:'introuvable au registre'};
       const p=blank(src);applyRe(p,r,n.length===14?{siret:n,force:true}:{});const e=pickEtab(r,{siret:n.length===14?n:''});if(e?.latitude)p.geo={lat:+e.latitude,lon:+e.longitude};
       p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Créée depuis un SIRET/SIREN',texte:fmtSiret(n)});
-      S.P.set(p.id,p);touch(p);made.push(p);st.log.push({ok:true,t:`${displayName(p)} · ${fmtSiret(p.ent.siret||n)}`})}
+      const d2=dupOf(p.ent.siret||n);if(d2){st.log.push({ok:false,t:`${fmtSiret(n)} : déjà en fiche (${displayName(d2)})`});continue}
+      p.createdAt=Date.now()+i;S.P.set(p.id,p);touch(p);made.push(p);st.log.push({ok:true,t:`${displayName(p)} · ${fmtSiret(p.ent.siret||n)}`})}
     catch(e){st.log.push({ok:false,t:`${fmtSiret(n)} : ${e?.fr||'introuvable au registre'}`})}
     st.msg=`${i+1}/${nums.length} traités…`;if(S.imp===st)renderLayer()}
   S.lastBatch=made.map(p=>p.id);renderSoft(false);
