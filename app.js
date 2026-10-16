@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=25;
+const APP_V=26;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -351,7 +351,8 @@ function teamHtml(){const d=new Date();const mo=`${d.getFullYear()}-${pad(d.getM
       <button class="btn btn-q btn-s" data-act="whoset" data-v="${m.id===USER.id?'me':m.id}">Voir</button>
       ${S.role==='owner'&&m.id!==USER.id&&adm?.role!=='owner'?`<button class="btn btn-g btn-s" data-act="admtoggle" data-v="${m.id}">${adm?'Retirer admin':'Rendre admin'}</button>`:''}</div>`}).join('');
   return `<div class="f"><span class="lab">Équipe (accès admin)</span><div class="team">${rows||'<span class="cr-sub">Tes collègues apparaissent ici dès leur première connexion.</span>'}</div></div>`}
-function renderWho(){const w=$('#who-wrap');if(!w)return;if(!isAdmin()){w.innerHTML='';return}
+function renderWho(){for(const nav of $$('nav')){let b=nav.querySelector('[data-v="team"]');if(isAdmin()&&!b){const ag=nav.querySelector('[data-v="agenda"]');if(ag){b=ag.cloneNode(true);b.dataset.v='team';const svg=b.querySelector('svg');b.innerHTML=(svg?'<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="14" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2 16c.5-3 2.5-4.5 5-4.5s4.5 1.5 5 4.5M12 12.2c2.5-.4 4.6.8 5.2 3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>':'')+'Équipe';ag.after(b)}}else if(!isAdmin()&&b)b.remove()}
+  const w=$('#who-wrap');if(!w)return;if(!isAdmin()){w.innerHTML='';return}
   const opts=[['me','Mes fiches'],['all','Toute l’équipe'],...(S.team||[]).filter(m=>m.id!==USER?.id).map(m=>[m.id,m.nom||m.email])];
   w.innerHTML=`<label class="who"><span>👁</span><select id="who-sel" aria-label="Fiches affichées">${opts.map(([v,l])=>`<option value="${v}" ${S.who===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`}
 function render(){
@@ -361,17 +362,52 @@ function render(){
   const m=$('#main');
   if(S.view==='today')m.innerHTML=`<div class="today"><div class="today-in" id="today"></div></div>`,renderToday();
   else if(S.view==='agenda')m.innerHTML=`<div class="today"><div class="today-in" id="agenda"></div></div>`,renderAgenda();
+  else if(S.view==='team')m.innerHTML=`<div class="today"><div class="today-in wide" id="team"></div></div>`,renderTeam();
   else if(S.view==='around'){m.innerHTML=`<div class="today"><div class="today-in" id="around"></div></div>`;renderAround();if(!S.gpsTried&&!A().pos&&S.mode==='terrain'){S.gpsTried=true;setTimeout(tryGps,150)}}
   else if(S.mode==='poste'){m.innerHTML=`<div class="cols"><aside class="col col-list" id="list"></aside><section class="col col-fiche" id="fiche"></section><aside class="col col-notes" id="notes"></aside></div>`;renderList();renderFiche();renderNotesOnly()}
   else{ if(S.sel&&cur()){m.innerHTML=`<section class="mono-col col-fiche" id="fiche"></section>`;renderFiche()}else{m.innerHTML=`<div class="mono-col col-list" id="list"></div>`;renderList()} }
   renderLayer();
 }
 function renderSoft(selChanged){
-  if(S.view==='today')renderToday();else if(S.view==='agenda')renderAgenda();else if(S.view==='around'){}else{renderList();
+  if(S.view==='today')renderToday();else if(S.view==='agenda')renderAgenda();else if(S.view==='team')renderTeam();else if(S.view==='around'){}else{renderList();
     if(selChanged&&!$('#fiche')?.contains(document.activeElement))renderFiche();
     if(S.sel&&!cur()){S.sel=null;render()}}
 }
 
+
+/* ================= Équipe (admin) : stats par collaborateur ================= */
+const NOREACH=/r[ée]pondeur|nrp|faux num|barrage/i;
+function memberStats(id,per){const now=new Date();const t=iso(now);const wk=iso(addDays(now,-6));const mo=t.slice(0,7);
+  const from=per==='jour'?t:per==='semaine'?wk:mo+'-01';
+  const ps=[...S.P.values()].filter(p=>(p._owner||USER?.id)===id);let calls=0,reach=0,visits=0,last='';
+  for(const p of ps)for(const j of p.journal||[]){const d=String(j.date||'').slice(0,10);if(j.date>last)last=j.date;if(d<from)continue;if(j.canal==='tel'){calls++;if(!NOREACH.test(j.issue||''))reach++}else if(j.canal==='terrain')visits++}
+  const rdv=ps.filter(p=>p.rdvPrisLe&&iso(new Date(p.rdvPrisLe))>=from).length;
+  const created=ps.filter(p=>p.createdAt&&iso(new Date(p.createdAt))>=from).length;
+  const late=ps.filter(p=>{const a=nextAction(p);return a&&a.date&&a.date<t}).length;
+  const due=ps.filter(p=>{const a=nextAction(p);return a&&a.date===t}).length;
+  const chauds=ps.filter(p=>p.temperature==='chaud'&&!['gagne','perdu','ko'].includes(p.statut)).length;
+  const devis=ps.filter(p=>p.statut==='devis').length,signes=ps.filter(p=>p.statut==='gagne').length;
+  const upd=Math.max(0,...ps.map(p=>p.updatedAt||0));const lastAct=last||(upd?new Date(upd).toISOString():'');
+  return{id,fiches:ps.length,calls,reach,visits,rdv,created,late,due,chauds,devis,signes,lastAct,conv:calls?Math.round(rdv/calls*100):null}}
+const sinceTxt=s=>{if(!s)return'—';const d=new Date(s.length<=19&&!/Z$/.test(s)?s:s);const m=Math.round((Date.now()-d)/6e4);if(m<60)return m<=1?'à l’instant':`il y a ${m} min`;const h=Math.round(m/60);if(h<24)return`il y a ${h} h`;const j=Math.round(h/24);return j===1?'hier':`il y a ${j} j`};
+function renderTeam(){const el=$('#team');if(!el)return;if(!isAdmin()){el.innerHTML='<div class="empty">Réservé aux admins.</div>';return}
+  const per=S.teamPer||'semaine';const members=(S.team&&S.team.length?S.team:[{id:USER?.id,email:USER?.email||'Moi'}]);
+  const rows=members.map(m=>({m,s:memberStats(m.id,per)})).sort((a,b)=>b.s.rdv-a.s.rdv||b.s.calls-a.s.calls);
+  const tot=rows.reduce((t,{s})=>{for(const k of ['fiches','calls','reach','visits','rdv','created','late','due','chauds','devis','signes'])t[k]=(t[k]||0)+s[k];return t},{});
+  const max=Math.max(1,...rows.map(r=>r.s.calls));const obj=S.settings.objectif||20;
+  const adm=id=>(S.admins||[]).find(a=>a.user_id===id);
+  el.innerHTML=`<div class="team-h"><div><h1>Équipe</h1><p>${members.length} collaborateur${members.length>1?'s':''} · statistiques ${per==='jour'?'du jour':per==='semaine'?'des 7 derniers jours':'du mois'}</p></div>
+    <div class="chips">${[['jour','Aujourd’hui'],['semaine','7 jours'],['mois','Mois']].map(([k,l])=>`<button class="chip" data-act="teamper" data-v="${k}" aria-pressed="${per===k}">${l}</button>`).join('')}<button class="btn btn-g btn-s" data-act="teamrefresh">Actualiser</button></div></div>
+   <div class="team-kpi"><div><b>${tot.calls||0}</b><span>appels</span></div><div><b>${tot.reach||0}</b><span>décrochés</span></div><div><b>${tot.rdv||0}</b><span>RDV pris</span></div><div><b>${tot.calls?Math.round((tot.rdv||0)/tot.calls*100)+' %':'—'}</b><span>appels → RDV</span></div><div><b>${tot.late||0}</b><span>rappels en retard</span></div></div>
+   <div class="team-tbl"><table><thead><tr><th>Collaborateur</th><th>Appels</th><th>Décrochés</th><th>Visites</th><th>RDV pris</th><th>Appels → RDV</th><th>RDV ce mois / objectif</th><th>Chauds</th><th>Devis · signés</th><th>À faire</th><th>Fiches</th><th>Activité</th></tr></thead><tbody>
+   ${rows.map(({m,s})=>{const mo=memberStats(m.id,'mois').rdv;const pct=Math.min(100,Math.round(mo/obj*100));const a=adm(m.id);
+     return `<tr class="trow" data-act="whoset" data-v="${m.id===USER?.id?'me':m.id}" title="Voir ses fiches"><td><b>${esc(m.nom||m.email.split('@')[0])}${m.id===USER?.id?' (moi)':''}</b><small>${esc(m.email)}${a?` · ${a.role==='owner'?'admin principal':'admin'}`:''}</small></td>
+      <td><div class="tbar"><i style="width:${Math.round(s.calls/max*100)}%"></i><span>${s.calls}</span></div></td><td>${s.reach}</td><td>${s.visits}</td><td><b class="big">${s.rdv}</b></td><td>${s.conv==null?'—':s.conv+' %'}</td>
+      <td><div class="tbar obj"><i style="width:${pct}%"></i><span>${mo} / ${obj}</span></div></td><td>${s.chauds}</td><td>${s.devis} · ${s.signes}</td>
+      <td>${s.late?`<span class="late">${s.late} en retard</span>`:''}${s.due?`<span class="due-t">${s.due} aujourd’hui</span>`:''}${!s.late&&!s.due?'—':''}</td><td>${s.fiches}${s.created?`<small>+${s.created}</small>`:''}</td><td>${sinceTxt(s.lastAct)}</td></tr>`}).join('')}
+   </tbody></table></div>
+   ${members.length<2?`<p class="hint">Tes collègues apparaîtront ici dès qu’ils auront créé leur compte Radar et se seront connectés une fois. Envoie-leur l’adresse de l’appli.</p>`:''}
+   <p class="hint">Clique sur un collaborateur pour ouvrir ses fiches. « Décrochés » = appels hors répondeur, barrage et faux numéro. « Appels → RDV » = RDV pris ÷ appels sur la période.</p>`}
 /* ================= Aujourd'hui ================= */
 function renderToday(){
   const el=$('#today');if(!el)return;
@@ -712,6 +748,7 @@ const ACT={
  del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);openFiche(p.id)})},
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
  calpick:b=>{S.settings.cal=b.dataset.v;saveSettings();renderLayer()},
+ teamper:b=>{S.teamPer=b.dataset.v;renderTeam()},teamrefresh:async()=>{await loadRole();await pullAll();if(S.view==='team')renderTeam();toast('Statistiques à jour')},
  whoset:b=>{S.who=b.dataset.v;lsSet(LK()+'-who',S.who);S.menu=false;S.sel=null;S.filter='all';S.view='list';renderLayer();render()},
  admtoggle:async b=>{if(S.role!=='owner')return;const id=b.dataset.v;const adm=(S.admins||[]).find(a=>a.user_id===id);b.disabled=true;
   const {error}=adm?await SB.from('admins').delete().eq('user_id',id):await SB.from('admins').insert({user_id:id,role:'admin'});
