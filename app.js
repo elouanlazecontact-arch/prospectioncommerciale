@@ -398,7 +398,7 @@ function renderAgenda(){
 
 /* ================= Liste ================= */
 function renderList(){
-  const el=$('#list');if(!el)return;const L=filtered();
+  const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div class="lh-acts"><button class="btn btn-loc btn-s" data-act="view" data-v="around">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen">+ SIRET / SIREN</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer un fichier</button></div>
    ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
@@ -534,6 +534,7 @@ function notesHtml(p){
   return `<div class="np">
    ${ses?`<div class="sess"><span>Session d'appels · <b>${ses.i+1}/${ses.q.length}</b></span><span style="display:flex;gap:6px"><button class="btn btn-s" data-act="snext">Suivant <kbd style="background:transparent;border-color:currentColor;color:inherit">J</kbd></button><button class="btn btn-q btn-s" style="color:inherit" data-act="sstop">Arrêter</button></span></div>`:''}
    ${p.ent?.tel?`<div class="std-hero"><span class="lbl">Standard${p.ent.enseigne?' · '+esc(p.ent.enseigne):''}</span><a class="std-num mono" href="tel:${esc(p.ent.tel)}">${esc(fmtTel(p.ent.tel))}</a><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(p.ent.tel)}">Copier</button>${p.ent.telSource?`<small>${esc(p.ent.telSource)}</small>`:''}</div>`:`<div class="std-hero none"><span class="lbl">Standard</span><span class="std-none">pas de numéro</span>${S.ph?.busy&&S.ph.pid===p.id?`<span class="ph-run" style="padding:4px 8px"><span class="spin"></span>Recherche…</span>`:`<button class="btn btn-g btn-s" data-act="findphone">🔎 Trouver</button>`}</div>`}
+   ${(()=>{const cm=S.calMsg;const a=cm&&cm.pid===p.id&&p.actions?.find(x=>x.id===cm.aid);if(!a)return'';return `<div class="calmsg"><b>📅 RDV ${esc(fmtDate(a.date))}${a.heure?' à '+esc(a.heure.replace(':','h')):''} enregistré</b><span>Si Outlook ne s’est pas ouvert ou que le RDV n’y apparaît pas :</span><div><button class="btn btn-p btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}">Ouvrir avec Outlook (application)</button><button class="btn btn-g btn-s" data-act="cal" data-v="m365" data-id="${p.id}" data-a="${a.id}">Outlook web</button><button class="btn btn-q btn-s" data-act="calx">OK</button></div></div>`})()}
    <div class="np-h"><h2>${m==='poste'?'Appel en cours':'Visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
    ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:(p.ent?.tel?'':`<span class="links" style="width:100%">${phoneLinks(p)}</span>`)}
      ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
@@ -545,7 +546,9 @@ function notesHtml(p){
   </div>`}
 function askHtml(){const a=S.ask;const o=OUT[S.mode].find(x=>x.k===a.k);
   return `<div class="ask"><b>${esc(o.l)} : quand ?</b><div class="quick">${(o.k==='rdv'?[['Demain',1],['+2 j',2],['+3 j',3],['+1 sem.',5]]:[['Demain',1],['+2 j',2],['+1 sem.',5],['+1 mois',21]]).map(([l,n])=>`<button class="chip" data-act="askq" data-v="${n}">${l}</button>`).join('')}</div>
-   <div class="rowx"><input class="in" type="date" id="ask-date" value="${esc(a.date)}"><input class="in" type="time" id="ask-heure" value="${esc(a.heure)}"></div>
+   <div class="rowx"><input class="in" type="date" id="ask-date" value="${esc(a.date)}"><input class="in" type="time" id="ask-heure" step="900" value="${esc(a.heure)}"></div>
+   <div class="slots">${slotsFor(o.k==='rdv'?60:0).map((s,i,arr)=>`${i&&hm(s)-hm(arr[i-1])>90?'<i></i>':''}<button class="chip${a.heure===s?' on':''}" data-act="askslot" data-v="${s}" aria-pressed="${a.heure===s}">${s.replace(':','h')}</button>`).join('')}</div>
+   <small class="hint">Tes horaires : ${workHours().map(([x,y])=>x.replace(':','h')+'–'+y.replace(':','h')).join(' et ')}${o.k==='rdv'?' · RDV d’1 h':''}</small>
    ${o.k==='rdv'?`<div class="chips">${['Sur place','Visio','Téléphone','Accompagné'].map(t=>`<button class="chip" data-act="asklieu" data-v="${t}" aria-pressed="${a.lieu===t}">${t}</button>`).join('')}</div>`:''}
    <div class="rowx"><button class="btn btn-p" data-act="askok">Valider</button><button class="btn btn-g" data-act="askno">Annuler</button></div></div>`}
 function renderNotesOnly(){const p=cur();
@@ -563,7 +566,8 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b></span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
  <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
- <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['live','Outlook.com'],['ics','Autre agenda (.ics)']].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
+ <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
+ <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['ics','Outlook (application Windows)'],['m365','Outlook web (Microsoft 365)'],['live','Outlook.com perso']].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
@@ -580,10 +584,12 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  <button class="btn btn-p" data-act="closem">Fermer</button></div></div>`}
 
 /* ================= Actions UI ================= */
-function open(id,tab){S.sel=id;S.confirmDel=false;S.ask=null;S.aiMsg='';S.newAct=null;if(tab)S.tab=tab;else if(!TABS.some(t=>t.id===S.tab))S.tab='ent';
-  if(S.view!=='list')S.view='list';render();
-  if(S.mode==='poste')$('.row[aria-current="true"]')?.scrollIntoView({block:'nearest'});}
-function newProspect(){const p=blank(S.mode==='poste'?'tel':'terrain');S.P.set(p.id,p);touch(p);S.tab='ent';open(p.id,'ent');setTimeout(()=>$('#ident-in')?.focus(),30)}
+function openFiche(id,tab){S.sel=id;S.confirmDel=false;S.ask=null;S.aiMsg='';S.newAct=null;if(tab)S.tab=tab;else if(!TABS.some(t=>t.id===S.tab))S.tab='ent';
+  const fromList=S.mode==='poste'&&S.view==='list'&&$('#list');
+  if(S.view!=='list')S.view='list';
+  if(fromList){renderList();renderFiche();renderNotesOnly();const fc=$('#fiche')?.closest('.col');if(fc)fc.scrollTop=0}
+  else{render();if(S.mode==='poste')$('.row[aria-current="true"]')?.scrollIntoView({block:'nearest'})}}
+function newProspect(){const p=blank(S.mode==='poste'?'tel':'terrain');S.P.set(p.id,p);touch(p);S.tab='ent';openFiche(p.id,'ent');setTimeout(()=>$('#ident-in')?.focus(),30)}
 function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?'<button>Annuler</button>':''}`;
   if(undo)t.querySelector('button').onclick=()=>{undo();t.remove()};$('#toast').append(t);setTimeout(()=>t.remove(),undo?7000:3200)}
 function setField(path,v){const p=cur();if(!p)return;
@@ -595,7 +601,7 @@ function setField(path,v){const p=cur();if(!p)return;
 const ACT={
  view:b=>{S.view=b.dataset.v;if(S.mode==='terrain'&&S.view==='list')S.sel=null;S.sheet=false;render()},
  new:()=>newProspect(),
- open:b=>open(b.dataset.id,b.dataset.tab),
+ open:b=>openFiche(b.dataset.id,b.dataset.tab),
  selmode:()=>{S.selMode=!S.selMode;S.picked=new Set();S.confirmBulk=false;if(S.mode==='terrain')S.sel=null;renderList()},
  pick1:b=>{const id=b.dataset.id;S.picked.has(id)?S.picked.delete(id):S.picked.add(id);S.confirmBulk=false;renderList()},
  pickall:()=>{filtered().forEach(p=>S.picked.add(p.id));S.confirmBulk=false;renderList()},
@@ -644,14 +650,18 @@ const ACT={
  analyze:()=>{const t=$('#note-in').value.trim();if(!t){$('#note-in').focus();return}commitNote(cur(),t,null)},
  out:b=>{const o=OUT[S.mode].find(x=>x.k===b.dataset.v);const p=cur();
   if(o.ask){const note=$('#note-in')?.value||'';const w=parseWhen(norm(note),today());const d=w?.date||iso(bizDays(today(),o.a.in));
-    S.ask={k:o.k,date:d,heure:w?.heure||(o.k==='rdv'?'10:00':''),lieu:S.mode==='terrain'?'Sur place':'Sur place'};renderNotesOnly();return}
+    S.ask={k:o.k,date:workDay(d),heure:w?.heure?fitSlot(w.heure,o.k==='rdv'?60:0):(o.k==='rdv'?'10:00':''),lieu:S.mode==='terrain'?'Sur place':'Sur place'};renderNotesOnly();return}
   commitNote(p,$('#note-in')?.value.trim()||'',o)},
  askq:b=>{S.ask.date=iso(bizDays(today(),+b.dataset.v));$('#ask-date').value=S.ask.date},
  asklieu:b=>{S.ask.lieu=b.dataset.v;$$('[data-act="asklieu"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))},
- askok:()=>{const o=OUT[S.mode].find(x=>x.k===S.ask.k);const date=$('#ask-date').value,heure=$('#ask-heure').value;const lieu=S.ask.lieu;S.ask=null;
+ askok:()=>{const o=OUT[S.mode].find(x=>x.k===S.ask.k);const date=$('#ask-date').value;let heure=$('#ask-heure').value;const lieu=S.ask.lieu;const dur=o.k==='rdv'?60:0;
+  if(heure&&!inHours(heure,dur)){const f=fitSlot(heure,dur);toast(`${heure.replace(':','h')} est hors de tes horaires : RDV placé à ${f.replace(':','h')}`);heure=f}
+  if(date&&[0,6].includes(new Date(date+'T12:00').getDay())){toast('Ce jour tombe un week-end : choisis un jour de semaine.');return}
+  S.ask=null;
   const pp=cur();commitNote(pp,$('#note-in')?.value.trim()||'',o,{date,heure,lieu:o.k==='rdv'?lieu:''});
   if(o.k==='rdv'&&S.settings.calAuto!==false){const a=(pp.actions||[]).filter(x=>x.type==='RDV'&&!x.fait&&x.date===date).slice(-1)[0];if(a)addToCal(pp,a)}},
  askno:()=>{S.ask=null;renderNotesOnly()},
+ askslot:b=>{S.ask.heure=b.dataset.v;$('#ask-heure').value=b.dataset.v;$$('[data-act="askslot"]').forEach(x=>{const on=x===b;x.setAttribute('aria-pressed',String(on));x.classList.toggle('on',on)})},
  copyph:b=>copy(String(b.dataset.v).replace(/\s/g,''),'Numéro copié'),
  callstart:()=>{S.call={id:S.sel,t0:Date.now()};renderNotesOnly();tick()},
  callstop:()=>{S.call=null;renderNotesOnly()},
@@ -663,7 +673,7 @@ const ACT={
  identopen:()=>{const p=cur();S.identOpen=S.identOpen||new Set();S.identOpen.add(p.id);$('#tabbody').innerHTML=tabBody(p);$('#ident-in')?.focus()},
  findphone:()=>{const p=cur();if(p)findPhoneUI(p)},
  phoneall:()=>phoneAll(),mergedups:()=>mergeDups(),
- dupopen:()=>{const p=cur();const d=p&&dupOf(p.ent?.siret||p.ent?.siren,p.id);if(!p||!d)return;mergeInto(d,p);removeProspect(p.id);touch(d);S.id=null;open(d.id,'ent');render();toast('Fiches fusionnées dans la fiche existante')},
+ dupopen:()=>{const p=cur();const d=p&&dupOf(p.ent?.siret||p.ent?.siren,p.id);if(!p||!d)return;mergeInto(d,p);removeProspect(p.id);touch(d);S.id=null;openFiche(d.id,'ent');render();toast('Fiches fusionnées dans la fiche existante')},
  usealt:()=>{const p=cur();if(!p)return;const old=p.ent.tel;p.ent.tel=p.ent.telAlt;p.ent.telAlt=old||'';if(p.ent.telLookup)p.ent.telLookup.status='ok';touch(p);renderFiche();renderNotesOnly()},
  importopen:()=>{S.menu=false;S.imp=S.imp&&S.imp.busy?S.imp:{};S.importing=true;renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  impsrc:b=>{const st=S.imp=S.imp||{};st.text=$('#imp-text')?.value||st.text;st.src=b.dataset.v;renderLayer()},
@@ -671,11 +681,13 @@ const ACT={
  copycr:()=>copy(crText(cur()),'Compte rendu copié'),
  xlsx:()=>{S.menu=false;renderLayer();exportXlsx()},
  del:()=>{S.confirmDel=true;renderFiche()},del0:()=>{S.confirmDel=false;renderFiche()},
- del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);open(p.id)})},
+ del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);openFiche(p.id)})},
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
  calpick:b=>{S.settings.cal=b.dataset.v;saveSettings();renderLayer()},
+ calx:()=>{S.calMsg=null;renderNotesOnly()},
  cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
- closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;S.importing=false;S.fimpOpen=false;renderLayer()},
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}if(S.menu&&$('#wh-0a')){const h=[0,1].map(i=>[$('#wh-'+i+'a')?.value,$('#wh-'+i+'b')?.value]).filter(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]));if(h.length&&JSON.stringify(h)!==JSON.stringify(workHours())){S.settings.hours=h;saveSettings()}}
+  S.menu=false;S.help=false;S.importing=false;S.fimpOpen=false;renderLayer()},
  fimpopen:()=>{S.menu=false;S.importing=false;S.fimpOpen=true;if(S.fimp?.run?.end)S.fimp=null;renderLayer()},
  fimpsrc:b=>{S.fimp.src=b.dataset.v;renderLayer()},
  fimpsheet:b=>{fimpSheet(S.fimp,+b.dataset.v);renderLayer()},
@@ -709,9 +721,19 @@ function startSession(){const t=iso(today());
   const due=[...S.P.values()].map(p=>({p,a:nextAction(p)})).filter(x=>x.a&&['Appel','Rappel','Relance'].includes(x.a.type)&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1).map(x=>x.p.id);
   const fresh=[...S.P.values()].filter(p=>p.statut==='nouveau'&&!due.includes(p.id)&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))).map(p=>p.id);
   const q=[...due,...fresh];if(!q.length){toast('Aucun appel à passer : pas de rappel dû ni de fiche « À qualifier » avec numéro.');return}
-  S.session={q,i:0};if(S.mode!=='poste'){S.mode='poste'}open(q[0],'ent');toast(`${q.length} appel${q.length>1?'s':''} dans la session`)}
-function nextInSession(){const s=S.session;if(!s)return;if(s.i>=s.q.length-1){S.session=null;toast('Session terminée, bravo 👏');renderNotesOnly();return}s.i++;S.call=null;open(s.q[s.i],'ent')}
+  S.session={q,i:0};if(S.mode!=='poste'){S.mode='poste'}openFiche(q[0],'ent');toast(`${q.length} appel${q.length>1?'s':''} dans la session`)}
+function nextInSession(){const s=S.session;if(!s)return;if(s.i>=s.q.length-1){S.session=null;toast('Session terminée, bravo 👏');renderNotesOnly();return}s.i++;S.call=null;openFiche(s.q[s.i],'ent')}
 
+
+/* ---------- Horaires de travail ---------- */
+const workDay=d=>{let x=new Date(d+'T12:00');while([0,6].includes(x.getDay()))x=addDays(x,1);return iso(x)};
+const DEF_HOURS=[['09:00','12:30'],['14:00','17:15']];
+const hm=s=>{const [h,m]=String(s||'').split(':').map(Number);return (h||0)*60+(m||0)};const mh=n=>`${pad(Math.floor(n/60))}:${pad(n%60)}`;
+function workHours(){const h=S.settings.hours;return Array.isArray(h)&&h.length&&h.every(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]))?h:DEF_HOURS}
+function slotsFor(dur){const out=[];for(const [a,b] of workHours()){for(let t=hm(a);t+dur<=hm(b);t+=30)out.push(mh(t));const last=hm(b)-dur;if(dur&&last>=hm(a)&&!out.includes(mh(last)))out.push(mh(last))}return out}
+function inHours(h,dur=0){const t=hm(h);return workHours().some(([a,b])=>t>=hm(a)&&t+dur<=hm(b))}
+function fitSlot(h,dur=0){if(!h)return h;if(inHours(h,dur))return h;const t=hm(h);let best=null,bd=1e9;for(const s of slotsFor(dur||30)){const d=Math.abs(hm(s)-t);if(d<bd){bd=d;best=s}}return best||h}
+function endWithin(h,dur){const t=hm(h);const r=workHours().find(([a,b])=>t>=hm(a)&&t<hm(b));const e=t+dur;return mh(r?Math.min(e,hm(r[1])):e)}
 /* ================= Analyse locale ================= */
 const WD={dimanche:0,lundi:1,lun:1,mardi:2,mercredi:3,jeudi:4,jeu:4,vendredi:5,ven:5,samedi:6};
 const MN={janvier:1,janv:1,jan:1,fevrier:2,fevr:2,fev:2,mars:3,avril:4,avr:4,mai:5,juin:6,juillet:7,juil:7,aout:8,septembre:9,sept:9,sep:9,octobre:10,oct:10,novembre:11,nov:11,decembre:12,dec:12};
@@ -730,7 +752,7 @@ function parseWhen(c,base){let d=null,h='';
   if(!d&&(m=c.match(/\b(\d{1,2})\s*(janvier|janv|jan|fevrier|fevr|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\b/))){let x=new Date(base.getFullYear(),MN[m[2]]-1,+m[1]);if(x<base)x=new Date(base.getFullYear()+1,MN[m[2]]-1,+m[1]);d=x}
   if(!d&&(m=c.match(/\b(?:le|lundi|mardi|mercredi|jeudi|vendredi)\s+(\d{1,2})\b(?!\s*(?:h|postes?|pc|pers|salari|copieurs?|lignes?|%|ans))/))){const n=+m[1];if(n>=1&&n<=31){let x=new Date(base.getFullYear(),base.getMonth(),n);if(x<base)x=new Date(base.getFullYear(),base.getMonth()+1,n);d=x}}
   if((m=c.match(/(?:^|[^\d])([01]?\d|2[0-3])\s*(?:h(?![a-z])|:)\s*([0-5]\d)?(?!\s*\/)/)))h=`${pad(+m[1])}:${m[2]||'00'}`;
-  else if(/aprem|apres[- ]midi|\bapm\b/.test(c))h='14:00';else if(/\bmatin\b|\bmat\b/.test(c))h='09:30';else if(/\bmidi\b/.test(c))h='12:30';else if(/\bsoir\b|fin de journee/.test(c))h='17:30';
+  else if(/aprem|apres[- ]midi|\bapm\b/.test(c))h='14:00';else if(/\bmatin\b|\bmat\b/.test(c))h='09:30';else if(/\bmidi\b/.test(c))h='12:00';else if(/\bsoir\b|fin de journee/.test(c))h='17:00';
   if(!d&&!h)return null;if(!d)d=base;return{date:iso(d),heure:h}}
 function parseMonth(c){let m=c.match(/(?:^|[^\d])(\d{1,2})[\/.-](\d{2,4})(?!\d)/);if(m&&+m[1]>=1&&+m[1]<=12){const y=+m[2]<100?2000+ +m[2]:+m[2];return `${y}-${pad(+m[1])}`}
   m=c.match(/\b(janvier|janv|jan|fevrier|fevr|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\b\.?\s*(\d{2,4})?\b/);if(m){let y=m[2]?(+m[2]<100?2000+ +m[2]:+m[2]):new Date().getFullYear();return `${y}-${pad(MN[m[1]])}`}
@@ -979,7 +1001,7 @@ function applyPatch(p,patch,overwrite){
     const i=ex?p.contacts.indexOf(ex):p.contacts.length;if(!ex){ex={id:rid()};p.contacts.push(ex)}
     for(const [k,v] of Object.entries(c))if(!filled(ex[k])||(k==='decideur'&&v==='Oui')){ex[k]=v;changed.add('contacts.'+i+'.'+k)}}
   // Actions
-  let nAct=0;for(const a of (patch.actions||[])){if(!a)continue;const type=ATYPES.find(t=>norm(t)===norm(a.type))||'Rappel';let date=/^\d{4}-\d{2}-\d{2}$/.test(a.date||'')?a.date:'';const heure=/^\d{1,2}:\d{2}$/.test(a.heure||'')?a.heure.padStart(5,'0'):'';
+  let nAct=0;for(const a of (patch.actions||[])){if(!a)continue;const type=ATYPES.find(t=>norm(t)===norm(a.type))||'Rappel';let date=/^\d{4}-\d{2}-\d{2}$/.test(a.date||'')?a.date:'';let heure=/^\d{1,2}:\d{2}$/.test(a.heure||'')?a.heure.padStart(5,'0'):'';if(heure)heure=fitSlot(heure,type==='RDV'?60:0);if(date)date=workDay(date);
     if(addAction(p,{type,date,heure,note:String(a.note||'').slice(0,160)})){nAct++;changed.add('actions')}}
   if(patch.statut&&ST[patch.statut]){const k=patch.statut;if(k!==p.statut&&(RANK[k]>RANK[p.statut]||['ko','perdu','gagne'].includes(k)||p.statut==='nouveau')){setStatut(p,k);changed.add('statut')}}
   if(patch.temperature&&['froid','tiede','chaud'].includes(patch.temperature)&&patch.temperature!==p.temperature){p.temperature=patch.temperature;changed.add('temperature')}
@@ -1483,18 +1505,21 @@ async function exportXlsx(){
 
 /* ================= Agenda Outlook ================= */
 function rdvInfo(p,a){const c=(p.contacts||[]).find(x=>x.decideur==='Oui')||p.contacts?.[0]||{};const lieuTxt=/visio/i.test(a.note||'')?'Visio (Teams)':/t[ée]l[ée]phone/i.test(a.note||'')?'Téléphone : '+fmtTel(c.tel||c.mobile||p.ent?.tel||''):[p.ent?.adresse,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-  const h=a.heure||'10:00';const [H,M]=h.split(':').map(Number);const end=`${pad((H+1)%24)}:${pad(M)}`;
+  const h=fitSlot(a.heure||'10:00',60);const [H,M]=h.split(':').map(Number);const end=endWithin(h,60);
   const who=[c.civ,c.prenom,c.nom].filter(Boolean).join(' ');
   return{title:`RDV ${displayName(p)}${who?' — '+who:''}`,start:`${a.date}T${pad(H)}:${pad(M)}:00`,end:`${a.date}T${end}:00`,lieu:lieuTxt,body:crText(p)+'\n\n— Créé depuis Radar (prospection Data Links)'}}
-function outlookUrl(i,host){const u=new URL(`https://${host}/calendar/0/deeplink/compose`);u.searchParams.set('path','/calendar/action/compose');u.searchParams.set('rru','addevent');
-  u.searchParams.set('subject',i.title);u.searchParams.set('startdt',i.start);u.searchParams.set('enddt',i.end);if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.body.slice(0,1800));return u.toString()}
+const withOff=s=>{const d=new Date(s);const o=-d.getTimezoneOffset();return s.slice(0,19)+(o>=0?'+':'-')+pad(Math.floor(Math.abs(o)/60))+':'+pad(Math.abs(o)%60)};
+function outlookUrl(i,host){const u=new URL(`https://${host}/calendar/action/compose`);u.searchParams.set('rru','addevent');
+  u.searchParams.set('subject',i.title);u.searchParams.set('startdt',withOff(i.start));u.searchParams.set('enddt',withOff(i.end));u.searchParams.set('allday','false');if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.body.slice(0,1200));return u.toString()}
+const VTZ=['BEGIN:VTIMEZONE','TZID:Europe/Paris','BEGIN:DAYLIGHT','TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU','END:DAYLIGHT','BEGIN:STANDARD','TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU','END:STANDARD','END:VTIMEZONE'];
+const fold=l=>{const out=[];let s=l;while(new TextEncoder().encode(s).length>73){let n=73;while(new TextEncoder().encode(s.slice(0,n)).length>73)n--;out.push(s.slice(0,n));s=' '+s.slice(n)}out.push(s);return out.join('\r\n')};
 function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/([,;])/g,'\\$1');
-  return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
-    `DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`,`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).join('\r\n')}
+  return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH',...VTZ,'BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
+    `DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`,`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
 function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';const i=rdvInfo(p,a);
-  if(mode==='ics'){downloadFile(`RDV-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast('Fichier agenda téléchargé : ouvre-le pour ajouter le RDV');}
+  if(mode==='ics'){downloadFile(`RDV-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast('Fichier RDV téléchargé : ouvre-le, Outlook affiche le RDV, clique « Enregistrer et fermer »');}
   else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast('Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Outlook » du RDV.');else toast('Outlook s\u2019ouvre avec le RDV prérempli : clique Enregistrer')}
-  a.cal=true;touch(p)}
+  a.cal=true;S.calMsg={pid:p.id,aid:a.id};touch(p);if(S.sel===p.id)renderNotesOnly()}
 function calBtns(p,a){return `<span class="calbtns"><button class="btn btn-g btn-s" data-act="cal" data-id="${p.id}" data-a="${a.id}">📅 ${a.cal?'Outlook ✓':'Ajouter à Outlook'}</button><button class="btn btn-q btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}" title="Fichier pour tout agenda">.ics</button></span>`}
 /* ================= Numéros de téléphone (OpenStreetMap, TomTom en option) ================= */
 const OVERPASS=['https://overpass-api.de/api/interpreter'];
@@ -1776,7 +1801,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='/'){e.preventDefault();$('#q').focus()}
   else if(e.key==='n'||e.key==='N'){e.preventDefault();newProspect()}
   else if(e.key==='?'){S.help=true;renderLayer()}
-  else if(e.key==='j'||e.key==='k'){if(S.session&&e.key==='j'){nextInSession();return}const L=filtered();if(!L.length)return;const i=L.findIndex(p=>p.id===S.sel);const ni=e.key==='j'?Math.min(L.length-1,i+1):Math.max(0,i-1);open(L[ni<0?0:ni].id)}
+  else if(e.key==='j'||e.key==='k'){if(S.session&&e.key==='j'){nextInSession();return}const L=filtered();if(!L.length)return;const i=L.findIndex(p=>p.id===S.sel);const ni=e.key==='j'?Math.min(L.length-1,i+1):Math.max(0,i-1);openFiche(L[ni<0?0:ni].id)}
 });
 window.addEventListener('online',()=>{renderStore();pushQueue();pullAll()});window.addEventListener('offline',renderStore);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){pullAll();pushQueue()}else saveLocal()});

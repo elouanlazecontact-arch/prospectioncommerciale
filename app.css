@@ -492,3 +492,11 @@ a.btn{text-decoration:none}
 .std-hero.none{background:var(--surface-2);border-color:var(--line)}
 .std-hero.none .lbl{color:var(--ink-3)}
 .std-hero .std-none{color:var(--ink-3);font-size:14px;margin-right:auto}
+.slots{display:flex;flex-wrap:wrap;gap:5px}
+.slots .chip{padding:4px 8px;font-size:12px;min-height:0}
+.slots i{flex-basis:100%;height:0}
+.ask .hint,.f .hint{font-size:11.5px;color:var(--ink-3)}
+.hrs{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hrs span{display:flex;align-items:center;gap:6px}.hrs .in{width:110px}.hrs em{font-style:normal;color:var(--ink-3);font-size:13px}
+.calmsg{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r);background:var(--ok-soft);border:1px solid var(--ok);margin-bottom:12px;font-size:13px}
+.calmsg span{color:var(--ink-2);font-size:12.5px}.calmsg div{display:flex;gap:6px;flex-wrap:wrap}
