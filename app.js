@@ -161,7 +161,7 @@ const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 
 /* ================= État ================= */
 const S={P:new Map(),sel:null,view:'today',mode:'poste',modeForced:false,tab:'ent',q:'',filter:'all',store:'loading',
-  settings:{objectif:20},queue:new Set(),sample:null,aiImages:false,aiBusy:false,aiMsg:'',ask:null,session:null,call:null,sheet:false,flash:new Set(),undo:null,confirmDel:false,downloads:null};
+  settings:{objectif:20},queue:new Set(),selMode:false,picked:new Set(),confirmBulk:false,sample:null,aiImages:false,aiBusy:false,aiMsg:'',ask:null,session:null,call:null,sheet:false,flash:new Set(),undo:null,confirmDel:false,downloads:null};
 const dirty=new Map(),timers={},chains={};
 
 function blank(src){return{id:'p_'+rid(),createdAt:Date.now(),updatedAt:Date.now(),statut:'nouveau',temperature:'',source:src,ent:{},contacts:[],besoins:{},cyber:{},impr:{},it:{},tel:{},actions:[],journal:[]}}
@@ -279,7 +279,7 @@ function matches(p,q){if(!q)return true;const s=norm([p.ent?.nom,p.ent?.enseigne
 function filtered(){const t=iso(today());
   return [...S.P.values()].filter(p=>matches(p,S.q)).filter(p=>{
     if(S.filter==='all')return true;if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
-    if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
+    if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
    .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:b.updatedAt-a.updatedAt})}
 function allActions(){const out=[];for(const p of S.P.values())for(const a of (p.actions||[]))out.push({p,a});return out}
 function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;return [...S.P.values()].filter(p=>p.rdvPrisLe&&p.rdvPrisLe.startsWith(m)).length}
@@ -358,11 +358,13 @@ function renderAgenda(){
 /* ================= Liste ================= */
 function renderList(){
   const el=$('#list');if(!el)return;const L=filtered();
-  const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],...(S.lastBatch?.length?[['batch','Dernier repérage']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
-  el.innerHTML=`<div class="list-head"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="width:100%">📍 Prospecter autour de moi (50 m)</button><h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''}</span></h2>
+  const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier repérage']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
+  el.innerHTML=`<div class="list-head"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="width:100%">📍 Prospecter autour de moi (50 m)</button><h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+   ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
+     ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
-   <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row" data-act="open" data-id="${p.id}" aria-current="${p.id===S.sel}">
-     <span class="tdot" data-t="${p.temperature||''}"></span><span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
+   <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
+     ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="tdot" data-t="${p.temperature||''}"></span>`}<span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
      <span class="sub">${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
    :S.P.size?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
 }
@@ -528,6 +530,14 @@ const ACT={
  view:b=>{S.view=b.dataset.v;if(S.mode==='terrain'&&S.view==='list')S.sel=null;S.sheet=false;render()},
  new:()=>newProspect(),
  open:b=>open(b.dataset.id,b.dataset.tab),
+ selmode:()=>{S.selMode=!S.selMode;S.picked=new Set();S.confirmBulk=false;if(S.mode==='terrain')S.sel=null;renderList()},
+ pick1:b=>{const id=b.dataset.id;S.picked.has(id)?S.picked.delete(id):S.picked.add(id);S.confirmBulk=false;renderList()},
+ pickall:()=>{filtered().forEach(p=>S.picked.add(p.id));S.confirmBulk=false;renderList()},
+ picknone:()=>{S.picked.clear();S.confirmBulk=false;renderList()},
+ bulkask:()=>{S.confirmBulk=true;renderList()},bulkno:()=>{S.confirmBulk=false;renderList()},
+ bulkdel:()=>{const gone=[...S.picked].map(id=>S.P.get(id)).filter(Boolean);gone.forEach(p=>removeProspect(p.id));if(gone.some(p=>p.id===S.sel))S.sel=null;
+   S.picked.clear();S.confirmBulk=false;S.selMode=false;render();
+   toast(`${gone.length} fiche${gone.length>1?'s':''} supprimée${gone.length>1?'s':''}`,()=>{gone.forEach(p=>{S.P.set(p.id,p);touch(p)});render()})},
  back:()=>{S.sel=null;S.sheet=false;render()},
  filter:b=>{S.filter=S.filter===b.dataset.v&&b.dataset.v!=='all'&&S.view==='list'?'all':b.dataset.v;if(S.view!=='list'||(S.mode==='terrain'&&S.sel)){S.view='list';if(S.mode==='terrain')S.sel=null;render()}else renderList()},
  tab:b=>{S.tab=b.dataset.v;S.flash.delete('tab:'+S.tab);$('#tabs').innerHTML=tabsHtml(cur());$('#tabbody').innerHTML=tabBody(cur())},
