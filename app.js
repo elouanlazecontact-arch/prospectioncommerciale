@@ -1,0 +1,1175 @@
+
+"use strict";
+/* ================= Données de référence ================= */
+const STATUTS=[
+ {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
+ {k:'rdv',l:'RDV pris',c:'var(--accent)'},{k:'rdv_fait',l:'RDV effectué',c:'var(--accent-2)'},{k:'devis',l:'Devis envoyé',c:'#7B61C9'},
+ {k:'gagne',l:'Signé',c:'var(--ok)'},{k:'perdu',l:'Perdu',c:'var(--bad)'},{k:'ko',l:'Pas intéressé',c:'var(--hot)'}];
+const ST=Object.fromEntries(STATUTS.map(s=>[s.k,s]));
+const RANK={nouveau:0,contacte:1,rappel:2,rdv:3,rdv_fait:4,devis:5,gagne:6,perdu:6,ko:2};
+const TEMPS=[{k:'froid',l:'Froid'},{k:'tiede',l:'Tiède'},{k:'chaud',l:'Chaud'}];
+const ATYPES=['Appel','Rappel','Mail','Visite','RDV','Devis','Relance'];
+const SECTEURS=['Notaire / juridique','Avocat','Expert-comptable','Médical / paramédical','Conseil / RH / recrutement','Architecte','Agence immobilière','Assurance','BTP / artisan','Commerce','Industrie','Transport / logistique','Association','Restauration / hôtellerie'];
+const BESOINS=['Parc informatique','Réseau / Wi-Fi','Cybersécurité','Sauvegarde / PRA','Téléphonie / standard','Mobiles / opérateur','Internet / fibre','Impression / copieurs','Gestion documentaire','Infogérance / support','Microsoft 365 / cloud','Serveur','IA / automatisation'];
+const SATIS=['Satisfait','Moyen','Insatisfait'];
+const FONCTIONS=['Dirigeant / gérant','DG','DAF','DSI / resp. IT','Office manager','Assistante / accueil','Resp. RH','Resp. opérations','Associé'];
+
+const TABS=[
+ {id:'ent',l:'Entreprise',fields:[
+  {k:'ent.nom',l:'Raison sociale',t:'text',w:2},
+  {k:'ent.enseigne',l:'Enseigne / nom commercial',t:'text'},
+  {k:'ent.secteur',l:'Secteur',t:'single',o:SECTEURS,w:2},
+  {k:'ent.siret',l:'SIRET',t:'mono',ph:'14 chiffres'},
+  {k:'ent.siren',l:'SIREN',t:'mono',ph:'9 chiffres'},
+  {k:'ent.forme',l:'Forme juridique',t:'single',o:['SAS','SASU','SARL','EURL','SA','SCP','SELARL','SCI','EI','Association'],w:2},
+  {k:'ent.naf',l:'Code NAF',t:'mono',ph:'69.10Z'},
+  {k:'ent.creation',l:'Date de création',t:'text',ph:'2014'},
+  {k:'ent.activite',l:'Activité',t:'text',w:2},
+  {k:'ent.effectif',l:'Effectif',t:'single',o:['1–5','6–10','11–19','20–49','50–99','100–249','250 +'],w:2},
+  {k:'ent.adresse',l:'Adresse',t:'text',w:2},
+  {k:'ent.cp',l:'Code postal',t:'mono'},
+  {k:'ent.ville',l:'Ville',t:'text'},
+  {k:'ent.tel',l:'Standard',t:'tel'},
+  {k:'ent.email',l:'Email générique',t:'email'},
+  {k:'ent.site',l:'Site web',t:'text'},
+  {k:'ent.sites',l:'Plusieurs sites',t:'single',o:['Non','Oui']},
+  {k:'ent.groupe',l:'Décision au siège / réseau',t:'single',o:['Non','Oui'],w:2},
+ ]},
+ {id:'contacts',l:'Contacts',custom:true},
+ {id:'besoins',l:'Besoins',fields:[
+  {k:'besoins.sel',l:'Besoins identifiés',t:'multi',o:BESOINS,w:2},
+  {k:'besoins.declencheur',l:'Déclencheurs',t:'multi',o:['Fin de contrat','Insatisfaction prestataire','Déménagement','Croissance / recrutement','Panne / incident','Cyberattaque','Réduire les coûts','Modernisation'],w:2},
+  {k:'besoins.priorite',l:'Échéance du projet',t:'single',o:['Urgent','< 3 mois','3–6 mois','6–12 mois','Pas de projet'],w:2},
+  {k:'besoins.decision',l:'Qui décide',t:'single',o:['Dirigeant seul','Avec les associés','Siège / groupe','Avec le comptable'],w:2},
+  {k:'besoins.budget',l:'Budget évoqué',t:'text'},
+  {k:'besoins.concurrents',l:'Concurrents en place / consultés',t:'multi',o:[],w:2},
+  {k:'besoins.notes',l:'Détail des besoins',t:'area',w:2},
+ ]},
+ {id:'cyber',l:'Cyber',fields:[
+  {k:'cyber.antivirus',l:'Antivirus / EDR',t:'multi',o:['Aucun','Windows Defender','Bitdefender','ESET','Kaspersky','Sophos','SentinelOne','WithSecure','Avast / AVG','Ne sait pas'],w:2},
+  {k:'cyber.firewall',l:'Pare-feu',t:'single',o:['Aucun (box opérateur)','Fortinet','Stormshield','Sophos','WatchGuard','Cisco Meraki','Ne sait pas'],w:2},
+  {k:'cyber.sauvegarde',l:'Sauvegarde',t:'multi',o:['Aucune','Disque externe','NAS','Cloud','Externalisée (prestataire)','Ne sait pas'],w:2},
+  {k:'cyber.mfa',l:'Double authentification',t:'single',o:['Oui','Partielle','Non','Ne sait pas']},
+  {k:'cyber.sensibilisation',l:'Sensibilisation équipe',t:'single',o:['Oui','Non']},
+  {k:'cyber.mails',l:'Messagerie',t:'single',o:['Microsoft 365','Google Workspace','OVH','Orange','Gandi'],w:2},
+  {k:'cyber.incident',l:'Incident déjà subi',t:'multi',o:['Jamais','Phishing','Rançongiciel','Messagerie piratée','Vol / perte de matériel'],w:2},
+  {k:'cyber.rgpd',l:'RGPD',t:'single',o:['Conforme','En cours','Non','Ne sait pas']},
+  {k:'cyber.niveau',l:'Niveau ressenti',t:'single',o:['Faible','Moyen','Bon']},
+  {k:'cyber.notes',l:'Notes cyber',t:'area',w:2},
+ ]},
+ {id:'impr',l:'Impression',fields:[
+  {k:'impr.nb',l:'Copieurs',t:'num'},
+  {k:'impr.nbImprimantes',l:'Imprimantes',t:'num'},
+  {k:'impr.marques',l:'Marques',t:'multi',o:['Canon','Ricoh','Konica Minolta','Sharp','Xerox','Kyocera','Toshiba','HP','Brother','Epson','Lexmark'],w:2},
+  {k:'impr.mode',l:'Financement',t:'single',o:['Achat','Location / leasing','Coût copie seul','Ne sait pas'],w:2},
+  {k:'impr.loueur',l:'Loueur',t:'single',o:['Grenke','Leasecom','BNP Paribas Leasing','Locam','Franfinance'],w:2},
+  {k:'impr.finContrat',l:'Fin de contrat',t:'month'},
+  {k:'impr.prestataire',l:'Fournisseur actuel',t:'text'},
+  {k:'impr.volNB',l:'Volume N&B / mois',t:'num'},
+  {k:'impr.volCoul',l:'Volume couleur / mois',t:'num'},
+  {k:'impr.satisfaction',l:'Satisfaction',t:'single',o:SATIS,w:2},
+  {k:'impr.irritants',l:'Irritants',t:'multi',o:['Pannes','Délais d’intervention','Coût','Toner','Scan compliqué','Commercial absent'],w:2},
+  {k:'impr.ged',l:'Gestion documentaire',t:'multi',o:['Aucune','Scan vers dossier','GED en place','Signature électronique','Archivage papier'],w:2},
+  {k:'impr.notes',l:'Notes impression',t:'area',w:2},
+ ]},
+ {id:'it',l:'Informatique',fields:[
+  {k:'it.postes',l:'Postes',t:'num'},
+  {k:'it.utilisateurs',l:'Utilisateurs',t:'num'},
+  {k:'it.prestataire',l:'Prestataire actuel',t:'text'},
+  {k:'it.contrat',l:'Type de support',t:'single',o:['Infogérance','À la demande','Interne','Personne','Ne sait pas'],w:2},
+  {k:'it.satisfaction',l:'Satisfaction',t:'single',o:SATIS,w:2},
+  {k:'it.age',l:'Âge du parc',t:'single',o:['< 3 ans','3–5 ans','> 5 ans','Mixte']},
+  {k:'it.serveur',l:'Serveur',t:'multi',o:['Aucun','Serveur local','NAS','Cloud (Azure / AWS)','Ne sait pas'],w:2},
+  {k:'it.cloud',l:'Outils cloud',t:'multi',o:['Microsoft 365','Google Workspace','SharePoint / OneDrive','Dropbox','Logiciel métier SaaS'],w:2},
+  {k:'it.reseau',l:'Réseau',t:'multi',o:['Wi-Fi lent','Wi-Fi invités','Câblage à revoir','Baie / switch','VPN télétravail'],w:2},
+  {k:'it.logiciels',l:'Logiciels métier',t:'text',w:2,ph:'Genapi, iNot, Doctolib, Sage…'},
+  {k:'it.notes',l:'Notes informatique',t:'area',w:2},
+ ]},
+ {id:'tel',l:'Télécom',fields:[
+  {k:'tel.operateur',l:'Opérateur(s)',t:'multi',o:['Orange','SFR','Bouygues','Free Pro','OVH'],w:2},
+  {k:'tel.lignesFixes',l:'Lignes fixes',t:'num'},
+  {k:'tel.lignesMobiles',l:'Lignes mobiles',t:'num'},
+  {k:'tel.standard',l:'Standard',t:'single',o:['Aucun','Standard physique (PABX)','Standard cloud (IPBX)','Teams Phone','Ne sait pas'],w:2},
+  {k:'tel.internet',l:'Accès internet',t:'multi',o:['Fibre','ADSL / VDSL','Box 4G / 5G','Lien dédié','Ne sait pas'],w:2},
+  {k:'tel.finEngagement',l:'Fin d’engagement',t:'month'},
+  {k:'tel.facture',l:'Facture mensuelle',t:'text',ph:'≈ 450 €'},
+  {k:'tel.satisfaction',l:'Satisfaction',t:'single',o:SATIS,w:2},
+  {k:'tel.notes',l:'Notes télécom',t:'area',w:2},
+ ]},
+ {id:'suivi',l:'Suivi',custom:true},
+];
+const CFIELDS=[
+ {k:'civ',l:'Civilité',t:'single',o:['M.','Mme']},
+ {k:'decideur',l:'Décideur',t:'single',o:['Oui','Non','Influenceur']},
+ {k:'prenom',l:'Prénom',t:'text'},{k:'nom',l:'Nom',t:'text'},
+ {k:'fonction',l:'Fonction',t:'single',o:FONCTIONS,w:2},
+ {k:'tel',l:'Ligne directe',t:'tel'},{k:'mobile',l:'Mobile',t:'tel'},
+ {k:'email',l:'Email',t:'email',w:2},{k:'linkedin',l:'LinkedIn',t:'text',w:2},
+ {k:'note',l:'Note',t:'text',w:2},
+];
+const FIELD={};TABS.forEach(t=>(t.fields||[]).forEach(f=>FIELD[f.k]=f));
+const CFIELD=Object.fromEntries(CFIELDS.map(f=>[f.k,f]));
+const EXCL=/^(aucun|aucune|jamais|ne sait pas)/i;
+
+const OUT={
+ poste:[
+  {k:'nrp',l:'Répondeur / NRP',key:'1',statut:'contacte',a:{type:'Rappel',in:1}},
+  {k:'barrage',l:'Barrage',key:'2',statut:'rappel',a:{type:'Rappel',in:2}},
+  {k:'rappel',l:'Rappel demandé',key:'3',statut:'rappel',a:{type:'Rappel',in:1},ask:true},
+  {k:'doc',l:'Doc à envoyer',key:'4',statut:'contacte',a:{type:'Mail',in:0}},
+  {k:'rdv',l:'RDV pris',key:'5',statut:'rdv',temp:'chaud',a:{type:'RDV',in:2},ask:true,cls:'rdv'},
+  {k:'ko',l:'Pas intéressé',key:'6',statut:'ko',temp:'froid',cls:'ko'},
+  {k:'faux',l:'Faux numéro',key:'7'},
+  {k:'parle',l:'Échange sans suite',key:'8',statut:'contacte',a:{type:'Relance',in:14}},
+ ],
+ terrain:[
+  {k:'accueil',l:'Vu l’accueil',statut:'contacte',a:{type:'Rappel',in:1}},
+  {k:'carte',l:'Carte laissée',statut:'contacte',a:{type:'Rappel',in:2}},
+  {k:'decideur',l:'Décideur rencontré',statut:'rappel',temp:'tiede',a:{type:'Rappel',in:2}},
+  {k:'repasser',l:'Repasser',statut:'contacte',a:{type:'Visite',in:7},ask:true},
+  {k:'rdv',l:'RDV pris',statut:'rdv',temp:'chaud',a:{type:'RDV',in:2},ask:true,cls:'rdv'},
+  {k:'ko',l:'Pas intéressé',statut:'ko',temp:'froid',cls:'ko'},
+  {k:'ferme',l:'Fermé / absent',a:{type:'Visite',in:7}},
+  {k:'exclu',l:'Hors cible',statut:'perdu'},
+ ]};
+
+/* ================= Utilitaires ================= */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fromIso=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const bizDays=(d,n)=>{let x=new Date(d);let k=0;while(k<n){x=addDays(x,1);if(x.getDay()%6)k++;}if(n===0)while(!(x.getDay()%6))x=addDays(x,1);return x};
+const rid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
+const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[’`]/g,"'");
+const getP=(o,p)=>p.split('.').reduce((a,k)=>a==null?undefined:a[k],o);
+function setP(o,p,v){const ks=p.split('.');let a=o;for(let i=0;i<ks.length-1;i++){if(a[ks[i]]==null||typeof a[ks[i]]!=='object')a[ks[i]]={};a=a[ks[i]];}a[ks.at(-1)]=v}
+const filled=v=>Array.isArray(v)?v.length>0:(v!==undefined&&v!==null&&String(v).trim()!=='');
+const JOURS=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const MOIS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const fmtDate=s=>{if(!s)return'';const d=fromIso(s);const t=today();const diff=Math.round((d-t)/864e5);
+  if(diff===0)return"Aujourd'hui";if(diff===1)return'Demain';if(diff===-1)return'Hier';
+  return `${JOURS[d.getDay()].slice(0,3)}. ${d.getDate()} ${MOIS[d.getMonth()]}`};
+const fmtMonth=s=>{if(!s)return'';const [y,m]=s.split('-');return `${MOIS[+m-1]} ${y}`};
+const fmtSiret=s=>{const d=String(s||'').replace(/\D/g,'');return d.length===14?`${d.slice(0,3)} ${d.slice(3,6)} ${d.slice(6,9)} ${d.slice(9)}`:d.length===9?`${d.slice(0,3)} ${d.slice(3,6)} ${d.slice(6)}`:s};
+const fmtTel=s=>{const d=String(s||'').replace(/\D/g,'').replace(/^33/,'0');return d.length===10?d.replace(/(\d{2})(?=\d)/g,'$1 '):s};
+function luhn(s){const d=String(s).replace(/\D/g,'');if(!d.length)return false;let sum=0;for(let i=0;i<d.length;i++){let n=+d[d.length-1-i];if(i%2){n*=2;if(n>9)n-=9}sum+=n}return sum%10===0}
+const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+
+/* ================= État ================= */
+const S={P:new Map(),sel:null,view:'today',mode:'poste',modeForced:false,tab:'ent',q:'',filter:'all',store:'loading',
+  settings:{objectif:20},queue:new Set(),sample:null,aiImages:false,aiBusy:false,aiMsg:'',ask:null,session:null,call:null,sheet:false,flash:new Set(),undo:null,confirmDel:false,downloads:null};
+const dirty=new Map(),timers={},chains={};
+
+function blank(src){return{id:'p_'+rid(),createdAt:Date.now(),updatedAt:Date.now(),statut:'nouveau',temperature:'',source:src,ent:{},contacts:[],besoins:{},cyber:{},impr:{},it:{},tel:{},actions:[],journal:[]}}
+const cur=()=>S.P.get(S.sel);
+
+/* ================= Stockage : local + synchro Supabase ================= */
+const CFG=window.RADAR_CONFIG||{};let SB=null,USER=null,RT=null;
+const LK=()=>'radar-'+(USER?.id||'local');
+function loadLocal(){S.P.clear();for(const p of lsGet(LK()+'-data',[]))if(p&&p.id)S.P.set(p.id,p);
+  S.settings={objectif:20,...lsGet(LK()+'-settings',{})};S.queue=new Set(lsGet(LK()+'-queue',[]))}
+function saveLocal(){lsSet(LK()+'-data',[...S.P.values()]);lsSet(LK()+'-queue',[...S.queue])}
+let saveT=null;const saveLocalSoon=()=>{clearTimeout(saveT);saveT=setTimeout(saveLocal,200)};
+function markDirty(id){S.queue.add(id);saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800);renderStore()}
+function touch(p){p.updatedAt=Date.now();markDirty(p.id)}
+function removeProspect(id){S.P.delete(id);markDirty(id)}
+function saveSettings(){lsSet(LK()+'-settings',S.settings);if(SB&&USER){S.settingsDirty=true;markDirty('settings-'+USER.id)}}
+async function pushQueue(){
+  if(!SB||!USER||!navigator.onLine||S.pushing){renderStore();return}
+  const ids=[...S.queue];if(!ids.length){renderStore();return}
+  S.pushing=true;renderStore();
+  try{
+    const now=new Date().toISOString();
+    const rows=ids.map(id=>{
+      if(id==='settings-'+USER.id)return{id,owner:USER.id,data:{settings:S.settings},updated_at:now,deleted:false};
+      const p=S.P.get(id);
+      return p?{id,owner:USER.id,data:p,updated_at:new Date(Math.max(p.updatedAt||0,Date.now()-1000)).toISOString(),deleted:false}
+              :{id,owner:USER.id,data:{id},updated_at:now,deleted:true}});
+    for(let i=0;i<rows.length;i+=100){const {error}=await SB.from('prospects').upsert(rows.slice(i,i+100),{onConflict:'id'});if(error)throw error}
+    ids.forEach(id=>S.queue.delete(id));S.syncErr='';S.lastSync=Date.now();saveLocal();
+  }catch(e){S.syncErr=e?.message||String(e)}
+  finally{S.pushing=false;renderStore();if(S.queue.size){clearTimeout(timers.push);timers.push=setTimeout(pushQueue,S.syncErr?20000:1500)}}}
+function mergeRemote(r){
+  if(!r||!r.id)return false;
+  if(r.id==='settings-'+USER?.id){if(!S.queue.has(r.id)&&r.data?.settings){S.settings={...S.settings,...r.data.settings};lsSet(LK()+'-settings',S.settings)}return false}
+  if(r.id.startsWith('settings-'))return false;
+  if(S.queue.has(r.id))return false;
+  if(r.deleted){const had=S.P.has(r.id);S.P.delete(r.id);return had}
+  const loc=S.P.get(r.id);if(loc&&(loc.updatedAt||0)>(r.data?.updatedAt||0))return false;
+  S.P.set(r.id,r.data);return true}
+async function pullAll(){
+  if(!SB||!USER||!navigator.onLine)return;
+  try{const since=lsGet(LK()+'-since',null);let last=since,from=0,selChanged=false,any=false;
+    for(let n=0;n<50;n++){let q=SB.from('prospects').select('id,data,updated_at,deleted').order('updated_at',{ascending:true}).range(from,from+999);if(since)q=q.gt('updated_at',since);
+      const {data,error}=await q;if(error)throw error;
+      for(const r of data){if(mergeRemote(r)){any=true;if(r.id===S.sel)selChanged=true}last=r.updated_at}
+      if(data.length<1000)break;from+=1000}
+    if(last)lsSet(LK()+'-since',last);saveLocal();S.syncErr='';if(any||S.view==='today')renderSoft(selChanged);renderStore()}
+  catch(e){S.syncErr=e?.message||String(e);renderStore()}}
+function subscribe(){
+  if(!SB||!USER)return;if(RT){SB.removeChannel(RT);RT=null}
+  RT=SB.channel('radar-'+USER.id).on('postgres_changes',{event:'*',schema:'public',table:'prospects',filter:'owner=eq.'+USER.id},pl=>{
+    const r=pl.new;if(r&&mergeRemote(r)){saveLocalSoon();renderSoft(r.id===S.sel)}}).subscribe()}
+function renderStore(){const el=$('#store');if(!el)return;let s,t,tip='';
+  if(!SB){s='local';t='Sur cet appareil';tip='Synchronisation non configurée : voir le guide d’installation.'}
+  else if(!USER){s='loading';t='Non connecté'}
+  else if(!navigator.onLine){s='local';t=S.queue.size?`Hors ligne · ${S.queue.size} en attente`:'Hors ligne';tip='Tout est gardé sur l’appareil et part dès le retour du réseau.'}
+  else if(S.pushing){s='loading';t='Synchronisation…'}
+  else if(S.syncErr){s='local';t='Synchro en échec';tip=S.syncErr}
+  else if(S.queue.size){s='loading';t=`${S.queue.size} en attente`}
+  else{s='cloud';t='Synchronisé';tip='PC et téléphone partagent les mêmes fiches.'}
+  el.dataset.s=s;el.querySelector('span').textContent=t;el.title=tip}
+/* ---------- Compte ---------- */
+async function initStore(){
+  if(CFG.supabaseUrl&&CFG.supabaseAnonKey&&window.supabase){
+    try{SB=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'radar-auth'}});
+      const {data}=await SB.auth.getSession();USER=data?.session?.user||null;
+      SB.auth.onAuthStateChange((ev,sess)=>{const u=sess?.user||null;if((u?.id||null)!==(USER?.id||null)){USER=u;onUser()}})}
+    catch(e){SB=null}}
+  onUser()}
+function onUser(){
+  if(SB&&!USER){showAuth();return}
+  hideAuth();loadLocal();
+  if(SB&&USER){const loc=lsGet('radar-local-data',[]);if(loc.length){for(const p of loc)if(!S.P.has(p.id)){S.P.set(p.id,p);S.queue.add(p.id)}lsSet('radar-local-data',[])}}
+  render();renderStore();if(SB&&USER){pullAll().then(pushQueue);subscribe()}}
+function showAuth(m){const el=$('#auth');el.hidden=false;S.authMode=S.authMode||'login';
+  el.innerHTML=`<div class="auth-card"><div class="brand" style="font-size:24px">${$('.brand svg').outerHTML}Radar <small>Data Links</small></div>
+   <h1>${S.authMode==='signup'?'Créer ton compte':S.authMode==='reset'?'Mot de passe oublié':'Connexion'}</h1>
+   <p>${S.authMode==='signup'?'Un compte par commercial : tes fiches restent privées et suivent sur ton PC et ton téléphone.':S.authMode==='reset'?'Tu vas recevoir un lien pour choisir un nouveau mot de passe.':'Les mêmes identifiants sur l’appli PC et l’appli téléphone.'}</p>
+   <form id="auth-form" autocomplete="on">
+    <div class="f"><label for="au-mail">Email professionnel</label><input class="in" id="au-mail" type="email" autocomplete="username" required value="${esc(lsGet('radar-last-email',''))}"></div>
+    ${S.authMode!=='reset'?`<div class="f"><label for="au-pass">Mot de passe</label><input class="in" id="au-pass" type="password" autocomplete="${S.authMode==='signup'?'new-password':'current-password'}" minlength="6" required></div>`:''}
+    <button class="btn btn-p" type="submit" style="width:100%;height:44px">${S.authMode==='signup'?'Créer mon compte':S.authMode==='reset'?'Envoyer le lien':'Se connecter'}</button>
+   </form>
+   <div class="ai" id="au-msg" ${m?'':'hidden'}>${esc(m||'')}</div>
+   <div class="auth-links">${S.authMode!=='login'?'<button class="btn btn-q" data-act="authmode" data-v="login">J’ai déjà un compte</button>':'<button class="btn btn-q" data-act="authmode" data-v="signup">Créer un compte</button><button class="btn btn-q" data-act="authmode" data-v="reset">Mot de passe oublié</button>'}</div></div>`;
+  $('#auth-form').addEventListener('submit',authSubmit);setTimeout(()=>($('#au-mail').value?$('#au-pass'):$('#au-mail'))?.focus(),30)}
+function hideAuth(){const el=$('#auth');if(el){el.hidden=true;el.innerHTML=''}}
+async function authSubmit(e){e.preventDefault();const mail=$('#au-mail').value.trim(),pass=$('#au-pass')?.value||'';lsSet('radar-last-email',mail);
+  const msg=t=>{const m=$('#au-msg');m.hidden=false;m.textContent=t};const btn=e.target.querySelector('button');btn.disabled=true;msg('Un instant…');
+  try{
+    if(S.authMode==='signup'){const {data,error}=await SB.auth.signUp({email:mail,password:pass});if(error)throw error;
+      if(!data.session){S.authMode='login';showAuth('Compte créé. Ouvre le mail de confirmation, puis connecte-toi ici.');return}}
+    else if(S.authMode==='reset'){const {error}=await SB.auth.resetPasswordForEmail(mail,{redirectTo:location.href.split('#')[0]});if(error)throw error;msg('Lien envoyé. Regarde ta boîte mail (et les spams).');btn.disabled=false;return}
+    else{const {error}=await SB.auth.signInWithPassword({email:mail,password:pass});if(error)throw error}
+  }catch(err){btn.disabled=false;const t=String(err?.message||err);
+    msg(/invalid login/i.test(t)?'Email ou mot de passe incorrect.':/not confirmed/i.test(t)?'Confirme d’abord ton email (lien reçu par mail).':/already registered|already exists/i.test(t)?'Ce compte existe déjà : connecte-toi.':/password/i.test(t)?'Mot de passe trop court : 6 caractères minimum.':/fetch|network/i.test(t)?'Pas de connexion internet.':t)}}
+async function logout(){if(!SB)return;await pushQueue();if(RT){SB.removeChannel(RT);RT=null}await SB.auth.signOut();USER=null;S.P.clear();S.sel=null;S.menu=false;renderLayer();onUser()}
+
+/* ================= Calculs ================= */
+function nextAction(p){return (p.actions||[]).filter(a=>!a.fait).sort((a,b)=>(a.date||'9')+(a.heure||'')<(b.date||'9')+(b.heure||'')?-1:1)[0]}
+function dueClass(a){if(!a||!a.date)return'';const t=iso(today());return a.date<t?'late':a.date===t?'today':''}
+function qualif(p){let tot=0,ok=0;
+  for(const t of TABS)for(const f of (t.fields||[])){if(f.t==='area'||f.k==='ent.enseigne'||f.k==='ent.creation'||f.k==='ent.naf')continue;tot++;if(filled(getP(p,f.k)))ok++}
+  tot+=3;if(p.contacts?.length)ok++;if(p.contacts?.some(c=>c.decideur==='Oui'))ok++;if(p.contacts?.some(c=>c.tel||c.mobile||c.email))ok++;
+  return Math.round(ok/tot*100)}
+function tabCount(p,t){if(t.id==='contacts')return[p.contacts?.length||0,null];if(t.id==='suivi')return[(p.actions||[]).filter(a=>!a.fait).length,null];
+  const fs=t.fields.filter(f=>f.t!=='area');return[fs.filter(f=>filled(getP(p,f.k))).length,fs.length]}
+function displayName(p){return p.ent?.nom||p.ent?.enseigne||'Sans nom'}
+function excluded(p){const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.activite,p.ent?.secteur,p.ent?.naf].join(' '));
+  if(/\b(banque|bnp|credit agricole|societe generale|lcl|caisse d'epargne|bred|cic|la poste)\b/.test(s))return'Banque / agence bancaire : décision IT au siège.';
+  if(/\b(pharmacie|speedy|franchise|franchis|midas|norauto|carglass)\b/.test(s)||p.ent?.groupe==='Oui')return'Franchise ou réseau : la décision IT se prend au siège.';
+  return''}
+function matches(p,q){if(!q)return true;const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.ville,p.ent?.cp,p.ent?.siret,p.ent?.siren,p.ent?.tel,p.ent?.secteur,...(p.contacts||[]).flatMap(c=>[c.prenom,c.nom,c.tel,c.mobile,c.email])].join(' ')).replace(/\s/g,'');
+  return norm(q).split(/\s+/).every(w=>s.includes(w.replace(/\s/g,'')))}
+function filtered(){const t=iso(today());
+  return [...S.P.values()].filter(p=>matches(p,S.q)).filter(p=>{
+    if(S.filter==='all')return true;if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
+    if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
+   .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:b.updatedAt-a.updatedAt})}
+function allActions(){const out=[];for(const p of S.P.values())for(const a of (p.actions||[]))out.push({p,a});return out}
+function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;return [...S.P.values()].filter(p=>p.rdvPrisLe&&p.rdvPrisLe.startsWith(m)).length}
+function todayJournal(c){const t=iso(today());let n=0;for(const p of S.P.values())for(const j of (p.journal||[]))if(j.date?.startsWith(t)&&j.canal===c&&j.issue)n++;return n}
+
+/* ================= Rendu : coquille ================= */
+function render(){
+  const app=$('#app');app.className=S.mode;
+  $$('[data-act="view"]').forEach(b=>b.setAttribute('aria-current',String(S.view===b.dataset.v&&!(S.mode==='terrain'&&S.view==='list'&&S.sel&&false))));
+  $$('[data-act="mode"]').forEach(b=>b.setAttribute('aria-pressed',String(S.mode===b.dataset.v)));
+  const m=$('#main');
+  if(S.view==='today')m.innerHTML=`<div class="today"><div class="today-in" id="today"></div></div>`,renderToday();
+  else if(S.view==='agenda')m.innerHTML=`<div class="today"><div class="today-in" id="agenda"></div></div>`,renderAgenda();
+  else if(S.view==='around'){m.innerHTML=`<div class="today"><div class="today-in" id="around"></div></div>`;renderAround();if(!S.gpsTried&&!A().pos&&S.mode==='terrain'){S.gpsTried=true;setTimeout(tryGps,150)}}
+  else if(S.mode==='poste'){m.innerHTML=`<div class="cols"><aside class="col col-list" id="list"></aside><section class="col col-fiche" id="fiche"></section><aside class="col col-notes" id="notes"></aside></div>`;renderList();renderFiche();renderNotesOnly()}
+  else{ if(S.sel&&cur()){m.innerHTML=`<section class="mono-col col-fiche" id="fiche"></section>`;renderFiche()}else{m.innerHTML=`<div class="mono-col col-list" id="list"></div>`;renderList()} }
+  renderLayer();
+}
+function renderSoft(selChanged){
+  if(S.view==='today')renderToday();else if(S.view==='agenda')renderAgenda();else if(S.view==='around'){}else{renderList();
+    if(selChanged&&!$('#fiche')?.contains(document.activeElement))renderFiche();
+    if(S.sel&&!cur()){S.sel=null;render()}}
+}
+
+/* ================= Aujourd'hui ================= */
+function renderToday(){
+  const el=$('#today');if(!el)return;
+  const h=new Date().getHours();const t=iso(today());
+  const acts=allActions().filter(x=>!x.a.fait&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1);
+  const late=acts.filter(x=>x.a.date<t).length;
+  const rdv=monthRdv(),obj=S.settings.objectif||20;
+  const P=[...S.P.values()];
+  const counts=STATUTS.map(s=>({...s,n:P.filter(p=>p.statut===s.k).length}));
+  const tot=P.length||1;
+  const hot=P.filter(p=>p.temperature==='chaud'&&!['gagne','perdu','ko'].includes(p.statut)).slice(0,6);
+  const exemples=P.some(p=>p.exemple);
+  const daysLeft=(()=>{const d=new Date();const end=new Date(d.getFullYear(),d.getMonth()+1,0);let n=0;for(let x=new Date(d);x<=end;x=addDays(x,1))if(x.getDay()%6)n++;return n})();
+  el.innerHTML=`
+  <div class="hello"><div><h1>${h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir'}${''} — ${esc(JOURS[new Date().getDay()])} ${new Date().getDate()} ${MOIS[new Date().getMonth()]}</h1>
+    <p>${acts.length?`${acts.length} action${acts.length>1?'s':''} à traiter${late?`, dont ${late} en retard`:''}.`:'Rien en retard. Bonne journée pour prospecter.'}</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-loc" data-act="view" data-v="around">📍 Autour de moi · 50 m</button>${S.mode==='poste'?`<button class="btn btn-p" data-act="session">Lancer la session d'appels</button>`:`<button class="btn btn-p" data-act="new">+ Nouvelle visite</button>`}<button class="btn btn-g" data-act="new">${S.mode==='poste'?'+ Nouveau prospect':'+ Saisie rapide'}</button></div></div>
+  ${exemples?`<div class="banner"><span>Les fiches marquées « exemple » montrent comment l'outil se remplit. Supprime-les quand tu veux.</span><button class="btn btn-g btn-s" data-act="delex">Supprimer les exemples</button></div>`:''}
+  <div class="kpis">
+    <div class="kpi main"><span class="k">RDV pris ce mois</span><span class="v num">${rdv}<small> / ${obj}</small></span><div class="bar"><i style="width:${Math.min(100,rdv/obj*100)}%"></i></div><span class="s">${rdv>=obj?'Objectif atteint 🎯':`Encore ${obj-rdv} · ${daysLeft} jours ouvrés restants`}</span></div>
+    <div class="kpi"><span class="k">Appels aujourd'hui</span><span class="v num">${todayJournal('tel')}</span><span class="s">issues d'appel saisies</span></div>
+    <div class="kpi"><span class="k">Visites aujourd'hui</span><span class="v num">${todayJournal('terrain')}</span><span class="s">passages terrain</span></div>
+    <div class="kpi ${late?'alert':''}"><span class="k">En retard</span><span class="v num">${late}</span><span class="s">${late?'à rattraper en priorité':'tout est à jour'}</span></div>
+  </div>
+  <div class="two">
+    <div class="card"><h2>À faire maintenant <button class="btn btn-q btn-s" data-act="view" data-v="agenda">Tout l'agenda →</button></h2>
+      ${acts.length?acts.slice(0,12).map(todoRow).join(''):P.length?`<div class="empty" style="padding:14px">Aucune action prévue aujourd'hui.</div>`:emptyStart()}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+      <div class="card"><h2>Pipeline <span class="lbl">${P.length} prospect${P.length>1?'s':''}</span></h2>
+        <div class="pipe">${counts.filter(c=>c.n).map(c=>`<i style="width:${c.n/tot*100}%;background:${c.c}" title="${esc(c.l)} : ${c.n}"></i>`).join('')}</div>
+        <div class="pl">${counts.map(c=>`<button data-act="filter" data-v="${c.k}"><i style="background:${c.c}"></i>${esc(c.l)}</button><span class="num">${c.n}</span>`).join('')}</div>
+      </div>
+      <div class="card"><h2>Prospects chauds</h2>
+        ${hot.length?hot.map(p=>`<button class="todo" data-act="open" data-id="${p.id}"><span class="tdot" data-t="chaud"></span><span style="min-width:0"><div class="t">${esc(displayName(p))}</div><div class="n">${esc([ST[p.statut]?.l,p.ent?.ville].filter(Boolean).join(' · '))}</div></span><span class="due ${dueClass(nextAction(p))}">${esc(nextAction(p)?fmtDate(nextAction(p).date):'—')}</span></button>`).join(''):`<div class="n" style="color:var(--ink-3);font-size:13px">Marque un prospect « Chaud » dans sa fiche pour le retrouver ici.</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+function emptyStart(){return `<div class="empty"><h3>Ton radar est vide</h3><span>Crée ta première fiche : tape le nom ou colle un SIRET, l'outil remplit le reste.</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn btn-p" data-act="new">+ Premier prospect</button><button class="btn btn-g" data-act="seed">Voir 3 exemples</button></div></div>`}
+function todoRow({p,a}){const c=dueClass(a);return `<button class="todo" data-act="open" data-id="${p.id}" data-tab="suivi"><span class="atype">${esc(a.type)}</span><span style="min-width:0"><div class="t">${esc(displayName(p))}</div><div class="n">${esc([a.note,p.contacts?.[0]&&[p.contacts[0].prenom,p.contacts[0].nom].filter(Boolean).join(' '),fmtTel(p.contacts?.[0]?.tel||p.contacts?.[0]?.mobile||p.ent?.tel)].filter(Boolean).join(' · '))}</div></span><span class="due ${c}">${esc(c==='late'?fmtDate(a.date):a.heure||fmtDate(a.date))}</span></button>`}
+
+/* ================= Agenda ================= */
+function renderAgenda(){
+  const el=$('#agenda');if(!el)return;const t=iso(today()),tm=iso(addDays(today(),1)),wk=iso(addDays(today(),7));
+  const acts=allActions().filter(x=>!x.a.fait).sort((x,y)=>((x.a.date||'9')+(x.a.heure||''))<((y.a.date||'9')+(y.a.heure||''))?-1:1);
+  const groups=[['En retard',x=>x.a.date&&x.a.date<t,'late'],["Aujourd'hui",x=>x.a.date===t],['Demain',x=>x.a.date===tm],['7 prochains jours',x=>x.a.date>tm&&x.a.date<=wk],['Plus tard',x=>x.a.date>wk],['Sans date',x=>!x.a.date]];
+  el.innerHTML=`<div class="hello"><div><h1>Agenda</h1><p>${acts.length} action${acts.length>1?'s':''} ouverte${acts.length>1?'s':''}. Coche pour terminer, touche pour ouvrir la fiche.</p></div></div>
+   <div class="card">${acts.length?groups.map(([l,f,c])=>{const g=acts.filter(f);return g.length?`<div class="ag-g"><h3 class="${c||''}">${l} · ${g.length}</h3>${g.map(x=>`<div class="act"><button class="check" role="checkbox" aria-checked="false" data-act="done" data-id="${x.p.id}" data-a="${x.a.id}" aria-label="Terminer"></button><button style="text-align:left;min-width:0" data-act="open" data-id="${x.p.id}" data-tab="suivi"><div class="act-t"><span class="atype">${esc(x.a.type)}</span>${esc(displayName(x.p))}</div><div class="act-n">${esc([x.a.note,x.p.ent?.ville,fmtTel(x.p.contacts?.[0]?.tel||x.p.contacts?.[0]?.mobile||x.p.ent?.tel)].filter(Boolean).join(' · '))}</div></button><span class="due ${dueClass(x.a)}">${esc(fmtDate(x.a.date))}${x.a.heure?' · '+esc(x.a.heure):''}</span></div>`).join('')}</div>`:''}).join(''):`<div class="empty"><h3>Rien de prévu</h3><span>Les rappels, RDV et relances créés depuis les fiches ou les notes apparaissent ici.</span></div>`}</div>`;
+}
+
+/* ================= Liste ================= */
+function renderList(){
+  const el=$('#list');if(!el)return;const L=filtered();
+  const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],...(S.lastBatch?.length?[['batch','Dernier repérage']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
+  el.innerHTML=`<div class="list-head"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="width:100%">📍 Prospecter autour de moi (50 m)</button><h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''}</span></h2>
+   <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
+   <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row" data-act="open" data-id="${p.id}" aria-current="${p.id===S.sel}">
+     <span class="tdot" data-t="${p.temperature||''}"></span><span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
+     <span class="sub">${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
+   :S.P.size?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
+}
+
+/* ================= Fiche ================= */
+function ringSvg(v){const r=25,c=2*Math.PI*r;return `<svg viewBox="0 0 58 58"><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--sunk)" stroke-width="5"/><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-v/100)}" style="transition:stroke-dashoffset .5s"/></svg>`}
+function renderFiche(){
+  const el=$('#fiche');if(!el)return;const p=cur();
+  if(!p){el.innerHTML=`<div class="placeholder"><div><h3>Choisis un prospect</h3><span>ou crée-en un nouveau. Raccourcis : <kbd>N</kbd> nouveau, <kbd>J</kbd>/<kbd>K</kbd> suivant/précédent, <kbd>/</kbd> recherche, <kbd>?</kbd> aide.</span><button class="btn btn-p" data-act="new">+ Nouveau prospect</button></div></div>`;return}
+  const q=qualif(p),ex=excluded(p);const sub=[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal.'].filter(Boolean);
+  el.innerHTML=`<div class="fiche">
+   ${S.mode==='terrain'?`<div><button class="back" data-act="back">← Prospects</button></div>`:''}
+   <div class="fhead">
+    <div class="fhead-top"><div class="fname"><input id="f-ent-nom" data-k="ent.nom" value="${esc(p.ent?.nom||'')}" placeholder="Tape le nom : suggestions du registre" autocomplete="off">
+      <div class="fmeta" id="fmeta">${fmetaHtml(p,sub)}</div></div>
+      <div class="ring" title="Qualification de la fiche">${ringSvg(q)}<b class="num" id="ringv">${q}%</b><small>qualifiée</small></div></div>
+    <div class="fbar"><div class="stsel">${STATUTS.map(s=>`<button data-act="statut" data-v="${s.k}" aria-pressed="${p.statut===s.k}" ${p.statut===s.k?`class="st-${s.k}"`:''}>${esc(s.l)}</button>`).join('')}</div>
+     <div class="temp" role="group" aria-label="Température">${TEMPS.map(t=>`<button data-act="temp" data-v="${t.k}" aria-pressed="${p.temperature===t.k}">${t.l}</button>`).join('')}</div></div>
+    ${ex?`<div class="warnbox"><b>Hors cible ?</b><span>${esc(ex)}</span></div>`:''}
+   </div>
+   <div class="tabs" role="tablist" id="tabs">${tabsHtml(p)}</div>
+   <div id="tabbody">${tabBody(p)}</div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding-top:6px">
+     <button class="btn btn-g btn-s" data-act="copy">Copier le résumé (CRM)</button>
+     ${S.confirmDel?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="del2">Confirmer la suppression</button><button class="btn btn-q btn-s" data-act="del0">Annuler</button>`:`<button class="btn btn-q btn-s" data-act="del">Supprimer la fiche</button>`}
+   </div>
+  </div>
+  ${S.mode==='terrain'?`<button class="fab" data-act="sheet"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5V17h1.5L15 7.5 13.5 6zM12.5 7l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notes & issue</button>`:''}`;
+  flashApply();
+}
+function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal.'].filter(Boolean);
+  return `${p.ent?.siret?`<span>SIRET <span class="mono">${esc(fmtSiret(p.ent.siret))}</span></span>`:p.ent?.siren?`<span>SIREN <span class="mono">${esc(fmtSiret(p.ent.siren))}</span></span>`:'<span style="color:var(--ink-3)">SIRET non renseigné</span>'}${sub.map(s=>`<span>${esc(s)}</span>`).join('')}${p.ent?.tel?`<span class="mono">${esc(fmtTel(p.ent.tel))}</span>`:''}${p.rne?.status==='ok'?'<span class="badge-dec">✓ Registre</span>':p.rne?.status==='a_verifier'?'<span class="tag">Registre à confirmer</span>':''}<span style="color:var(--ink-3)">${p.source==='terrain'?'Terrain':p.source==='linkedin'?'LinkedIn':'Téléphone'}</span>`}
+function tabsHtml(p){return TABS.map((t,i)=>{const [n,tot]=tabCount(p,t);return `<button class="tab${S.flash.has('tab:'+t.id)?' flash':''}" role="tab" data-act="tab" data-v="${t.id}" aria-selected="${S.tab===t.id}" title="${S.mode==='poste'?'Alt+'+(i+1):''}">${t.l}<span class="cnt${tot&&n===tot?' full':''}">${tot?n+'/'+tot:n}</span></button>`}).join('')}
+function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.innerHTML=fmetaHtml(p);const t=$('#tabs');if(t)t.innerHTML=tabsHtml(p);
+  const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
+function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
+  if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);
+  return `${t.id==='ent'?identHtml(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
+function fieldHtml(f,path,v,def){
+  const id='f-'+path.replace(/\./g,'-');const span=f.w===2?' span-2':'';const dk=def||f.k;
+  if(f.t==='single'||f.t==='multi')return `<div class="f${span}"><span class="lab">${esc(f.l)}</span>${chipsHtml(f,path,v,dk)}</div>`;
+  let extra='';
+  if(f.k==='ent.siret'&&v){const d=String(v).replace(/\D/g,'');extra=d.length===14&&luhn(d)?'<em>✓ valide</em>':'<em class="bad">à vérifier</em>'}
+  if(f.t==='area')return `<div class="f${span}"><label for="${id}">${esc(f.l)}</label><textarea class="in" id="${id}" data-k="${path}" data-def="${dk}" placeholder="${esc(f.ph||'')}">${esc(v||'')}</textarea></div>`;
+  const type=f.t==='num'?'number':f.t==='month'?'month':f.t==='email'?'email':f.t==='tel'?'tel':'text';
+  const val=f.t==='tel'?fmtTel(v||''):f.t==='mono'&&/siret|siren/.test(f.k)?fmtSiret(v||''):(v??'');
+  return `<div class="f${span}"><label for="${id}">${esc(f.l)}${extra}</label><input class="in${f.t==='mono'||f.t==='tel'?' mono':''}" id="${id}" type="${type}" ${f.t==='num'?'inputmode="numeric" min="0"':''} data-k="${path}" data-def="${dk}" value="${esc(val)}" placeholder="${esc(f.ph||'')}" autocomplete="off"></div>`}
+function chipsHtml(f,path,v,dk){
+  const sel=f.t==='multi'?(Array.isArray(v)?v:(v?[v]:[])):(v?[v]:[]);
+  const isSel=o=>sel.some(x=>norm(x)===norm(o));
+  const custom=sel.filter(x=>!f.o.some(o=>norm(o)===norm(x)));
+  return `<div class="chips" data-group="${path}" data-k="${path}" data-def="${dk}" data-t="${f.t}">${f.o.map(o=>`<button class="chip" data-act="chip" data-v="${esc(o)}" aria-pressed="${isSel(o)}">${esc(o)}</button>`).join('')}${custom.map(o=>`<button class="chip custom" data-act="chip" data-v="${esc(o)}" aria-pressed="true">${esc(o)}</button>`).join('')}<button class="chip add" data-act="other">+ ${f.o.length?'Autre':'Ajouter'}</button></div>`}
+function identHtml(p){
+  const qn=encodeURIComponent([p.ent?.nom,p.ent?.ville].filter(Boolean).join(' '));const has=!!(p.ent?.nom);
+  const q2=encodeURIComponent(p.ent?.siren||p.ent?.siret?.slice(0,9)||[p.ent?.nom,p.ent?.ville].filter(Boolean).join(' '));
+  const st=S.id&&S.id.pid===p.id?S.id:{};
+  const cands=st.cands?.length?st.cands:(p.rneCands||[]).map(c=>({kind:'sir',...c}));
+  const ok=p.rne?.status==='ok';
+  const candHtml=(c,i)=>{
+    if(c.kind==='addr')return `<button class="cand" data-act="pick" data-i="${i}"><b>Garder seulement l'adresse</b><span>${esc(c.g.label)}</span></button>`;
+    if(c.kind==='etab'){const x=c.x;return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(x.name)}</b><span>${esc([nafLabel(x.naf),x.forme,x.adr.rue].filter(Boolean).join(' · '))}</span><em>${Math.round(x.dist)} m</em></button>`}
+    if(c.kind==='re'){const r=c.r;const e=pickEtab(r,{cp:p.ent?.cp});const a=addrOf(e||r.siege);return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(nameOf(r))}</b><span>${esc([formeFromCode(r.nature_juridique),[a.cp,a.ville].filter(Boolean).join(' '),nafLabel(nafFmt(r.activite_principale)),r.etat_administratif==='C'?'fermée':''].filter(Boolean).join(' · '))}</span><em class="mono">${esc(fmtSiret(r.siren))}</em></button>`}
+    return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(c.nom||c.siren)}</b><span>${esc(c.info||'')}</span><em class="mono">${esc(fmtSiret(c.siren))}</em></button>`};
+  return `<div class="ident" id="ident-box" style="margin-bottom:14px">
+   <h3><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.2 4.4.3-3.4 2.8 1.1 4.3L8 10.7l-3.7 2.4 1.1-4.3L2 6l4.4-.3z" fill="var(--accent)"/></svg>Identification automatique ${ok?'<span class="badge-dec" style="margin-left:auto">✓ Registre</span>':''}</h3>
+   <p>Tape le nom (les entreprises s'affichent pendant que tu écris), un SIRET, un SIREN, une adresse, ou colle une fiche entière : tout se remplit depuis le registre officiel.</p>
+   <textarea class="in" id="ident-in" placeholder="ex. « gestion roche asnières », « 847 689 759 », « 4 rue de la Station »">${esc(st.keep||'')}</textarea>
+   <div class="ident-row"><button class="btn btn-p btn-s" data-act="identify" ${st.busy?'disabled':''}>${st.busy?'Recherche…':'Identifier et remplir'}</button>
+     ${p.ent?.siren?`<button class="btn btn-q btn-s" data-act="rnerefresh">${ok?'Actualiser depuis le registre':'Compléter depuis le registre'}</button>`:''}
+     <span style="font-size:12px;color:var(--ink-3)">${S.mode==='poste'?'<kbd>Ctrl</kbd>+<kbd>Entrée</kbd>':''}</span></div>
+   ${st.msg||st.busy?`<div class="ai" data-s="${st.busy?'busy':''}" style="background:var(--surface)">${st.busy?'<span class="spin"></span>':''}<span>${esc(st.msg||'')}</span></div>`:''}
+   ${cands.length?`<div class="cands"><div class="lbl">${cands[0].kind==='etab'||cands[0].kind==='addr'?'Entreprises enregistrées à cette adresse':'Choisis la bonne entreprise'}</div>${cands.map(candHtml).join('')}
+      <button class="btn btn-q btn-s" data-act="candx" style="align-self:flex-start">Aucune ne correspond</button></div>`:''}
+   ${ok?`<p style="font-size:11.5px">Données officielles (${esc(fmtDate(p.rne.at).toLowerCase())}) · registre public des entreprises (INSEE / RNE).</p>`:''}
+   ${has||p.ent?.siret?`<div class="links"><span class="lbl" style="align-self:center">Vérifier :</span>
+     <a href="https://annuaire-entreprises.data.gouv.fr/rechercher?terme=${q2}" target="_blank" rel="noopener">Annuaire des entreprises</a>
+     <a href="https://www.pappers.fr/recherche?q=${q2}" target="_blank" rel="noopener">Pappers</a>
+     <a href="https://www.google.com/maps/search/${qn}" target="_blank" rel="noopener">Maps</a>
+     <a href="https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(p.ent?.nom||'')}" target="_blank" rel="noopener">LinkedIn</a>
+     <a href="https://www.google.com/search?q=${qn}" target="_blank" rel="noopener">Google</a></div>`:''}
+  </div>`}
+function contactsHtml(p){const cs=p.contacts||[];
+  return `<div style="display:flex;flex-direction:column;gap:12px">${cs.map((c,i)=>`<div class="contact"><div class="contact-h"><b>${esc([c.civ,c.prenom,c.nom].filter(Boolean).join(' ')||'Nouveau contact')}</b><span style="display:flex;gap:6px;align-items:center">${c.decideur==='Oui'?'<span class="badge-dec">Décideur</span>':''}<button class="btn btn-q btn-s" data-act="delc" data-i="${i}">Retirer</button></span></div>
+   <div class="grid">${CFIELDS.map(f=>fieldHtml(f,`contacts.${i}.${f.k}`,c[f.k],'c.'+f.k)).join('')}</div></div>`).join('')}
+   <button class="btn btn-g" data-act="addc" style="align-self:flex-start">+ Ajouter un contact</button></div>`}
+function suiviHtml(p){
+  const acts=(p.actions||[]).slice().sort((a,b)=>(a.fait-b.fait)||((a.date||'9')+(a.heure||'')<(b.date||'9')+(b.heure||'')?-1:1));
+  const j=(p.journal||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
+  const na=S.newAct||{type:'Rappel',date:iso(bizDays(today(),1)),heure:'',note:''};
+  return `<div style="display:flex;flex-direction:column;gap:14px">
+   <div class="panel"><h3 class="sec-t">Actions à venir <span class="lbl">${acts.filter(a=>!a.fait).length} ouverte(s)</span></h3>
+    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
+    <div class="addact"><div class="chips">${ATYPES.map(t=>`<button class="chip" data-act="natype" data-v="${t}" aria-pressed="${na.type===t}">${t}</button>`).join('')}</div>
+     <div class="f"><label for="na-date">Date</label><input class="in" type="date" id="na-date" value="${esc(na.date)}"></div>
+     <div class="f"><label for="na-heure">Heure</label><input class="in" type="time" id="na-heure" value="${esc(na.heure)}"></div>
+     <div class="quick span-2">${[['Demain',1],['+2 j',2],['+1 sem.',5],['+2 sem.',10],['+1 mois',21]].map(([l,n])=>`<button class="chip" data-act="naquick" data-v="${n}">${l}</button>`).join('')}</div>
+     <div class="f span-2"><label for="na-note">Note</label><input class="in" id="na-note" placeholder="ex. demander la DAF, envoyer plaquette impression" value="${esc(na.note)}"></div>
+     <button class="btn btn-p span-2" data-act="addact">Ajouter l'action</button></div>
+   </div>
+   <div class="panel"><h3 class="sec-t">Source</h3>${chipsHtml({t:'single',o:['Téléphone','Terrain','LinkedIn','Recommandation','Salon']},'source',{tel:'Téléphone',terrain:'Terrain',linkedin:'LinkedIn'}[p.source]||p.source,'source')}</div>
+   <div class="panel"><h3 class="sec-t">Historique <span class="lbl">${j.length} entrée(s)</span></h3>
+    ${j.length?`<div class="tl">${j.map(e=>`<div class="tl-i" data-c="${e.canal}"><div class="tl-h"><b>${esc(e.issue||(e.canal==='note'?'Note':e.canal==='tel'?'Appel':'Visite'))}</b><span>${esc(fmtDate(e.date.slice(0,10)))} ${esc(e.date.slice(11,16))}</span>${e.duree?`<span class="mono">${esc(e.duree)}</span>`:''}${e.canal==='tel'?'<span>📞</span>':e.canal==='terrain'?'<span>📍</span>':''}</div>${e.texte?`<div class="tl-x">${esc(e.texte)}</div>`:''}</div>`).join('')}</div>`:`<span style="color:var(--ink-3);font-size:13px">Les notes et issues d'appel ou de visite s'ajoutent ici automatiquement.</span>`}
+   </div></div>`}
+
+/* ================= Panneau notes / appel ================= */
+function notesHtml(p){
+  if(!p)return `<div class="np"><div class="np-h"><h2>Notes</h2></div><div style="color:var(--ink-3);font-size:13px">Ouvre une fiche pour prendre des notes. L'analyse range automatiquement chaque info dans le bon onglet.</div>${S.mode==='poste'?`<button class="btn btn-p" data-act="session">Lancer la session d'appels</button>`:''}</div>`;
+  const m=S.mode;const c=(p.contacts||[]).find(c=>c.tel||c.mobile)||p.contacts?.[0];const ph=c?.tel||c?.mobile||p.ent?.tel;
+  const outs=OUT[m];const draft=lsGet('radar-draft-'+p.id,'');const ses=S.session;
+  return `<div class="np">
+   ${ses?`<div class="sess"><span>Session d'appels · <b>${ses.i+1}/${ses.q.length}</b></span><span style="display:flex;gap:6px"><button class="btn btn-s" data-act="snext">Suivant <kbd style="background:transparent;border-color:currentColor;color:inherit">J</kbd></button><button class="btn btn-q btn-s" style="color:inherit" data-act="sstop">Arrêter</button></span></div>`:''}
+   <div class="np-h"><h2>${m==='poste'?'Appel en cours':'Visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
+   ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:`<span class="who">Pas encore de numéro. Ajoute-le dans la note ou l'onglet Entreprise.</span>`}
+     ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
+   <textarea class="in note" id="note-in" placeholder="${m==='poste'?'Tape comme tu parles : « dg mr martin, 12 postes, canon en leasing fin 06/27 pas content, av avast, pas de svg, rapl jeudi 14h »':'ex. « vu accueil, gerante mme lopez absente, 8 pers, copieur ricoh, repasser mardi matin »'}">${esc(draft)}</textarea>
+   <div class="hint"><span>Abréviations et fautes comprises.</span>${m==='poste'?'<span><kbd>Ctrl</kbd>+<kbd>Entrée</kbd> analyser</span>':''}</div>
+   <button class="btn btn-p" data-act="analyze" ${S.aiBusy?'disabled':''}>${S.aiBusy?'Analyse en cours…':'Analyser et remplir la fiche'}</button>
+   ${S.aiMsg||S.aiBusy?`<div class="ai" data-s="${S.aiBusy?'busy':''}">${S.aiBusy?'<span class="spin"></span>':''}<span>${esc(S.aiMsg)}</span></div>`:''}
+   ${S.ask?askHtml():`<div><div class="lbl" style="margin-bottom:6px">Issue ${m==='poste'?'de l’appel':'de la visite'}</div><div class="outs">${outs.map(o=>`<button class="out ${o.cls||''}" data-act="out" data-v="${o.k}">${esc(o.l)}${o.key&&m==='poste'?`<kbd>Alt ${o.key}</kbd>`:''}</button>`).join('')}</div></div>`}
+  </div>`}
+function askHtml(){const a=S.ask;const o=OUT[S.mode].find(x=>x.k===a.k);
+  return `<div class="ask"><b>${esc(o.l)} : quand ?</b><div class="quick">${(o.k==='rdv'?[['Demain',1],['+2 j',2],['+3 j',3],['+1 sem.',5]]:[['Demain',1],['+2 j',2],['+1 sem.',5],['+1 mois',21]]).map(([l,n])=>`<button class="chip" data-act="askq" data-v="${n}">${l}</button>`).join('')}</div>
+   <div class="rowx"><input class="in" type="date" id="ask-date" value="${esc(a.date)}"><input class="in" type="time" id="ask-heure" value="${esc(a.heure)}"></div>
+   ${o.k==='rdv'?`<div class="chips">${['Sur place','Visio','Téléphone','Accompagné'].map(t=>`<button class="chip" data-act="asklieu" data-v="${t}" aria-pressed="${a.lieu===t}">${t}</button>`).join('')}</div>`:''}
+   <div class="rowx"><button class="btn btn-p" data-act="askok">Valider</button><button class="btn btn-g" data-act="askno">Annuler</button></div></div>`}
+function renderNotesOnly(){const p=cur();
+  if(S.mode==='poste'){const el=$('#notes');if(el){const keep=$('#note-in')?.value;el.innerHTML=notesHtml(p);if(keep!=null&&$('#note-in')&&p)$('#note-in').value=keep}}
+  else renderLayer()}
+function renderLayer(){const L=$('#layer');
+  if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
+  else if(S.help)L.innerHTML=helpHtml();else if(S.menu)L.innerHTML=menuHtml();else L.innerHTML=''}
+function helpHtml(){return `<div class="modal" data-act="closem"><div><h2>Raccourcis clavier</h2><div class="keys">
+ <kbd>N</kbd><span>Nouveau prospect</span><kbd>/</kbd><span>Rechercher</span><kbd>J</kbd> <kbd>K</kbd><span>Prospect suivant / précédent (ou suivant en session d'appels)</span>
+ <kbd>Ctrl Entrée</kbd><span>Analyser la note (ou l'identification)</span><kbd>Alt 1…8</kbd><span>Issue d'appel rapide</span><kbd>Alt ⇧ 1…8</kbd><span>Changer d'onglet</span><kbd>Échap</kbd><span>Sortir du champ</span></div>
+ <button class="btn btn-g" data-act="closem">Fermer</button></div></div>`}
+function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (téléphone)']:['pc.html','Radar Poste (PC)'];
+ return `<div class="modal" data-act="closem"><div><h2>Options</h2>
+ ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b></span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
+ <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
+ <div style="display:flex;flex-direction:column;gap:8px">
+  ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
+  <button class="btn btn-g" data-act="export">Exporter en CSV (Artis / Excel)</button>
+  <button class="btn btn-g" data-act="backup">Télécharger une sauvegarde complète</button>
+  <label class="btn btn-g" for="imp-in" style="cursor:pointer">Importer une sauvegarde</label><input type="file" id="imp-in" accept=".json,application/json" hidden>
+  ${S.mode==='poste'?'<button class="btn btn-g" data-act="help">Raccourcis clavier</button>':''}
+  ${S.P.size?'':'<button class="btn btn-g" data-act="seed">Charger 3 fiches d’exemple</button>'}
+  <a class="btn btn-q" href="${other[0]}">Ouvrir ${other[1]}</a>
+ </div>
+ <button class="btn btn-p" data-act="closem">Fermer</button></div></div>`}
+
+/* ================= Actions UI ================= */
+function open(id,tab){S.sel=id;S.confirmDel=false;S.ask=null;S.aiMsg='';S.newAct=null;if(tab)S.tab=tab;else if(!TABS.some(t=>t.id===S.tab))S.tab='ent';
+  if(S.view!=='list')S.view='list';render();
+  if(S.mode==='poste')$('.row[aria-current="true"]')?.scrollIntoView({block:'nearest'});}
+function newProspect(){const p=blank(S.mode==='poste'?'tel':'terrain');S.P.set(p.id,p);touch(p);S.tab='ent';open(p.id,'ent');setTimeout(()=>$('#ident-in')?.focus(),30)}
+function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?'<button>Annuler</button>':''}`;
+  if(undo)t.querySelector('button').onclick=()=>{undo();t.remove()};$('#toast').append(t);setTimeout(()=>t.remove(),undo?7000:3200)}
+function setField(path,v){const p=cur();if(!p)return;
+  if(path==='source'){p.source={Téléphone:'tel',Terrain:'terrain',LinkedIn:'linkedin'}[v]||v;touch(p);return}
+  setP(p,path,v);touch(p);refreshMeta()}
+
+const ACT={
+ view:b=>{S.view=b.dataset.v;if(S.mode==='terrain'&&S.view==='list')S.sel=null;S.sheet=false;render()},
+ new:()=>newProspect(),
+ open:b=>open(b.dataset.id,b.dataset.tab),
+ back:()=>{S.sel=null;S.sheet=false;render()},
+ filter:b=>{S.filter=S.filter===b.dataset.v&&b.dataset.v!=='all'&&S.view==='list'?'all':b.dataset.v;if(S.view!=='list'||(S.mode==='terrain'&&S.sel)){S.view='list';if(S.mode==='terrain')S.sel=null;render()}else renderList()},
+ tab:b=>{S.tab=b.dataset.v;S.flash.delete('tab:'+S.tab);$('#tabs').innerHTML=tabsHtml(cur());$('#tabbody').innerHTML=tabBody(cur())},
+ statut:b=>{const p=cur();setStatut(p,b.dataset.v);touch(p);renderFiche();renderList()},
+ temp:b=>{const p=cur();p.temperature=p.temperature===b.dataset.v?'':b.dataset.v;touch(p);renderFiche();renderList()},
+ chip:b=>{const g=b.closest('.chips');const path=g.dataset.k,t=g.dataset.t,v=b.dataset.v;const p=cur();
+  if(path==='source'){setField('source',v);g.outerHTML=chipsHtml({t:'single',o:['Téléphone','Terrain','LinkedIn','Recommandation','Salon']},'source',v,'source');return}
+  const curv=getP(p,path);let nv;
+  if(t==='single')nv=norm(curv)===norm(v)?'':v;
+  else{let arr=Array.isArray(curv)?curv.slice():[];const i=arr.findIndex(x=>norm(x)===norm(v));if(i>=0)arr.splice(i,1);else{if(EXCL.test(v))arr=[];else arr=arr.filter(x=>!EXCL.test(x));arr.push(v)}nv=arr}
+  setField(path,nv);redrawChips(path);
+  if(path.startsWith('contacts.')&&path.endsWith('decideur')){$('#tabbody').innerHTML=tabBody(p)}},
+ other:b=>{const g=b.closest('.chips');b.outerHTML=`<input class="chip-in" placeholder="Saisis puis Entrée" aria-label="Autre valeur">`;const i=g.querySelector('.chip-in');i.focus();
+  const commit=()=>{const v=i.value.trim();if(v){const p=cur();const f=defOf(g.dataset.def);let curv=getP(p,g.dataset.k);
+     if(f.t==='single')setField(g.dataset.k,v);else{let arr=Array.isArray(curv)?curv.filter(x=>!EXCL.test(x)):[];if(!arr.some(x=>norm(x)===norm(v)))arr.push(v);setField(g.dataset.k,arr)}}
+   redrawChips(g.dataset.k)};
+  i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit()}if(e.key==='Escape')redrawChips(g.dataset.k)});i.addEventListener('blur',()=>{if(document.contains(i))commit()})},
+ addc:()=>{const p=cur();p.contacts=p.contacts||[];p.contacts.push({id:rid()});touch(p);$('#tabbody').innerHTML=tabBody(p);refreshMeta();$$('.contact').at(-1)?.querySelector('input')?.focus()},
+ delc:b=>{const p=cur();const old=structuredClone(p.contacts);p.contacts.splice(+b.dataset.i,1);touch(p);$('#tabbody').innerHTML=tabBody(p);refreshMeta();toast('Contact retiré',()=>{p.contacts=old;touch(p);$('#tabbody').innerHTML=tabBody(p);refreshMeta()})},
+ natype:b=>{S.newAct=readNa();S.newAct.type=b.dataset.v;$('#tabbody').innerHTML=tabBody(cur())},
+ naquick:b=>{S.newAct=readNa();S.newAct.date=iso(bizDays(today(),+b.dataset.v));$('#tabbody').innerHTML=tabBody(cur())},
+ addact:()=>{const p=cur();const na=readNa();addAction(p,{type:na.type,date:na.date,heure:na.heure,note:na.note});S.newAct=null;touch(p);$('#tabbody').innerHTML=tabBody(p);refreshMeta();renderList();toast(`${na.type} ajouté · ${fmtDate(na.date)}`)},
+ done:b=>{const p=S.P.get(b.dataset.id);const a=p.actions.find(x=>x.id===b.dataset.a);a.fait=!a.fait;a.faitLe=a.fait?new Date().toISOString():null;touch(p);
+  if(S.view==='agenda')renderAgenda();else if(S.view==='today')renderToday();else{$('#tabbody')&&($('#tabbody').innerHTML=tabBody(p));refreshMeta();renderList()}
+  if(a.fait)toast(`${a.type} terminé`,()=>{a.fait=false;touch(p);renderSoft(true)})},
+ dela:b=>{const p=cur();const i=p.actions.findIndex(x=>x.id===b.dataset.a);const [a]=p.actions.splice(i,1);touch(p);$('#tabbody').innerHTML=tabBody(p);refreshMeta();renderList();toast('Action supprimée',()=>{p.actions.push(a);touch(p);$('#tabbody').innerHTML=tabBody(p);renderList()})},
+ identify:()=>{const v=$('#ident-in').value.trim();if(!v){$('#ident-in').focus();return}identify(cur(),v)},
+ pick:b=>pickCand(cur(),+b.dataset.i),
+ sgpick:b=>sgPick(+b.dataset.i),
+ candx:()=>{const p=cur();delete p.rneCands;if(p.rne?.status==='a_verifier')p.rne.status='introuvable';touch(p);S.id=null;renderFiche()},
+ rnerefresh:async()=>{const p=cur();setId(p,{busy:true,msg:'Mise à jour depuis le registre…'});try{idDone(p,await applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret}))}catch(e){setId(p,{msg:e?.fr||'Registre indisponible.'})}},
+ gps:()=>tryGps(),aroundgo:()=>aroundSearch(),
+ radius:b=>{const a=A();a.radius=+b.dataset.v;lsSet('radar-radius',a.radius);if(a.pos)aroundRun();else renderAround()},
+ grp:b=>{const a=A();const k=b.dataset.v;a.groups=a.groups.includes(k)?a.groups.filter(x=>x!==k):[...a.groups,k];if(!a.groups.length)a.groups=[k];lsSet('radar-groups2',a.groups);if(a.all.length){filterAround();renderAround()}else renderAround()},
+ selone:(b,e)=>{const a=A();if(e.target!==b)return;b.checked?a.sel.add(b.dataset.id):a.sel.delete(b.dataset.id);renderAround()},
+ selall:()=>{const a=A();a.res.forEach(x=>{if(!x.known)a.sel.add(x.id)});renderAround()},selnone:()=>{A().sel.clear();renderAround()},
+ aroundcreate:()=>aroundCreate(),
+ analyze:()=>{const t=$('#note-in').value.trim();if(!t){$('#note-in').focus();return}commitNote(cur(),t,null)},
+ out:b=>{const o=OUT[S.mode].find(x=>x.k===b.dataset.v);const p=cur();
+  if(o.ask){const note=$('#note-in')?.value||'';const w=parseWhen(norm(note),today());const d=w?.date||iso(bizDays(today(),o.a.in));
+    S.ask={k:o.k,date:d,heure:w?.heure||(o.k==='rdv'?'10:00':''),lieu:S.mode==='terrain'?'Sur place':'Sur place'};renderNotesOnly();return}
+  commitNote(p,$('#note-in')?.value.trim()||'',o)},
+ askq:b=>{S.ask.date=iso(bizDays(today(),+b.dataset.v));$('#ask-date').value=S.ask.date},
+ asklieu:b=>{S.ask.lieu=b.dataset.v;$$('[data-act="asklieu"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))},
+ askok:()=>{const o=OUT[S.mode].find(x=>x.k===S.ask.k);const date=$('#ask-date').value,heure=$('#ask-heure').value;const lieu=S.ask.lieu;S.ask=null;
+  commitNote(cur(),$('#note-in')?.value.trim()||'',o,{date,heure,lieu:o.k==='rdv'?lieu:''})},
+ askno:()=>{S.ask=null;renderNotesOnly()},
+ copyph:b=>copy(String(b.dataset.v).replace(/\s/g,''),'Numéro copié'),
+ callstart:()=>{S.call={id:S.sel,t0:Date.now()};renderNotesOnly();tick()},
+ callstop:()=>{S.call=null;renderNotesOnly()},
+ session:()=>startSession(),snext:()=>nextInSession(),sstop:()=>{S.session=null;renderNotesOnly();toast('Session terminée')},
+ sheet:()=>{S.sheet=true;renderLayer();setTimeout(()=>$('#note-in')?.focus(),60)},
+ sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
+ copy:()=>copy(summary(cur()),'Résumé copié, prêt à coller dans Artis'),
+ del:()=>{S.confirmDel=true;renderFiche()},del0:()=>{S.confirmDel=false;renderFiche()},
+ del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);open(p.id)})},
+ menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;renderLayer()},
+ export:()=>exportCsv(),backup:()=>exportBackup(),logout:()=>logout(),install:async()=>{const ev=S.installEvt;if(!ev)return;ev.prompt();await ev.userChoice.catch(()=>{});S.installEvt=null;S.menu=false;renderLayer()},
+ authmode:b=>{S.authMode=b.dataset.v;showAuth()},
+ eitog:()=>{const a=A();a.ei=!a.ei;lsSet('radar-ei',a.ei);filterAround();renderAround()},
+ seed:()=>{seedExamples();S.menu=false;S.view='today';render()},
+ delex:()=>{for(const p of [...S.P.values()])if(p.exemple)removeProspect(p.id);if(cur()?.exemple)S.sel=null;render();toast('Exemples supprimés')},
+};
+function readNa(){return{type:S.newAct?.type||$('[data-act="natype"][aria-pressed="true"]')?.dataset.v||'Rappel',date:$('#na-date')?.value||'',heure:$('#na-heure')?.value||'',note:$('#na-note')?.value||''}}
+function defOf(dk){return dk.startsWith('c.')?CFIELD[dk.slice(2)]:FIELD[dk]}
+function redrawChips(path){const g=$(`.chips[data-group="${CSS.escape(path)}"]`);if(!g)return;const f=defOf(g.dataset.def);g.outerHTML=chipsHtml(f,path,getP(cur(),path),g.dataset.def)}
+function copy(text,msg){try{navigator.clipboard.writeText(text).then(()=>toast(msg),()=>fallbackCopy(text,msg))}catch{fallbackCopy(text,msg)}}
+function fallbackCopy(text,msg){S.copyText=text;$('#layer').innerHTML=`<div class="modal" data-act="closem"><div><h2>Copie manuelle</h2><p style="margin:0;color:var(--ink-2)">Sélectionne puis copie (Ctrl+C).</p><textarea class="in" style="min-height:220px" id="cpy">${esc(text)}</textarea><button class="btn btn-p" data-act="closem">Fermer</button></div></div>`;$('#cpy').select()}
+function tick(){if(!S.call)return;const el=$('#timer');if(el){const s=Math.floor((Date.now()-S.call.t0)/1000);el.textContent=`${pad(Math.floor(s/60))}:${pad(s%60)}`}setTimeout(tick,1000)}
+
+function setStatut(p,k){if(!k)return;const was=p.statut;p.statut=k;if(k==='rdv'&&!p.rdvPrisLe)p.rdvPrisLe=new Date().toISOString();if(was!==k&&k!=='rdv'&&RANK[k]<3&&p.rdvPrisLe&&was==='rdv'){}
+}
+function addAction(p,a){p.actions=p.actions||[];if(!a.date&&!a.type)return false;
+  if(p.actions.some(x=>!x.fait&&x.type===a.type&&x.date===a.date))return false;
+  // Une nouvelle relance remplace les rappels ouverts plus anciens
+  if(['Rappel','Appel','Visite','Relance'].includes(a.type))p.actions.filter(x=>!x.fait&&['Rappel','Appel','Visite','Relance'].includes(x.type)&&x.date&&a.date&&x.date<=a.date).forEach(x=>{x.fait=true;x.faitLe=new Date().toISOString();x.auto=true});
+  p.actions.push({id:rid(),type:a.type||'Rappel',date:a.date||'',heure:a.heure||'',note:a.note||'',fait:false,createdAt:Date.now()});return true}
+
+/* ================= Session d'appels ================= */
+function startSession(){const t=iso(today());
+  const due=[...S.P.values()].map(p=>({p,a:nextAction(p)})).filter(x=>x.a&&['Appel','Rappel','Relance'].includes(x.a.type)&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1).map(x=>x.p.id);
+  const fresh=[...S.P.values()].filter(p=>p.statut==='nouveau'&&!due.includes(p.id)&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))).map(p=>p.id);
+  const q=[...due,...fresh];if(!q.length){toast('Aucun appel à passer : pas de rappel dû ni de fiche « À qualifier » avec numéro.');return}
+  S.session={q,i:0};if(S.mode!=='poste'){S.mode='poste'}open(q[0],'ent');toast(`${q.length} appel${q.length>1?'s':''} dans la session`)}
+function nextInSession(){const s=S.session;if(!s)return;if(s.i>=s.q.length-1){S.session=null;toast('Session terminée, bravo 👏');renderNotesOnly();return}s.i++;S.call=null;open(s.q[s.i],'ent')}
+
+/* ================= Analyse locale ================= */
+const WD={dimanche:0,lundi:1,lun:1,mardi:2,mercredi:3,jeudi:4,jeu:4,vendredi:5,ven:5,samedi:6};
+const MN={janvier:1,janv:1,jan:1,fevrier:2,fevr:2,fev:2,mars:3,avril:4,avr:4,mai:5,juin:6,juillet:7,juil:7,aout:8,septembre:9,sept:9,sep:9,octobre:10,oct:10,novembre:11,nov:11,decembre:12,dec:12};
+function parseWhen(c,base){let d=null,h='';
+  if(/apres[- ]?demain|apdem|apres dem/.test(c))d=addDays(base,2);
+  else if(/\b(demain|dem1|2main|dmn)\b/.test(c))d=addDays(base,1);
+  else if(/\b(aujourd'?hui|ajd|auj|ce soir|cet aprem|tout a l'heure|ce matin)\b/.test(c))d=base;
+  let m;
+  if(!d&&(m=c.match(/dans\s+(\d+|un|une|deux|trois|quinze|15)\s*(j\b|jours?|sem\w*|mois)/))){const n={un:1,une:1,deux:2,trois:3,quinze:15}[m[1]]||+m[1];d=m[2].startsWith('m')?new Date(base.getFullYear(),base.getMonth()+n,base.getDate()):addDays(base,m[2].startsWith('s')?7*n:n)}
+  if(!d&&/(semaine|sem|sm)\s*(pro|prochaine|suiv)/.test(c)){d=addDays(base,((8-base.getDay())%7)||7)}
+  if(!d&&/fin\s*(de\s*)?(la\s*)?(semaine|sem)\b/.test(c)){d=addDays(base,(5-base.getDay()+7)%7||0)}
+  if(!d&&/fin\s*(du\s*)?mois/.test(c)){d=new Date(base.getFullYear(),base.getMonth()+1,0);while(!(d.getDay()%6))d=addDays(d,-1)}
+  if(!d&&/debut\s*(du\s*)?mois/.test(c)){d=new Date(base.getFullYear(),base.getMonth()+1,1);while(!(d.getDay()%6))d=addDays(d,1)}
+  if(!d&&(m=c.match(/\b(lundi|lun|mardi|mercredi|jeudi|jeu|vendredi|ven|samedi|dimanche)\b/))){const w=WD[m[1]];let k=(w-base.getDay()+7)%7;if(k===0)k=7;d=addDays(base,k)}
+  if(!d&&(m=c.match(/(?:^|[^\d])(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?(?!\d)/))){const dd=+m[1],mm=+m[2];if(mm>=1&&mm<=12&&dd>=1&&dd<=31){let y=m[3]?(+m[3]<100?2000+ +m[3]:+m[3]):base.getFullYear();let x=new Date(y,mm-1,dd);if(!m[3]&&x<base)x=new Date(y+1,mm-1,dd);d=x}}
+  if(!d&&(m=c.match(/\b(\d{1,2})\s*(janvier|janv|jan|fevrier|fevr|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\b/))){let x=new Date(base.getFullYear(),MN[m[2]]-1,+m[1]);if(x<base)x=new Date(base.getFullYear()+1,MN[m[2]]-1,+m[1]);d=x}
+  if(!d&&(m=c.match(/\b(?:le|lundi|mardi|mercredi|jeudi|vendredi)\s+(\d{1,2})\b(?!\s*(?:h|postes?|pc|pers|salari|copieurs?|lignes?|%|ans))/))){const n=+m[1];if(n>=1&&n<=31){let x=new Date(base.getFullYear(),base.getMonth(),n);if(x<base)x=new Date(base.getFullYear(),base.getMonth()+1,n);d=x}}
+  if((m=c.match(/(?:^|[^\d])([01]?\d|2[0-3])\s*(?:h(?![a-z])|:)\s*([0-5]\d)?(?!\s*\/)/)))h=`${pad(+m[1])}:${m[2]||'00'}`;
+  else if(/\bmatin\b|\bmat\b/.test(c))h='09:30';else if(/\bmidi\b/.test(c))h='12:30';else if(/aprem|apres[- ]midi|\bapm\b/.test(c))h='14:00';else if(/\bsoir\b|fin de journee/.test(c))h='17:30';
+  if(!d&&!h)return null;if(!d)d=base;return{date:iso(d),heure:h}}
+function parseMonth(c){let m=c.match(/(?:^|[^\d])(\d{1,2})[\/.-](\d{2,4})(?!\d)/);if(m&&+m[1]>=1&&+m[1]<=12){const y=+m[2]<100?2000+ +m[2]:+m[2];return `${y}-${pad(+m[1])}`}
+  m=c.match(/\b(janvier|janv|jan|fevrier|fevr|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\b\.?\s*(\d{2,4})?\b/);if(m){let y=m[2]?(+m[2]<100?2000+ +m[2]:+m[2]):new Date().getFullYear();return `${y}-${pad(MN[m[1]])}`}
+  m=c.match(/\b(20\d{2})\b/);if(m)return `${m[1]}-01`;return''}
+const TOPIC={
+ impr:/(copieur|photocop|imprim|impression|mfp|multifonction|toner|canon|ricoh|konica|minolta|sharp|xerox|kyocera|toshiba|lexmark|epson|\bscan|ged\b|leasing|loueur|grenke|leasecom|locam|cout copie|coul\b|n&b|noir et blanc)/,
+ cyber:/(cyber|antivirus|anti-virus|\bav\b|pare-?feu|firewall|\bfw\b|sauvegarde|backup|\bsvg\b|\bsauv\b|mfa|2fa|double auth|phishing|hameconn|ransom|rancon|pirat|hack|virus|securite|rgpd|edr|fortinet|stormshield|bitdefender|eset|kaspersky|avast|sophos)/,
+ tel:/(telephon|standard|pabx|ipbx|\btel\b|\btelep|lignes?\b|forfait|mobiles?\b|portables?\b|operateur|\bop\b|fibre|adsl|vdsl|\bbox\b|internet|\b4g|\b5g|orange|\bsfr|bouygues|bytel|\bfree\b|teams phone|3cx|engagement)/,
+ it:/(informatique|\binfo\b|\bit\b|postes?\b|\bpc\b|ordis?\b|ordinateur|serveur|\bnas\b|reseau|wifi|wi-fi|switch|cablage|presta|infogerance|infogere|maintenance|office|m365|o365|microsoft|365|logiciel|cloud|onedrive|sharepoint|vpn|teletravail|parc)/};
+const INTEREST=/(besoin|interess|\bint\b|veut|voudrai|souhait|cherche|projet|a revoir|changer|renouvel|remplac|refaire|amelior|pas content|insatisf|mecontent|marre|galere|probleme|souci|lent|trop cher|cher\b|ok pour|ouvert|curieu|devis)/;
+const INSAT=/(pas content|pas satisf|insatisf|mecontent|marre|galere|nul\b|pas reactif|lent|trop cher|probleme|souci|plaint|deçu|decu)/;
+const MID=/\b(moyen|moyennement|bof|mouais|sans plus|correct)\b/;
+const SAT=/(\bsatisfait|content|ca va bien|rien a dire|tres bien|ras\b)/;
+function fonctionNear(text,i,len){const a=text.slice(i+len).split(/[,.;\n]/)[0].slice(0,45),b=text.slice(0,i).split(/[,.;\n]/).pop().slice(-30);return fonctionOf(norm(a))||fonctionOf(norm(b))}
+function fonctionOf(c){
+ if(/\b(pdg|president|gerant|gerante|dirigeant|dirigeante|patron|patronne|boss|fondateur|fondatrice)\b/.test(c))return'Dirigeant / gérant';
+ if(/\b(dg|directeur general|directrice generale|direction generale)\b/.test(c))return'DG';
+ if(/\b(daf|directeur financier|directrice financiere|raf|comptable)\b/.test(c))return'DAF';
+ if(/\b(dsi|resp(?:onsable)?\.?\s*(?:it|info\w*)|informaticien|admin sys|it manager)\b/.test(c))return'DSI / resp. IT';
+ if(/\b(office manager|office mgr|\bom\b)\b/.test(c))return'Office manager';
+ if(/\b(assistante?|secretaire|accueil|standardiste|hotesse)\b/.test(c))return'Assistante / accueil';
+ if(/\b(drh|rh|ressources humaines)\b/.test(c))return'Resp. RH';
+ if(/\b(resp(?:onsable)?\.?\s*(?:ops|operations)|directeur des operations)\b/.test(c))return'Resp. opérations';
+ if(/\b(associe|associee)\b/.test(c))return'Associé';
+ const m=c.match(/\b(notaire|avocate?|architecte|medecin|docteur|expert[- ]comptable|kine|dentiste|pharmacien|agent general)\b/);if(m)return m[1][0].toUpperCase()+m[1].slice(1);
+ return''}
+const DECIDE=new Set(['Dirigeant / gérant','DG','DAF','DSI / resp. IT','Associé','Notaire','Avocat','Avocate','Architecte','Medecin','Docteur','Agent general']);
+const SMALL=new Set(['sur','sous','de','du','des','la','le','les','en','et','lès','d','l']);
+function capName(s){return s.split(/\s+/).map((w,wi)=>w.split('-').map((x,xi)=>!x?x:(wi+xi>0&&SMALL.has(x.toLowerCase()))?x.toLowerCase():x[0].toUpperCase()+x.slice(1).toLowerCase()).join('-')).join(' ')}
+function effBucket(n){return n<=5?'1–5':n<=10?'6–10':n<=19?'11–19':n<=49?'20–49':n<=99?'50–99':n<=249?'100–249':'250 +'}
+
+function parseLocal(text,p){
+  const out={set:{},contacts:[],actions:[],statut:'',temperature:''};const S_=out.set;const add=(k,v)=>{if(FIELD[k].t==='multi'){S_[k]=[...(S_[k]||[]),...[].concat(v)]}else S_[k]=v};
+  const n=norm(text);const base=today();
+  // Identifiants
+  const siret=text.match(/(?<!\d)(\d{3}[\s.]?\d{3}[\s.]?\d{3}[\s.]?\d{5})(?!\d)/);if(siret){const d=siret[1].replace(/\D/g,'');S_['ent.siret']=d;S_['ent.siren']=d.slice(0,9)}
+  else{const sr=text.match(/siren\s*:?\s*(\d{3}\s?\d{3}\s?\d{3})(?!\d)/i)||text.match(/(?<![\d+])(\d{3}\s\d{3}\s\d{3})(?![\d\s]*\d{2}\b)/);if(sr)S_['ent.siren']=sr[1].replace(/\D/g,'')}
+  const naf=text.match(/\b(\d{2}\.?\d{2}[A-Z])\b/);if(naf)S_['ent.naf']=naf[1].replace(/^(\d{2})(\d{2})/,'$1.$2');
+  const emails=[...text.matchAll(/[\w.+-]+@[\w-]+\.[\w.-]+/g)].map(m=>m[0]);
+  const phones=[...text.matchAll(/(?:\+33\s?|0)[1-9](?:[\s.-]?\d{2}){4}/g)].map(m=>({raw:m[0],i:m.index,d:m[0].replace(/\D/g,'').replace(/^33/,'0')}));
+  const adr=text.match(/\b(\d{1,4}(?:\s?(?:bis|ter))?,?\s+(?:rue|avenue|av\.?|bd|boulevard|place|pl\.|all[ée]e|chemin|quai|impasse|route|cours|square|villa|passage)\s+[^,\n\d]{2,60})/i);if(adr)S_['ent.adresse']=adr[1].trim();
+  const cpv=text.match(/\b((?:0[1-9]|[1-8]\d|9[0-5]|2[AB])\d{3})\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ'’ -]{1,38}?)(?=$|[\n,;.]|\s{2}|\s+(?:France|tel|tél|Tél|\d))/m);if(cpv){S_['ent.cp']=cpv[1];S_['ent.ville']=capName(cpv[2].trim())}
+  else{const vm=n.match(/\b(asnieres|colombes|gennevilliers|clichy|levallois|courbevoie|bois-colombes|bois colombes|la garenne-colombes|la garenne|nanterre|puteaux|neuilly|villeneuve-la-garenne|saint-ouen|paris|la defense|rueil|suresnes|boulogne|issy)\b/);if(vm&&/\b(a|sur|asnieres|bureaux|cabinet|agence|situe|ville)\b/.test(n))S_['ent.ville']={asnieres:'Asnières-sur-Seine','bois colombes':'Bois-Colombes','la garenne':'La Garenne-Colombes','la defense':'La Défense',neuilly:'Neuilly-sur-Seine',rueil:'Rueil-Malmaison',boulogne:'Boulogne-Billancourt',issy:'Issy-les-Moulineaux'}[vm[1]]||capName(vm[1])}
+  const forme=text.match(/\b(SASU|SAS|SARL|EURL|SELARL|SCP|SCI|SA)\b/);if(forme)S_['ent.forme']=forme[1];
+  const web=text.match(/\b((?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:fr|com|net|eu|org|paris)(?:\/\S*)?)\b/i);if(web&&!web[1].includes('@')&&!emails.some(e=>e.includes(web[1])))S_['ent.site']=web[1];
+  // Secteur
+  const sect=[[/notair|etude notariale|office notarial/,'Notaire / juridique'],[/avocat|cabinet d'avocat/,'Avocat'],[/expert[- ]?compta|cabinet compta|\bec\b/,'Expert-comptable'],[/medic|medecin|kine|dentist|infirmi|cabinet medical|osteo|orthophon|radiolog|labo/,'Médical / paramédical'],[/recrutement|interim|cabinet rh|conseil|consulting/,'Conseil / RH / recrutement'],[/architect/,'Architecte'],[/agence immo|immobili/,'Agence immobilière'],[/assuran|agent general|courtier/,'Assurance'],[/\bbtp\b|plomb|electricien|maconn|menuis|batiment|renovation/,'BTP / artisan'],[/association|asso\b/,'Association'],[/restaurant|hotel|brasserie/,'Restauration / hôtellerie'],[/transport|logistiq/,'Transport / logistique']];
+  for(const [re,l] of sect)if(re.test(n)){S_['ent.secteur']=l;break}
+  // Effectif / postes
+  let m;
+  if((m=n.match(/(\d+)\s*(?:salaries?|sal\b|personnes|pers\b|collab\w*|employes?|users?|utilisateurs?|ppl|gens)/))){const k=+m[1];S_['it.utilisateurs']=k;S_['ent.effectif']=effBucket(k)}
+  if((m=n.match(/(\d+)\s*(?:postes?|pc\b|ordis?\b|ordinateurs?|laptops?|portables? (?:pc|info))/)))S_['it.postes']=+m[1];
+  if((m=n.match(/(\d+)\s*(?:copieurs?|photocop\w*|mfp|multifonctions?)/)))S_['impr.nb']=+m[1];else if(/\b(un|1)\s+(copieur|photocop)/.test(n))S_['impr.nb']=1;
+  if((m=n.match(/(\d+)\s*imprimantes?/)))S_['impr.nbImprimantes']=+m[1];
+  if((m=n.match(/(\d[\d\s]{1,6})\s*(?:pages?|copies|pp)\s*(?:\/|par)?\s*(?:mois|m\b)?\s*(?:en\s*)?(coul\w*|n&b|nb|noir)?/))){const v=+m[1].replace(/\s/g,'');if(m[2]&&/coul/.test(m[2]))S_['impr.volCoul']=v;else S_['impr.volNB']=v}
+  // Par proposition
+  const clauses=text.split(/\n|;|,(?!\d)|\.(?!\d)|\s[-–—]\s|\s\/\s|\s\+\s/).map(s=>s.trim()).filter(Boolean);
+  const besoins=new Set(),decl=new Set();let lastTopic='';
+  for(const raw of clauses){const c=norm(raw);
+    const topics=Object.keys(TOPIC).filter(t=>TOPIC[t].test(c));const topic=topics[0]||'';
+    const interest=INTEREST.test(c),insat=INSAT.test(c),sat=!insat&&SAT.test(c);
+    // Impression
+    if(topics.includes('impr')){
+      const brands=[['canon','Canon'],['ricoh','Ricoh'],['konica|minolta','Konica Minolta'],['sharp','Sharp'],['xerox','Xerox'],['kyocera','Kyocera'],['toshiba','Toshiba'],['\\bhp\\b','HP'],['brother','Brother'],['epson','Epson'],['lexmark','Lexmark']].filter(([r])=>new RegExp(r).test(c)).map(x=>x[1]);
+      if(brands.length)add('impr.marques',brands);
+      if(/leasing|location|\bloue|\blld\b|\bloc\b|loyer|grenke|leasecom|locam/.test(c))S_['impr.mode']='Location / leasing';else if(/achete|achat|proprietaire|a eux/.test(c))S_['impr.mode']='Achat';
+      const l=c.match(/\b(grenke|leasecom|locam|franfinance|bnp)\b/);if(l)S_['impr.loueur']={grenke:'Grenke',leasecom:'Leasecom',locam:'Locam',franfinance:'Franfinance',bnp:'BNP Paribas Leasing'}[l[1]];
+      const irr=[[/panne|bourr|plante/,'Pannes'],[/delai|attend|long a venir|technicien/,"Délais d’intervention"],[/cher|cout|prix|facture/,'Coût'],[/toner|cartouche/,'Toner'],[/scan/,'Scan compliqué'],[/commercial (absent|jamais)|jamais vu|aucun suivi/,'Commercial absent']].filter(([r])=>r.test(c)).map(x=>x[1]);
+      if(insat&&irr.length)add('impr.irritants',irr);
+      if(/ged|dematerialis|archiv/.test(c))add('impr.ged',/archiv\w* papier|papier/.test(c)?'Archivage papier':/ged/.test(c)&&!/pas de ged|aucune ged/.test(c)?'GED en place':'Aucune');
+      if(/signature electro|docusign|yousign/.test(c))add('impr.ged','Signature électronique');
+    }
+    // Fin de contrat / engagement
+    if(/fin\s*(?:de\s*|du\s*)?(?:contrat|leasing|loc\w*|engagement|ctr|ctrt|bail)|\bfin\s+(?:en\s+)?(?=\d|janv|fev|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec)|termine en|se termine|echeance|expire/.test(c)){const mo=parseMonth(c.replace(/.*?(fin|termine|echeance|expire)/,''));if(mo){if(topics.includes('tel')&&!topics.includes('impr'))S_['tel.finEngagement']=mo;else if(topics.includes('impr')||lastTopic==='impr'||!topics.length)S_['impr.finContrat']=mo;else if(topics.includes('tel'))S_['tel.finEngagement']=mo;decl.add('Fin de contrat')}}
+    // Cyber
+    if(topics.includes('cyber')){
+      if(/(pas|aucun|sans|0)\s*(d'?|de\s)?(antivirus|anti-virus|av\b)/.test(c))add('cyber.antivirus','Aucun');
+      const av=[['defender','Windows Defender'],['bitdefender','Bitdefender'],['eset','ESET'],['kaspersky','Kaspersky'],['sophos','Sophos'],['sentinel','SentinelOne'],['withsecure|f-secure','WithSecure'],['avast|avg','Avast / AVG'],['norton','Norton'],['mcafee','McAfee'],['trend','Trend Micro']].filter(([r])=>new RegExp(r).test(c)&&!(r==='sophos'&&/(pare-?feu|firewall|fw)/.test(c))).map(x=>x[1]);if(av.length)add('cyber.antivirus',av);
+      if(/(pas|aucun|sans)\s*(de\s)?(pare-?feu|firewall|fw)/.test(c))S_['cyber.firewall']='Aucun (box opérateur)';
+      const fw=c.match(/\b(fortinet|fortigate|stormshield|watchguard|meraki|sonicwall)\b/);if(fw)S_['cyber.firewall']={fortinet:'Fortinet',fortigate:'Fortinet',stormshield:'Stormshield',watchguard:'WatchGuard',meraki:'Cisco Meraki',sonicwall:'SonicWall'}[fw[1]];
+      if(/(pas|aucune?|sans|0)\s*(de\s)?(sauvegarde|backup|svg|sauv)/.test(c))add('cyber.sauvegarde','Aucune');
+      else{if(/disque|dd ext|cle usb|\bdd\b/.test(c))add('cyber.sauvegarde','Disque externe');if(/\bnas\b/.test(c)&&/(sauv|backup|svg)/.test(c))add('cyber.sauvegarde','NAS');if(/(sauv|backup|svg).{0,20}cloud|cloud.{0,20}(sauv|backup)/.test(c))add('cyber.sauvegarde','Cloud')}
+      if(/(pas|sans)\s*(de\s)?(mfa|2fa|double auth)/.test(c))S_['cyber.mfa']='Non';else if(/mfa|2fa|double auth/.test(c))S_['cyber.mfa']='Oui';
+      if(/phishing|hameconn/.test(c))add('cyber.incident','Phishing');if(/ransom|rancon|crypt[eé]/.test(c))add('cyber.incident','Rançongiciel');if(/(mail|messagerie|boite).{0,20}pirat|pirat.{0,20}(mail|messagerie)/.test(c))add('cyber.incident','Messagerie piratée');
+      if(/sensibilis|formation cyber/.test(c))S_['cyber.sensibilisation']=/pas|aucune|jamais/.test(c)?'Non':'Oui';
+      if(/rgpd/.test(c))S_['cyber.rgpd']=/pas|non|aucun/.test(c)?'Non':/en cours/.test(c)?'En cours':'Conforme';
+    }
+    if(/(m365|o365|office 365|microsoft 365|outlook|exchange)/.test(c)){add('it.cloud','Microsoft 365');S_['cyber.mails']='Microsoft 365'}
+    if(/(google workspace|gsuite|g suite|gmail)/.test(c)){add('it.cloud','Google Workspace');S_['cyber.mails']='Google Workspace'}
+    if(/onedrive|sharepoint/.test(c))add('it.cloud','SharePoint / OneDrive');if(/dropbox/.test(c))add('it.cloud','Dropbox');
+    // IT
+    if(topics.includes('it')){
+      if(/serveur/.test(c))add('it.serveur',/(pas|aucun|sans)\s*(de\s)?serveur/.test(c)?'Aucun':/cloud|azure|aws/.test(c)?'Cloud (Azure / AWS)':'Serveur local');
+      if(/\bnas\b/.test(c))add('it.serveur','NAS');
+      if(/wifi|wi-fi/.test(c)&&/lent|rame|coupe|marche mal|probleme|nul/.test(c))add('it.reseau','Wi-Fi lent');
+      if(/cablage|cable/.test(c))add('it.reseau','Câblage à revoir');if(/vpn|teletravail/.test(c))add('it.reseau','VPN télétravail');
+      if(/infogerance|infogere|contrat de maintenance/.test(c))S_['it.contrat']='Infogérance';else if(/a la demande|au besoin|quand ca plante|ponctuel/.test(c))S_['it.contrat']='À la demande';else if(/(personne|aucun presta|pas de presta|se debrouill|le fils|neveu|lui[- ]meme)/.test(c))S_['it.contrat']='Personne';else if(/en interne|informaticien interne/.test(c))S_['it.contrat']='Interne';
+      const pr=raw.match(/(?:presta(?:taire)?|infog[ée]r[ée]?\s*par|g[ée]r[ée]\s*par|maintenu par|avec la soci[ée]t[ée]|chez)\s*:?\s*([A-Z0-9][\w&'’.-]*(?:\s+[A-Z0-9][\w&'’.-]*){0,3})/);if(pr&&!/^(Le|La|Les|Un|Une)$/.test(pr[1]))S_['it.prestataire']=pr[1];
+      if(/vieux|ancien|obsolete|windows 7|win 7|plus de 5 ans|>\s*5 ans/.test(c))S_['it.age']='> 5 ans';else if(/recent|neuf|renouvele/.test(c))S_['it.age']='< 3 ans';
+      const lg=raw.match(/\b(Genapi|iNot|Fiducial|Doctolib|Weda|Sage|Cegid|EBP|Pennylane|Secib|Diapason|Septeo|Apimo|Hektor|Netty|AC3|Archicad|Revit|AutoCAD|Silae)\b/gi);if(lg)S_['it.logiciels']=[...new Set(lg)].join(', ');
+    }
+    // Télécom
+    if(topics.includes('tel')){
+      const ops=[['orange','Orange'],['\\bsfr','SFR'],['bouygues|bytel','Bouygues'],['\\bfree\\b','Free Pro'],['\\bovh','OVH'],['\\bnordnet','Nordnet']].filter(([r])=>new RegExp(r).test(c)).map(x=>x[1]);if(ops.length)add('tel.operateur',ops);
+      if((m=c.match(/(\d+)\s*(?:lignes?\s*)?(?:mobiles?|portables?|forfaits?|gsm)/)))S_['tel.lignesMobiles']=+m[1];
+      if((m=c.match(/(\d+)\s*(?:lignes?|postes? tel\w*|numeros)(?!\s*(?:mobiles?|portables?))/)))S_['tel.lignesFixes']=+m[1];
+      if(/teams phone|teams tel/.test(c))S_['tel.standard']='Teams Phone';else if(/ipbx|3cx|standard (cloud|virtuel|en ligne)|voip|toip/.test(c))S_['tel.standard']='Standard cloud (IPBX)';else if(/pabx|autocom|standard (physique|vieux|ancien)/.test(c))S_['tel.standard']='Standard physique (PABX)';else if(/(pas|aucun|sans)\s*(de\s)?standard/.test(c))S_['tel.standard']='Aucun';
+      if(/fibre/.test(c))add('tel.internet','Fibre');if(/adsl|vdsl|cuivre/.test(c))add('tel.internet','ADSL / VDSL');if(/\b(4g|5g)\b/.test(c)&&/box|routeur|internet/.test(c))add('tel.internet','Box 4G / 5G');if(/lien dedie|fibre dediee|\bfto\b/.test(c))add('tel.internet','Lien dédié');
+      if((m=raw.match(/(\d[\d\s]{1,5})\s*(?:€|eur|euros)/i)))S_['tel.facture']=m[1].replace(/\s/g,'')+' €';
+    }
+    // Satisfaction par domaine
+    const dom=topics.find(t=>['impr','it','tel'].includes(t))||(insat||sat||MID.test(c)?lastTopic:'');
+    const mid=!insat&&MID.test(c);if(dom&&(insat||sat||mid)&&['impr','it','tel'].includes(dom)){S_[dom+'.satisfaction']=insat?'Insatisfait':mid?'Moyen':'Satisfait';if(insat)decl.add('Insatisfaction prestataire')}
+    // Besoins
+    if(interest||insat){for(const t of topics){
+      if(t==='impr')besoins.add(/ged|demat|archiv/.test(c)?'Gestion documentaire':'Impression / copieurs');
+      if(t==='cyber')besoins.add(/sauv|backup|svg/.test(c)?'Sauvegarde / PRA':'Cybersécurité');
+      if(t==='tel')besoins.add(/fibre|internet|adsl|box/.test(c)?'Internet / fibre':/mobile|forfait|portable/.test(c)?'Mobiles / opérateur':'Téléphonie / standard');
+      if(t==='it')besoins.add(/wifi|reseau|cabl/.test(c)?'Réseau / Wi-Fi':/presta|infoger|maintenance|support/.test(c)?'Infogérance / support':/365|office|cloud/.test(c)?'Microsoft 365 / cloud':/serveur/.test(c)?'Serveur':'Parc informatique')}}
+    if(/\b(ia|intelligence artificielle|automatis|chatgpt|copilot)\b/.test(c)&&interest)besoins.add('IA / automatisation');
+    if(/(pas de sauvegarde|pas de svg|aucune sauvegarde|pas de backup)/.test(c))besoins.add('Sauvegarde / PRA');
+    if(/demenag/.test(c))decl.add('Déménagement');if(/recrut|embauch|croissance|grandit|nouveaux? (bureau|locaux)/.test(c))decl.add('Croissance / recrutement');if(/panne|crash|plante/.test(c))decl.add('Panne / incident');if(/ransom|rancon|pirat|attaque|hack/.test(c))decl.add('Cyberattaque');if(/trop cher|economi|reduire.{0,10}cout|baisser/.test(c))decl.add('Réduire les coûts');if(/moderni|digitalis|numeris/.test(c))decl.add('Modernisation');
+    if(/urgent|asap|au plus vite|rapidement|vite\b/.test(c))S_['besoins.priorite']='Urgent';
+    if(/pas de projet|pas de besoin|rien a changer|aucun besoin/.test(c))S_['besoins.priorite']='Pas de projet';
+    if(/decide avec|avec (son|ses|les) associ/.test(c))S_['besoins.decision']='Avec les associés';else if(/(c'?est|decision au|voir avec le) siege|maison mere|groupe decide/.test(c)){S_['besoins.decision']='Siège / groupe';S_['ent.groupe']='Oui'}
+    if((m=raw.match(/budget\s*:?\s*([^\s,;].{0,30})/i)))S_['besoins.budget']=m[1].trim();
+    // Statut & température
+    if(/\brdv\b|rendez[- ]vous|\brdz\b|rdv pris|\brv\b/.test(c)&&!/pas de (rdv|rendez)|refuse|annul/.test(c)){out.statut='rdv';out.temperature=out.temperature||'chaud';const w=parseWhen(c,base);if(w)out.actions.push({type:'RDV',...w,note:raw})}
+    else if(/pas interess|pas int\b|\bpi\b|aucun interet|ne veut pas|pas besoin|\bko\b|refus|raccroch|non merci|pas le temps/.test(c)){out.statut=out.statut||'ko';out.temperature='froid'}
+    else if(/\bnrp\b|repondeur|\brep\b|messagerie vocale|\bmsg\b|pas de rep|ne repond pas|injoignable|sonne dans le vide/.test(c)){out.statut=out.statut||'contacte';if(!out.actions.length)out.actions.push({type:'Rappel',date:iso(bizDays(base,1)),heure:'',note:'NRP'})}
+    else if(/barrage|filtre|secretaire bloque|veut pas passer/.test(c)){out.statut=out.statut||'rappel'}
+    if(/rappel|rapl|rapel|rappeler|recontact|relanc|rapeller|re-?appeler|rappelle|callback|\bcb\b/.test(c)&&!/\b(il|elle) (me |nous )?rappel/.test(c)){const w=parseWhen(c,base);out.statut=out.statut==='rdv'?'rdv':(out.statut||'rappel');out.actions.push({type:/relanc/.test(c)?'Relance':'Rappel',date:w?.date||iso(bizDays(base,2)),heure:w?.heure||'',note:raw})}
+    else if(/\b(il|elle) (me |nous )?rappel/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Relance',date:w?.date||iso(bizDays(base,3)),heure:w?.heure||'',note:'Attend son rappel : '+raw});out.statut=out.statut||'rappel'}
+    if(/(envoyer|envoie|env|transmettre|faire suivre)\s*(un\s*|une\s*|la\s*|le\s*|par\s*)?(mail|doc|plaquette|brochure|presentation|infos?)|\bmail\b.*(plaquette|doc)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Mail',date:w?.date||iso(base),heure:'',note:raw})}
+    if(/repasser|revenir|repasse|passer (le|la|un|lundi|mardi|mercredi|jeudi|vendredi|demain|la semaine)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Visite',date:w?.date||iso(bizDays(base,5)),heure:w?.heure||'',note:raw})}
+    if(/devis/.test(c)&&/(faire|envoyer|preparer|attend|veut|demande)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Devis',date:w?.date||iso(bizDays(base,3)),heure:'',note:raw})}
+    if(/\bchaud\b|tres interess|motiv|emballe|partant|chaud bouillant/.test(c))out.temperature='chaud';else if(/tiede|a voir|peut[- ]etre|mitige|reflechi/.test(c)&&!out.temperature)out.temperature='tiede';else if(/\bfroid\b|ferme\b|sec\b/.test(c)&&!out.temperature)out.temperature='froid';
+    else if(/interess|ouvert|curieu|ok pour/.test(c)&&!/pas interess/.test(c)&&!out.temperature)out.temperature='tiede';
+    if(/concurren|deja (avec|chez)|travaille avec|en place chez/.test(c)){const cm=raw.match(/(?:concurrent|avec|chez)\s*:?\s*([A-Z][\w&'’.-]*(?:\s+[A-Z][\w&'’.-]*){0,2})/);if(cm)add('besoins.concurrents',cm[1])}
+    if(topic)lastTopic=topic;
+  }
+  if(besoins.size)add('besoins.sel',[...besoins]);if(decl.size)add('besoins.declencheur',[...decl]);
+  // Contacts
+  const cRe=/\b(M\.|Mr\.?|Mme|Madame|Monsieur|Mlle|Me|Ma[iî]tre|Dr\.?|Docteur)\s+([A-ZÀ-Ÿ][\wÀ-ÿ'’-]+(?:\s+[A-ZÀ-Ÿ][\wÀ-ÿ'’-]+)?)/g;
+  const lowRe=/\b(?:mr|mme|m\.|monsieur|madame)\s+([a-zà-ÿ][a-zà-ÿ'’-]{2,})/gi;
+  const found=[];
+  for(const mm of text.matchAll(cRe))found.push({civ:/^(Mme|Madame|Mlle)/i.test(mm[1])?'Mme':'M.',full:mm[2],i:mm.index});
+  if(!found.length)for(const mm of text.matchAll(lowRe)){const w=norm(mm[1]);if(['le','la','de','du','est','absent','absente','pas'].includes(w))continue;found.push({civ:/^(mme|madame)/i.test(mm[0])?'Mme':'M.',full:capName(mm[1]),i:mm.index})}
+  const STOP=new Set(['le','la','les','l','un','une','accueil','secretaire','standard','standardiste','assistante','assistant','personne','quelqu','gerant','gerante','dg','daf','dsi','pdg','directeur','directrice','rh','drh','lui','elle','eux','son','sa','ses','mon','ma','patron','patronne','boss','office','comptable','associe','associee','mr','mme','monsieur','madame','pas','plus','bon','ok','fils','fille','femme','mari','responsable','resp','dirigeant','dirigeante','notaire','avocat','medecin','docteur','tel','mail','client','eux','nous','tout','rien','des','du','de']);
+  const pRe=/\b(?:parl[ée]+\s+(?:a|à|avec)|eu|vu|rencontr[ée]+|interlocut\w*\s*:?|contact\s*:|demander|dmd|s'appelle)\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'’-]+)(\s+[A-ZÀ-Ÿ][\wÀ-ÿ'’-]+)?/gi;
+  for(const mm of text.matchAll(pRe)){const w=norm(mm[1]);if(STOP.has(w)||w.length<3||/\d/.test(w))continue;const full=capName(mm[1])+(mm[2]&&mm[2].trim()[0]===mm[2].trim()[0].toUpperCase()?' '+mm[2].trim():'');if(!found.some(f=>norm(f.full).includes(w)))found.push({civ:'',full,i:mm.index})}
+  const fRe=/\b(dg|pdg|daf|dsi|drh|g[ée]rante?|dirigeante?|directeur|directrice|office manager|assistante?|secr[ée]taire|associ[ée]e?|comptable)\s*(?:=|:|-|est|c'est)?\s*(?:(M\.|Mr|Mme|Monsieur|Madame)\s+)?([A-ZÀ-Ÿ][a-zà-ÿ'’-]+(?:\s+[A-ZÀ-Ÿ][A-Za-zà-ÿ'’-]+)?)/gi;
+  for(const mm of text.matchAll(fRe)){const name=mm[3];if(name[0]!==name[0].toUpperCase())continue;if(found.some(f=>f.full.includes(name.split(' ')[0])))continue;found.push({civ:mm[2]?(/^(Mme|Madame)/i.test(mm[2])?'Mme':'M.'):'',full:name,i:mm.index})}
+  for(const f of found){
+    const words=f.full.split(/\s+/);if(['Asnières','Paris','Data','Links','Canon','Ricoh','Orange','Jeudi','Lundi','Mardi','Mercredi','Vendredi'].includes(words[0]))continue;
+    const ctx=norm(text.slice(0,f.i).split(/[,.;\n]/).pop()+text.slice(f.i).split(/[,.;\n]/)[0]);
+    const fn=fonctionNear(text,f.i,f.full.length+6);const c={civ:f.civ};
+    if(words.length===1){if(f.civ)c.nom=words[0];else c.prenom=words[0]}else{c.prenom=words[0];c.nom=words.slice(1).join(' ')}
+    if(f.civ&&words.length===2&&/^(M\.|Mme)$/.test(f.civ)){c.prenom=words[0];c.nom=words[1]}
+    if(f.civ&&words.length===1){c.nom=words[0];delete c.prenom}
+    if(fn)c.fonction=fn;if(DECIDE.has(fn)||/decid|decisionnaire|c'est (lui|elle) qui (signe|decide)/.test(ctx))c.decideur='Oui';else if(fn==='Assistante / accueil')c.decideur='Non';
+    const ph=phones.find(p=>Math.abs(p.i-f.i)<70);if(ph){if(/^0[67]/.test(ph.d))c.mobile=ph.d;else c.tel=ph.d;ph.used=true}
+    const em=emails.find(e=>norm(e.split('@')[0]).includes(norm(words.at(-1)).slice(0,4)));if(em){c.email=em;emails.splice(emails.indexOf(em),1)}
+    out.contacts.push(c)}
+  if(!out.contacts.length){const fn=fonctionOf(n);if(fn&&/\b(parle|vu|eu|rencontre|contact|interlocut|dg|daf|gerant|dirigeant|dsi)\b/.test(n)){/* fonction sans nom : on la note */const c={fonction:fn};if(DECIDE.has(fn))c.decideur='Oui';const ph=phones.find(p=>!p.used&&/^0[67]/.test(p.d));if(ph){c.mobile=ph.d;ph.used=true}out.contacts.push(c)}}
+  for(const ph of phones)if(!ph.used){if(!p.ent?.tel&&!S_['ent.tel']&&!/^0[67]/.test(ph.d))S_['ent.tel']=ph.d;else if(/^0[67]/.test(ph.d)&&out.contacts[0]&&!out.contacts[0].mobile)out.contacts[0].mobile=ph.d;else if(!S_['ent.tel']&&!p.ent?.tel)S_['ent.tel']=ph.d}
+  if(emails.length){if(out.contacts[0]&&!out.contacts[0].email&&!/^(contact|info|accueil|secretariat|office|bonjour)@/i.test(emails[0]))out.contacts[0].email=emails.shift();if(emails.length)S_['ent.email']=emails[0]}
+  return out}
+
+/* ================= Application des résultats ================= */
+function coerce(f,v){if(v==null)return null;
+  if(f.t==='multi'){const arr=[].concat(v).map(x=>String(x).trim()).filter(Boolean);return arr.map(x=>f.o.find(o=>norm(o)===norm(x))||f.o.find(o=>norm(o).startsWith(norm(x))||norm(x).startsWith(norm(o)))||x)}
+  if(f.t==='single'){const x=String(Array.isArray(v)?v[0]:v).trim();if(!x)return null;return f.o.find(o=>norm(o)===norm(x))||f.o.find(o=>norm(o).startsWith(norm(x))&&x.length>2)||x}
+  if(f.t==='num'){const n=parseFloat(String(v).replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:null}
+  if(f.t==='month'){const s=String(v);const m=s.match(/(\d{4})-(\d{1,2})/);return m?`${m[1]}-${pad(+m[2])}`:(parseMonth(norm(s))||null)}
+  if(f.k==='ent.siret'){const d=String(v).replace(/\D/g,'');return d.length===14?d:null}
+  if(f.k==='ent.siren'){const d=String(v).replace(/\D/g,'');return d.length===9?d:null}
+  if(f.t==='tel'){const d=String(v).replace(/[^\d+]/g,'');return d.length>=10?d.replace(/^\+33/,'0'):String(v)}
+  return String(v).trim()}
+function applyPatch(p,patch,overwrite){
+  const changed=new Set();if(!patch)return[];
+  for(const [k,v0] of Object.entries(patch.set||{})){const f=FIELD[k];if(!f)continue;const v=coerce(f,v0);if(!filled(v))continue;const cv=getP(p,k);
+    if(f.t==='multi'){let arr=Array.isArray(cv)?cv.slice():[];let ch=false;for(const x of v)if(!arr.some(a=>norm(a)===norm(x))){arr.push(x);ch=true}
+      if(arr.some(x=>!EXCL.test(x)))arr=arr.filter(x=>!EXCL.test(x));if(ch){setP(p,k,arr);changed.add(k)}}
+    else if(f.t==='area'){if(!String(cv||'').includes(v)){setP(p,k,cv?cv+'\n'+v:v);changed.add(k)}}
+    else if(String(cv??'')!==String(v)&&(overwrite||!filled(cv)||['single','num','month'].includes(f.t))){setP(p,k,v);changed.add(k)}}
+  if(p.ent?.siret&&!p.ent.siren){p.ent.siren=p.ent.siret.slice(0,9);changed.add('ent.siren')}
+  // Contacts
+  for(const c0 of (patch.contacts||[])){if(!c0||typeof c0!=='object')continue;const c={};for(const f of CFIELDS){if(c0[f.k]==null||c0[f.k]==='')continue;let v=c0[f.k];if(f.k==='decideur'&&typeof v==='boolean')v=v?'Oui':'Non';v=coerce(f,v);if(filled(v))c[f.k]=v}
+    if(!Object.keys(c).length)continue;p.contacts=p.contacts||[];
+    const nm=x=>norm(x||'').replace(/\s/g,'');
+    let ex=p.contacts.find(x=>(c.nom&&nm(x.nom)===nm(c.nom))||(c.nom&&nm(x.prenom)===nm(c.nom))||(c.prenom&&!c.nom&&nm(x.prenom)===nm(c.prenom))||(c.prenom&&c.nom&&nm(x.prenom)===nm(c.prenom)&&!x.nom)||(c.email&&x.email===c.email)||(!c.nom&&!c.prenom&&c.fonction&&x.fonction===c.fonction));
+    if(!ex&&!c.nom&&!c.prenom&&p.contacts.length===1&&!p.contacts[0].fonction)ex=p.contacts[0];
+    const i=ex?p.contacts.indexOf(ex):p.contacts.length;if(!ex){ex={id:rid()};p.contacts.push(ex)}
+    for(const [k,v] of Object.entries(c))if(!filled(ex[k])||(k==='decideur'&&v==='Oui')){ex[k]=v;changed.add('contacts.'+i+'.'+k)}}
+  // Actions
+  let nAct=0;for(const a of (patch.actions||[])){if(!a)continue;const type=ATYPES.find(t=>norm(t)===norm(a.type))||'Rappel';let date=/^\d{4}-\d{2}-\d{2}$/.test(a.date||'')?a.date:'';const heure=/^\d{1,2}:\d{2}$/.test(a.heure||'')?a.heure.padStart(5,'0'):'';
+    if(addAction(p,{type,date,heure,note:String(a.note||'').slice(0,160)})){nAct++;changed.add('actions')}}
+  if(patch.statut&&ST[patch.statut]){const k=patch.statut;if(k!==p.statut&&(RANK[k]>RANK[p.statut]||['ko','perdu','gagne'].includes(k)||p.statut==='nouveau')){setStatut(p,k);changed.add('statut')}}
+  if(patch.temperature&&['froid','tiede','chaud'].includes(patch.temperature)&&patch.temperature!==p.temperature){p.temperature=patch.temperature;changed.add('temperature')}
+  return[...changed]}
+function markFlash(paths){for(const k of paths){S.flash.add(k);const top=k.split('.')[0];const tab=top==='contacts'?'contacts':['actions','statut','temperature'].includes(top)?'suivi':top==='besoins'?'besoins':top;if(TABS.some(t=>t.id===tab))S.flash.add('tab:'+tab)}
+  setTimeout(()=>{for(const k of paths)S.flash.delete(k)},2500)}
+function flashApply(){for(const k of S.flash){if(k.startsWith('tab:'))continue;const el=$(`[data-k="${CSS.escape(k)}"]`);if(el){el.classList.remove('flash-f');void el.offsetWidth;el.classList.add('flash-f')}}}
+function describe(changed){const fields=changed.filter(k=>k!=='actions'&&k!=='statut'&&k!=='temperature').length;const parts=[];if(fields)parts.push(`${fields} champ${fields>1?'s':''}`);if(changed.includes('actions'))parts.push('action planifiée');if(changed.includes('statut'))parts.push('statut');return parts.join(' · ')}
+
+/* ================= Analyse des notes ================= */
+async function analyze(p,text,{kind='note',journal=null}={}){
+  if(!p)return;const before=structuredClone(p);let changed=[];
+  if(text){const loc=parseLocal(text,p);changed=applyPatch(p,loc,kind==='ident')}
+  if(journal){p.journal=p.journal||[];p.journal.push(journal)}
+  touch(p);markFlash(changed);
+  S.aiMsg=changed.length?`Rempli : ${describe(changed)}.`:'Aucune info à ranger détectée : la note est gardée dans l’historique.';
+  if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList();
+  if(changed.length){S.undo=before;toast(`${displayName(p)} : ${describe(changed)}`,()=>{S.P.set(p.id,before);touch(before);if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()})}
+  return changed}
+
+async function commitNote(p,text,o,ask){
+  if(!p)return;const canal=o?(S.mode==='poste'?'tel':'terrain'):'note';
+  const j={id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal,issue:o?.l||'',texte:text};
+  if(S.call&&S.call.id===p.id&&o){const s=Math.floor((Date.now()-S.call.t0)/1000);j.duree=`${pad(Math.floor(s/60))}:${pad(s%60)}`;S.call=null}
+  if(o){if(o.statut)setStatut(p,(RANK[o.statut]>=RANK[p.statut]||['ko','perdu'].includes(o.statut)||p.statut==='nouveau')?o.statut:p.statut);if(o.temp)p.temperature=o.temp;
+    if(o.a){const date=ask?.date||iso(bizDays(today(),o.a.in));const note=[o.k==='rdv'&&ask?.lieu,o.k==='doc'?'Envoyer la documentation':'',o.l].filter(Boolean)[0];addAction(p,{type:o.a.type,date,heure:ask?.heure||'',note:o.k==='rdv'?`RDV ${ask?.lieu||''}`.trim():note})}
+    if(o.k==='rdv'&&ask){j.issue=`RDV pris · ${fmtDate(ask.date)}${ask.heure?' '+ask.heure:''}${ask.lieu?' · '+ask.lieu:''}`}}
+  lsSet('radar-draft-'+p.id,null);if($('#note-in'))$('#note-in').value='';
+  S.ask=null;
+  if(text)await analyze(p,text,{kind:'note',journal:j});
+  else{p.journal=p.journal||[];p.journal.push(j);touch(p);renderFiche();renderNotesOnly();renderList();toast(`${displayName(p)} : ${j.issue}`)}
+  if(o&&S.session&&S.session.q[S.session.i]===p.id)setTimeout(nextInSession,700);
+  if(o&&S.mode==='terrain'){S.sheet=false;renderLayer()}}
+
+/* ================= Résumé, export, exemples ================= */
+function summary(p){const L=[];const e=p.ent||{};
+  L.push(`${displayName(p).toUpperCase()}${e.forme?' ('+e.forme+')':''}`);
+  if(e.siret||e.siren)L.push(`SIRET : ${fmtSiret(e.siret||e.siren)}`);
+  if(e.adresse||e.ville)L.push(`Adresse : ${[e.adresse,[e.cp,e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')}`);
+  if(e.tel)L.push(`Standard : ${fmtTel(e.tel)}`);if(e.secteur||e.effectif)L.push(`Secteur : ${[e.secteur,e.effectif&&e.effectif+' salariés'].filter(Boolean).join(' · ')}`);
+  L.push(`Statut : ${ST[p.statut]?.l||''}${p.temperature?' · '+TEMPS.find(t=>t.k===p.temperature).l:''}`);
+  for(const c of p.contacts||[])L.push(`Contact : ${[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')}${c.fonction?' ('+c.fonction+')':''}${c.decideur==='Oui'?' [décideur]':''}${c.tel||c.mobile?' · '+fmtTel(c.tel||c.mobile):''}${c.email?' · '+c.email:''}`);
+  for(const t of TABS.filter(t=>t.fields&&t.id!=='ent')){const xs=t.fields.map(f=>[f.l,getP(p,f.k)]).filter(([,v])=>filled(v)).map(([l,v])=>`${l} : ${Array.isArray(v)?v.join(', '):/^\d{4}-\d{2}$/.test(v)?fmtMonth(v):v}`);if(xs.length){L.push('');L.push(`— ${t.l.toUpperCase()} —`);L.push(...xs)}}
+  const a=nextAction(p);if(a){L.push('');L.push(`Prochaine action : ${a.type} ${fmtDate(a.date)}${a.heure?' '+a.heure:''}${a.note?' · '+a.note:''}`)}
+  return L.join('\n')}
+async function exportCsv(){
+  const cols=[['Entreprise',p=>displayName(p)],['SIRET',p=>p.ent?.siret],['SIREN',p=>p.ent?.siren],['Adresse',p=>p.ent?.adresse],['CP',p=>p.ent?.cp],['Ville',p=>p.ent?.ville],['Standard',p=>fmtTel(p.ent?.tel)],['Secteur',p=>p.ent?.secteur],['Effectif',p=>p.ent?.effectif],['Statut',p=>ST[p.statut]?.l],['Température',p=>p.temperature],['Source',p=>p.source],
+    ['Contact',p=>{const c=p.contacts?.[0];return c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' '):''}],['Fonction',p=>p.contacts?.[0]?.fonction],['Tél. contact',p=>fmtTel(p.contacts?.[0]?.tel||p.contacts?.[0]?.mobile)],['Email',p=>p.contacts?.[0]?.email||p.ent?.email],
+    ['Besoins',p=>(p.besoins?.sel||[]).join(' / ')],['Échéance',p=>p.besoins?.priorite],['Copieurs',p=>[p.impr?.nb,(p.impr?.marques||[]).join(' ')].filter(Boolean).join(' ')],['Fin contrat impression',p=>p.impr?.finContrat],['Postes',p=>p.it?.postes],['Prestataire IT',p=>p.it?.prestataire],['Opérateur',p=>(p.tel?.operateur||[]).join(' / ')],['Fin engagement télécom',p=>p.tel?.finEngagement],
+    ['Prochaine action',p=>{const a=nextAction(p);return a?`${a.type} ${a.date} ${a.heure||''}`.trim():''}],['Qualification %',p=>qualif(p)],['Dernière note',p=>(p.journal||[]).at(-1)?.texte]];
+  const q=v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  const csv='﻿'+[cols.map(c=>c[0]).join(';'),...[...S.P.values()].map(p=>cols.map(c=>q(c[1](p))).join(';'))].join('\r\n');
+  downloadFile(`prospects-${iso(new Date())}.csv`,csv,'text/csv;charset=utf-8');toast('Export téléchargé')}
+function downloadFile(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+function exportBackup(){downloadFile(`radar-sauvegarde-${iso(new Date())}.json`,JSON.stringify({version:1,exportedAt:new Date().toISOString(),prospects:[...S.P.values()]}),'application/json');toast('Sauvegarde téléchargée')}
+function importBackup(file){const fr=new FileReader();fr.onload=()=>{try{const j=JSON.parse(fr.result);const arr=Array.isArray(j)?j:j.prospects;let n=0;for(const p of arr||[]){if(!p?.id)continue;const loc=S.P.get(p.id);if(!loc||(p.updatedAt||0)>(loc.updatedAt||0)){S.P.set(p.id,p);markDirty(p.id);n++}}S.menu=false;render();toast(`${n} fiche${n>1?'s':''} importée${n>1?'s':''}`)}catch{toast('Fichier illisible : choisis une sauvegarde Radar (.json).')}};fr.readAsText(file)}
+function seedExamples(){const t=today();const mk=(o)=>{const p=Object.assign(blank(o.source||'tel'),o,{exemple:true});S.P.set(p.id,p);touch(p);return p};
+  mk({statut:'rappel',temperature:'chaud',ent:{nom:'Étude Martin & Associés (exemple)',secteur:'Notaire / juridique',forme:'SCP',effectif:'11–19',adresse:'12 rue de la Station',cp:'92600',ville:'Asnières-sur-Seine'},
+    contacts:[{id:rid(),civ:'Mme',nom:'Martin',fonction:'Associé',decideur:'Oui'},{id:rid(),prenom:'Julie',fonction:'Office manager',decideur:'Influenceur'}],
+    besoins:{sel:['Impression / copieurs','Sauvegarde / PRA'],declencheur:['Fin de contrat','Insatisfaction prestataire'],priorite:'< 3 mois'},cyber:{antivirus:['Avast / AVG'],sauvegarde:['Disque externe']},
+    impr:{nb:2,marques:['Ricoh'],mode:'Location / leasing',loueur:'Grenke',finContrat:iso(new Date(t.getFullYear(),t.getMonth()+3,1)).slice(0,7),satisfaction:'Insatisfait',irritants:['Pannes',"Délais d’intervention"]},it:{postes:14,logiciels:'Genapi'},
+    actions:[{id:rid(),type:'Rappel',date:iso(t),heure:'14:00',note:'Rappeler Mme Martin pour caler le RDV',fait:false}],
+    journal:[{id:rid(),date:iso(addDays(t,-2))+'T10:12:00',canal:'tel',issue:'Barrage',texte:"parlé à julie (office manager), mme martin associée décide, 2 copieurs ricoh leasing grenke pas contents pannes, svg sur dd externe, rapl ajd 14h"}]});
+  mk({statut:'rdv',temperature:'chaud',rdvPrisLe:new Date().toISOString(),source:'terrain',ent:{nom:'Cabinet Kiné Seine (exemple)',secteur:'Médical / paramédical',effectif:'6–10',ville:'Asnières-sur-Seine'},
+    contacts:[{id:rid(),civ:'M.',prenom:'Karim',nom:'Benali',fonction:'Dirigeant / gérant',decideur:'Oui'}],besoins:{sel:['Cybersécurité','Réseau / Wi-Fi']},it:{reseau:['Wi-Fi lent'],cloud:['Microsoft 365']},tel:{operateur:['Orange'],internet:['Fibre']},
+    actions:[{id:rid(),type:'RDV',date:iso(bizDays(t,3)),heure:'10:00',note:'RDV Sur place',fait:false}],journal:[{id:rid(),date:iso(t)+'T09:40:00',canal:'terrain',issue:'RDV pris',texte:'vu le gérant karim, wifi patients lent, peur du piratage dossiers patients'}]});
+  mk({statut:'nouveau',ent:{nom:'Atelier Lumen Architectes (exemple)',secteur:'Architecte',ville:'Bois-Colombes',tel:'0147000000'},actions:[]});}
+
+/* ================= Registre des entreprises & adresses (services publics) ================= */
+const RE='https://recherche-entreprises.api.gouv.fr', GEO='https://data.geopf.fr/geocodage';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let nextSlot=0;
+async function getJSON(url,{signal}={}){
+  if(!navigator.onLine)throw{fr:'Pas de connexion internet.'};
+  for(let k=0;k<3;k++){
+    const wait=Math.max(0,nextSlot-Date.now());nextSlot=Math.max(nextSlot,Date.now())+160;if(wait)await sleep(wait);
+    if(signal?.aborted)throw{name:'AbortError'};
+    let r;try{r=await fetch(url,{signal,headers:{Accept:'application/json'}})}
+    catch(e){if(e?.name==='AbortError')throw e;if(k<2){await sleep(700);continue}throw{fr:'Service public injoignable. Vérifie ta connexion.'}}
+    if(r.status===429){await sleep(1100*(k+1));continue}
+    if(r.status===404||r.status===400)return null;
+    if(!r.ok){if(k<2&&r.status>=500){await sleep(800);continue}throw{fr:`Le registre a répondu une erreur (${r.status}). Réessaie dans un instant.`}}
+    return r.json()}
+  throw{fr:'Trop de recherches d’un coup : réessaie dans quelques secondes.'}}
+const reCache=new Map();
+async function reSearch(q,opt={}){
+  const u=new URL(RE+'/search');u.searchParams.set('q',q);u.searchParams.set('per_page',String(opt.per_page||10));u.searchParams.set('page','1');
+  if(opt.code_postal)u.searchParams.set('code_postal',opt.code_postal);
+  const k=u.toString();if(reCache.has(k))return reCache.get(k);
+  const out=(await getJSON(k,opt))?.results||[];reCache.set(k,out);return out}
+async function geocode(q){const u=new URL(GEO+'/search');u.searchParams.set('q',q);u.searchParams.set('limit','1');u.searchParams.set('index','address');
+  const f=(await getJSON(u.toString()))?.features?.[0];if(!f)return null;const pr=f.properties||{};
+  return{lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],label:pr.label||q,addr:{num:pr.housenumber||'',street:pr.street||pr.name||'',cp:pr.postcode||'',ville:pr.city||''},score:pr.score}}
+async function revgeo(pos){try{const u=new URL(GEO+'/reverse');u.searchParams.set('lon',pos.lon);u.searchParams.set('lat',pos.lat);u.searchParams.set('limit','1');u.searchParams.set('index','address');
+  const f=(await getJSON(u.toString()))?.features?.[0];return f?.properties?.label||''}catch{return''}}
+function haversine(a,b){const R=6371000,t=x=>x*Math.PI/180;const dLa=t(b.lat-a.lat),dLo=t(b.lon-a.lon);const h=Math.sin(dLa/2)**2+Math.cos(t(a.lat))*Math.cos(t(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+
+/* ---------- Mise en forme des données officielles ---------- */
+const SMALLW=new Set(['de','du','des','la','le','les','sur','sous','et','d','l','en','au','aux','lès']);
+function niceCase(s){if(!s)return'';const t=String(s).trim();if(t!==t.toUpperCase())return t;
+  return t.toLowerCase().split(' ').map((w,wi)=>w.split(/([-'’])/).map((x,xi)=>(!x||/[-'’]/.test(x))?x:((wi+xi>0&&SMALLW.has(x))?x:x[0].toUpperCase()+x.slice(1))).join('')).join(' ')
+   .replace(/\b(Sas|Sasu|Sarl|Eurl|Selarl|Scp|Sci|Sa|Snc|Scm|Selas)\b/g,m=>m.toUpperCase())}
+const trunc=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1).trim()+'…':s};
+const nafFmt=c=>{const m=String(c||'').match(/^(\d{2})\.?(\d{2}[A-Z])$/);return m?`${m[1]}.${m[2]}`:c||''};
+const frDate=d=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:d||''};
+function formeFromCode(c){c=String(c||'');if(!c)return'';if(c==='5720')return'SASU';if(c==='5785')return'SELAS';if(c.startsWith('57'))return'SAS';if(c==='5498')return'EURL';if(c==='5485')return'SELARL';if(c.startsWith('54'))return'SARL';
+  if(c.startsWith('55')||c.startsWith('56'))return'SA';if(c==='6540')return'SCI';if(c.startsWith('656'))return'SCP';if(c.startsWith('65'))return'Société civile';if(c==='1000')return'EI';if(c.startsWith('92'))return'Association';return''}
+const EFF={'00':'1–5','01':'1–5','02':'1–5','03':'6–10','11':'11–19','12':'20–49','21':'50–99','22':'100–249','31':'100–249','32':'250 +','41':'250 +','42':'250 +','51':'250 +','52':'250 +','53':'250 +'};
+const effLabel=t=>EFF[t]||'';
+function secteurFromNaf(code,text){const c=String(code||'').replace('.','');const t=norm(text);if(!c)return'';const c2=c.slice(0,2),c4=c.slice(0,4);
+  if(c4==='6910')return /avocat/.test(t)&&!/notair/.test(t)?'Avocat':'Notaire / juridique';
+  if(c4==='6920')return'Expert-comptable';if(c2==='86'||c4==='7500')return'Médical / paramédical';
+  if(['7010','7021','7022','7810','7820','7830','7490','7320'].includes(c4))return'Conseil / RH / recrutement';
+  if(c4==='7111')return'Architecte';if(c2==='68')return'Agence immobilière';if(['6511','6512','6621','6622','6629'].includes(c4))return'Assurance';
+  if(['41','42','43'].includes(c2))return'BTP / artisan';if(['45','46','47'].includes(c2))return'Commerce';if(['55','56'].includes(c2))return'Restauration / hôtellerie';
+  if(+c2>=49&&+c2<=53)return'Transport / logistique';if(c2==='94')return'Association';if(+c2>=10&&+c2<=33)return'Industrie';return''}
+function fonctionRne(f){f=String(f||'');if(/pr[ée]sident|g[ée]rant/i.test(f))return'Dirigeant / gérant';if(/directeur g[ée]n[ée]ral/i.test(f))return'DG';if(/associ/i.test(f))return'Associé';return f}
+const STOPN=new Set(['cabinet','sarl','sas','sasu','eurl','selarl','scp','agence','societe','ste','groupe','les','des','et','de','du','la','le','france','chez','maison','atelier','boutique','etablissements','ets','espace','centre','the','and']);
+const toks=s=>norm(s).replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!STOPN.has(w));
+function sim(a,b){const X=toks(a),Y=toks(b);if(!X.length||!Y.length)return 0;return X.filter(w=>Y.some(x=>x===w||(w.length>4&&(x.startsWith(w)||w.startsWith(x))))).length/X.length}
+function etabsOf(r){const m=[...(r.matching_etablissements||[])];if(r.siege&&!m.some(e=>e.siret===r.siege.siret))m.push({...r.siege,est_siege:true});return m}
+function addrOf(e){const full=String(e?.adresse||'');const cp=e?.code_postal||(full.match(/\b\d{5}\b/)||[])[0]||'';let rue=full;if(cp){const i=full.lastIndexOf(cp);if(i>0)rue=full.slice(0,i)}
+  return{rue:niceCase(rue.replace(/[,\s]+$/,'').trim()),cp,ville:niceCase(e?.libelle_commune||full.slice(full.lastIndexOf(cp)+5).trim())}}
+const enseigneOf=(r,e)=>niceCase((e?.liste_enseignes||[])[0]||e?.nom_commercial||'');
+const nameOf=r=>niceCase(r.nom_raison_sociale||r.nom_complet||'');
+function pickEtab(r,hint={}){const ets=etabsOf(r);let e=null;
+  if(hint.siret)e=ets.find(x=>x.siret===hint.siret);
+  if(!e&&(hint.cp||hint.adresse)){let best=-1;for(const x of ets){const a=addrOf(x);const s=(x.etat_administratif==='F'?0:1)+(hint.cp&&a.cp===hint.cp?3:0)+(hint.adresse?sim(hint.adresse,a.rue)*2:0);if(s>best){best=s;e=x}}if(best<3)e=null}
+  return e||r.siege||ets[0]||null}
+function reToPatch(r,e){
+  const naf=nafFmt(e?.activite_principale||r.activite_principale);const a=addrOf(e||r.siege);
+  const set={'ent.nom':nameOf(r),'ent.siren':r.siren,'ent.siret':e?.siret||r.siege?.siret,'ent.forme':formeFromCode(r.nature_juridique),'ent.naf':naf,
+    'ent.creation':frDate(r.date_creation),'ent.effectif':effLabel(e?.tranche_effectif_salarie||r.tranche_effectif_salarie),'ent.adresse':a.rue,'ent.cp':a.cp,'ent.ville':a.ville};
+  const en=enseigneOf(r,e);if(en&&norm(en)!==norm(set['ent.nom']))set['ent.enseigne']=en;
+  const sec=secteurFromNaf(naf,[r.nom_complet,(r.dirigeants||[]).map(d=>d.qualite).join(' ')].join(' '));if(sec)set['ent.secteur']=sec;
+  if((r.nombre_etablissements_ouverts||0)>1)set['ent.sites']='Oui';
+  const contacts=(r.dirigeants||[]).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom).slice(0,3)
+    .map(d=>({prenom:niceCase(String(d.prenoms||d.prenom||'').split(/[\s,]+/)[0]),nom:niceCase(d.nom),fonction:fonctionRne(d.qualite),decideur:'Oui',note:'Dirigeant au registre'+(d.qualite?' : '+d.qualite:'')}));
+  return{set,contacts}}
+function applyRe(p,r,hint={}){
+  const e=pickEtab(r,{...hint,cp:hint.cp||p.ent?.cp,adresse:hint.adresse||p.ent?.adresse});
+  const before=structuredClone(p);const patch=reToPatch(r,e);
+  const a=addrOf(e||r.siege);
+  if(p.ent?.cp&&a.cp&&a.cp!==p.ent.cp&&!hint.siret&&!hint.force){for(const k of ['ent.adresse','ent.cp','ent.ville','ent.siret'])delete patch.set[k]}
+  if(hint.siret)patch.set['ent.siret']=hint.siret;
+  const ch=applyPatch(p,patch,true);
+  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C'};delete p.rneCands;touch(p);markFlash(ch);
+  return{r,e,ch,before}}
+async function applyRne(p,num,hint={}){const res=await reSearch(num);const r=res.find(x=>x.siren===String(num).slice(0,9))||res[0];
+  if(!r)throw{fr:'Ce numéro n’existe pas au registre. Vérifie les chiffres.'};return applyRe(p,r,hint)}
+
+/* ---------- Identification ---------- */
+const ADDR_RE=/\b\d{1,4}\s*(?:bis|ter)?,?\s+(?:rue|avenue|av\.?|bd|boulevard|place|pl\.?|all[ée]e|chemin|quai|impasse|route|cours|square|villa|passage|rond-point)\b/i;
+function setId(p,o){S.id={pid:p.id,...o};renderIdentBox()}
+function renderIdentBox(){const box=$('#ident-box');const p=cur();if(!box||!p)return;const v=$('#ident-in')?.value||'';box.outerHTML=identHtml(p);if(v&&$('#ident-in'))$('#ident-in').value=v}
+async function identify(p,raw){
+  const text=raw.trim();if(!text)return;const digits=text.replace(/[\s.\-]/g,'');
+  setId(p,{busy:true,msg:'Recherche au registre…',keep:text});
+  try{
+    if(/^\d{14}$/.test(digits))return idDone(p,await applyRne(p,digits,{siret:digits,force:true}));
+    if(/^\d{9}$/.test(digits))return idDone(p,await applyRne(p,digits,{}));
+    if(/^(\+33|0)[1-9]\d{8}$/.test(digits)){p.ent=p.ent||{};p.ent.tel=digits.replace(/^\+33/,'0');touch(p);renderFiche();
+      return setId(p,{msg:'Numéro enregistré. Aucun registre public ne retrouve une entreprise par son téléphone : ajoute son nom ou son adresse pour l’identifier.'})}
+    if(text.length>140||text.split('\n').length>2){
+      await analyze(p,text,{kind:'ident'});
+      const sr=p.ent?.siren||(p.ent?.siret||'').slice(0,9);
+      if(/^\d{9}$/.test(sr))return idDone(p,await applyRne(p,p.ent?.siret||sr,{siret:p.ent?.siret}));
+      if(p.ent?.nom)return nameSearch(p,[p.ent.nom,p.ent.ville].filter(Boolean).join(' '),p.ent.cp||'');
+      return setId(p,{msg:'Texte analysé. Aucun SIRET ni nom d’entreprise reconnu pour interroger le registre.'})}
+    const loc=parseLocal(text,p);
+    if(loc.set['ent.siret'])return idDone(p,await applyRne(p,loc.set['ent.siret'],{siret:loc.set['ent.siret'],force:true}));
+    if(loc.set['ent.siren'])return idDone(p,await applyRne(p,loc.set['ent.siren'],{}));
+    if(ADDR_RE.test(text))return addressSearch(p,text);
+    const cp=(text.match(/\b(\d{5})\b/)||[])[1]||'';return nameSearch(p,text.replace(/\b\d{5}\b/,'').trim(),cp)
+  }catch(e){setId(p,{msg:e?.fr||'Recherche impossible pour l’instant.'})}}
+function idDone(p,{r,e,ch,before}){
+  if($('#ident-in'))$('#ident-in').value='';
+  setId(p,{msg:`${nameOf(r)} identifiée${p.ent?.siret?' · SIRET '+fmtSiret(p.ent.siret):''}${r.etat_administratif==='C'?' · ATTENTION : entreprise fermée':''}. ${ch.length} champ${ch.length>1?'s':''} rempli${ch.length>1?'s':''}.`});
+  renderFiche();renderList();toast(`${nameOf(r)} identifiée`,()=>{S.P.set(p.id,before);touch(before);S.id=null;renderFiche();renderList()})}
+function rankRes(res,q,cp){const city=norm(q);return res.map(r=>({...r,_s:sim(q,r.nom_complet)*2+(cp&&etabsOf(r).some(e=>e.code_postal===cp)?2:0)+(etabsOf(r).some(e=>city.includes(norm(e.libelle_commune||'').split(/[\s-]/)[0]||'§'))?1.2:0)+(/^(75|77|78|91|92|93|94|95)/.test(r.siege?.code_postal||'')?0.3:0)+(r.etat_administratif==='C'?-2:0)})).sort((a,b)=>b._s-a._s)}
+async function nameSearch(p,q,cp){
+  const res=rankRes(await reSearch(q,{per_page:15}),q,cp).slice(0,8);
+  if(!res.length){if(!p.ent?.nom){p.ent=p.ent||{};p.ent.nom=q;touch(p);renderFiche()}return setId(p,{msg:`Aucune entreprise « ${q} » au registre. Essaie le SIRET, l'adresse ou une autre orthographe.`})}
+  setId(p,{cands:res.map(r=>({kind:'re',r})),msg:`${res.length} résultat${res.length>1?'s':''} au registre.`})}
+async function addressSearch(p,text){
+  const g=await geocode(/\b\d{5}\b|asni|paris|colombes|clichy|levallois|courbevoie|gennevilliers|nanterre/i.test(text)?text:text+' Asnières-sur-Seine');
+  if(!g)return setId(p,{msg:'Adresse introuvable. Vérifie le numéro et la ville.'});
+  const items=(await nearEtabs({lat:g.lat,lon:g.lon},30)).filter(x=>!x.hidden).slice(0,10);
+  setId(p,{cands:[...items.map(x=>({kind:'etab',x})),{kind:'addr',g}],msg:items.length?`${items.length} entreprise${items.length>1?'s':''} enregistrée${items.length>1?'s':''} à ${g.label}.`:`Aucune entreprise enregistrée à ${g.label}.`})}
+function pickCand(p,i){
+  const st=S.id&&S.id.pid===p.id?S.id:{};const cands=st.cands?.length?st.cands:(p.rneCands||[]).map(c=>({kind:'sir',...c}));const c=cands[i];if(!c)return;
+  if(c.kind==='addr'){p.ent=p.ent||{};Object.assign(p.ent,{adresse:[c.g.addr.num,c.g.addr.street].filter(Boolean).join(' '),cp:c.g.addr.cp,ville:c.g.addr.ville});p.geo={lat:c.g.lat,lon:c.g.lon};touch(p);S.id=null;renderFiche();return}
+  if(c.kind==='re')return idDone(p,applyRe(p,c.r,{}));
+  if(c.kind==='etab'){p.geo={lat:c.x.lat,lon:c.x.lon};return idDone(p,applyRe(p,c.x.r,{siret:c.x.e.siret,force:true}))}
+  setId(p,{busy:true,msg:'Récupération de la fiche officielle…'});applyRne(p,c.siren,{}).then(x=>idDone(p,x)).catch(e=>setId(p,{msg:e?.fr||'Registre indisponible.'}))}
+
+/* ---------- Autour de moi ---------- */
+const GROUPS=[
+ {k:'liberal',l:'Libéraux & conseil',t:n=>/^(69|70|71|72|73|74|78|62|63|58|82|66\.2)/.test(n)},
+ {k:'sante',l:'Santé',t:n=>/^(86|75|47\.74|47\.78A)/.test(n)},
+ {k:'immo',l:'Agences immo',t:n=>/^68\.3/.test(n)},
+ {k:'resto',l:'Restaurants & hôtels',t:n=>/^(55|56)/.test(n)},
+ {k:'commerce',l:'Commerces',t:n=>/^(45|46|47)/.test(n)},
+ {k:'btp',l:'BTP & industrie',t:n=>/^(0\d|1\d|2\d|3[0-3]|41|42|43|49|5[0-3])/.test(n)},
+ {k:'services',l:'Autres services',t:()=>true}];
+const groupOf=naf=>GROUPS.find(g=>g.t(naf||''))?.k||'services';
+const NAFLAB={'69.10Z':'Juridique','69.20Z':'Comptabilité','70.22Z':'Conseil','70.10Z':'Siège social','71.11Z':'Architecture','71.12B':'Ingénierie','73.11Z':'Publicité','74.10Z':'Design','78.10Z':'Recrutement','78.20Z':'Intérim','62.01Z':'Développement informatique','62.02A':'Conseil informatique','86.21Z':'Médecin généraliste','86.22C':'Médecin spécialiste','86.23Z':'Dentiste','86.90E':'Kiné / paramédical','86.90D':'Infirmier','75.00Z':'Vétérinaire','68.31Z':'Agence immobilière','68.32A':'Syndic / gestion','66.22Z':'Courtier / agent d’assurance','56.10A':'Restaurant','56.10C':'Restauration rapide','56.30Z':'Café / bar','55.10Z':'Hôtel','47.11B':'Supérette','47.11D':'Supermarché','47.24Z':'Boulangerie','47.73Z':'Pharmacie','47.78A':'Opticien','47.71Z':'Vêtements','96.02A':'Coiffure','96.02B':'Institut de beauté','85.59A':'Formation','85.59B':'Formation','88.91A':'Crèche','94.99Z':'Association','41.20A':'Construction','43.21A':'Électricité','43.22A':'Plomberie','43.39Z':'Travaux de finition','45.20A':'Garage auto','64.20Z':'Holding','68.20A':'Location de logements','68.20B':'Location immobilière'};
+const nafLabel=n=>NAFLAB[n]||GROUPS.find(g=>g.k===groupOf(n))?.l||'';
+function outOfTarget(x){const n=x.naf;if(/^64\.1/.test(n)||/^64\.19/.test(n))return'Banque';if(n==='47.73Z')return'Pharmacie';if(/^64\.(20|30)/.test(n))return'Holding';if(/^68\.20/.test(n))return'Location immobilière';return''}
+function knownProspect(x){for(const p of S.P.values()){if(x.siret&&p.ent?.siret===x.siret)return p;if(x.siren&&p.ent?.siren===x.siren&&(!p.ent?.cp||p.ent.cp===x.adr.cp))return p}return null}
+async function nearEtabs(pos,radius){
+  const map=new Map();let page=1,pages=1;
+  do{const u=`${RE}/near_point?lat=${pos.lat.toFixed(6)}&long=${pos.lon.toFixed(6)}&radius=${Math.max(0.01,radius/1000).toFixed(3)}&per_page=25&page=${page}`;
+    const j=await getJSON(u);if(!j)break;pages=Math.min(j.total_pages||1,16);
+    for(const r of (j.results||[])){const ets=(r.matching_etablissements&&r.matching_etablissements.length)?r.matching_etablissements:(r.siege?[r.siege]:[]);
+      for(const e of ets){if(e.etat_administratif==='F'||!e.latitude||!e.longitude)continue;const lat=+e.latitude,lon=+e.longitude;const dist=haversine(pos,{lat,lon});if(dist>radius*1.2+15)continue;
+        if(map.has(e.siret))continue;const naf=nafFmt(e.activite_principale||r.activite_principale);const adr=addrOf(e);
+        const x={id:e.siret,siret:e.siret,siren:r.siren,r,e,lat,lon,dist,naf,adr,name:enseigneOf(r,e)||nameOf(r),denom:nameOf(r),forme:formeFromCode(r.nature_juridique),ei:String(r.nature_juridique)==='1000',siege:!!(e.est_siege||e.siret===r.siege?.siret),eff:effLabel(e.tranche_effectif_salarie||r.tranche_effectif_salarie)};
+        x.group=groupOf(naf);x.out=outOfTarget(x);x.hidden=/Holding|Location immobilière/.test(x.out);map.set(e.siret,x)}}
+    page++}while(page<=pages);
+  return[...map.values()].sort((a,b)=>a.dist-b.dist)}
+function parsePos(t){let m;
+  if((m=t.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/))||(m=t.match(/[?&](?:q|ll|query|daddr)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i))||(m=t.match(/(-?\d{1,2}\.\d{3,})\s*[,;\s]\s*(-?\d{1,3}\.\d{3,})/))){let a=+m[1],b=+m[2];if(a<15&&b>35)[a,b]=[b,a];return{lat:a,lon:b}}
+  if((m=t.match(/(\d{1,2})°\s*(\d{1,2})['’]\s*([\d.]+)"?\s*([NS])[,\s]+(\d{1,3})°\s*(\d{1,2})['’]\s*([\d.]+)"?\s*([EOW])/i))){const la=(+m[1]+m[2]/60+m[3]/3600)*(/S/i.test(m[4])?-1:1),lo=(+m[5]+m[6]/60+m[7]/3600)*(/[OW]/i.test(m[8])?-1:1);return{lat:la,lon:lo}}
+  return null}
+function A(){if(!S.around)S.around={radius:lsGet('radar-radius',50),groups:lsGet('radar-groups2',['liberal','sante','immo','services']),ei:lsGet('radar-ei',true),all:[],res:[],sel:new Set(),pos:null,busy:false,msg:'',batch:[]};return S.around}
+function filterAround(){const a=A();a.res=a.all.filter(x=>!x.hidden&&a.groups.includes(x.group)&&(a.ei||!x.ei)).map(x=>({...x,known:knownProspect(x)?.id||''}));
+  a.sel=new Set(a.res.filter(x=>!x.out&&!x.known).map(x=>x.id))}
+let gpsBusy=false;
+function tryGps(){const a=A();if(gpsBusy)return;
+  if(!('geolocation' in navigator)){a.msg='Ce navigateur ne donne pas la position : tape l’adresse devant toi.';return renderAround()}
+  gpsBusy=true;a.busy=true;a.msg='Localisation en cours…';renderAround();
+  let best=null,finished=false,err='';
+  const finish=async()=>{if(finished)return;finished=true;navigator.geolocation.clearWatch(wid);clearTimeout(t1);gpsBusy=false;
+    if(!best){a.busy=false;a.msg=err||'Position introuvable. Active la localisation du téléphone, ou tape l’adresse devant toi.';renderAround();return}
+    const c=best.coords;a.pos={lat:c.latitude,lon:c.longitude,acc:Math.round(c.accuracy),src:'gps',label:'Ma position'};renderAround();
+    revgeo(a.pos).then(l=>{if(l&&a.pos&&a.pos.src==='gps'){a.pos.label=l;renderAround()}});await aroundRun()};
+  const wid=navigator.geolocation.watchPosition(g=>{if(!best||g.coords.accuracy<best.coords.accuracy)best=g;a.msg=`Localisation… précision ±${Math.round(best.coords.accuracy)} m`;renderAround();if(best.coords.accuracy<=20)finish()},
+    e=>{err=e.code===1?'La localisation est refusée pour Radar. Autorise-la dans les réglages du navigateur (icône à gauche de l’adresse, ou Réglages du téléphone → Safari/Chrome → Position).':'Signal GPS indisponible : active la localisation ou sors à découvert.';if(e.code===1)finish()},
+    {enableHighAccuracy:true,maximumAge:0,timeout:15000});
+  const t1=setTimeout(finish,9000)}
+async function aroundSearch(raw){const a=A();const t=(raw??$('#pos-in')?.value??'').trim();
+  a.busy=true;a.msg='Recherche de la position…';renderAround();
+  try{let pos=parsePos(t);
+    if(pos){pos.src='coord';pos.label=await revgeo(pos)||`${pos.lat.toFixed(5)}, ${pos.lon.toFixed(5)}`}
+    else if(t){const g=await geocode(/\b\d{5}\b|asni|paris|colombes|clichy|levallois|courbevoie|gennevilliers|nanterre/i.test(t)?t:t+' Asnières-sur-Seine');if(!g)throw{fr:'Adresse introuvable. Ajoute le numéro et la ville.'};pos={lat:g.lat,lon:g.lon,label:g.label,src:'addr'}}
+    else if(a.pos)pos=a.pos;else{a.busy=false;return tryGps()}
+    a.pos=pos;await aroundRun()}
+  catch(e){a.busy=false;a.msg=e?.fr||'Recherche impossible pour l’instant.';renderAround()}}
+async function aroundRun(){const a=A();if(!a.pos)return;a.busy=true;a.msg=`Recherche des entreprises à ${a.radius} m…`;renderAround();
+  try{a.all=await nearEtabs(a.pos,a.radius);filterAround();const hid=a.all.filter(x=>x.hidden).length;
+    a.msg=a.res.length?`${a.res.length} entreprise${a.res.length>1?'s':''} à moins de ${a.radius} m${hid?` (${hid} holding${hid>1?'s':''} / SCI masquée${hid>1?'s':''})`:''}.`:`Aucune entreprise de ces types à moins de ${a.radius} m. Élargis le rayon ou coche d’autres types.`}
+  catch(e){a.msg=e?.fr||'Recherche impossible pour l’instant.'}a.busy=false;renderAround()}
+function aroundCreate(){const a=A();const items=a.res.filter(x=>a.sel.has(x.id));if(!items.length)return;const ids=[];
+  for(const x of items){const p=blank('terrain');applyPatch(p,reToPatch(x.r,x.e),true);p.rne={status:'ok',siren:x.siren,at:iso(today()),actif:true};p.geo={lat:x.lat,lon:x.lon};
+    p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Repéré autour de moi',texte:`À ${Math.round(x.dist)} m de ${a.pos?.label||'ma position'}${x.naf?' · '+nafLabel(x.naf):''}`});
+    p.actions.push({id:rid(),type:'Visite',date:iso(today()),heure:'',note:'Passer sur place',fait:false,createdAt:Date.now()});
+    S.P.set(p.id,p);touch(p);ids.push(p.id)}
+  a.batch=ids;S.lastBatch=ids;filterAround();a.msg=`${ids.length} fiche${ids.length>1?'s':''} créée${ids.length>1?'s':''}, déjà identifiée${ids.length>1?'s':''} au registre (SIRET, adresse, dirigeants).`;
+  renderAround();toast(`${ids.length} fiches créées`)}
+function renderAround(){
+  const el=$('#around');if(!el)return;const a=A();const n=a.res.filter(x=>a.sel.has(x.id)).length;const keep=$('#pos-in')?.value;
+  el.innerHTML=`<div class="hello"><div><h1>Autour de moi</h1><p>Toutes les entreprises enregistrées autour de toi, y compris les cabinets à l'étage. Coche, puis crée leurs fiches en un geste.</p></div></div>
+  <div class="card">
+    <div class="ident-row"><button class="btn btn-loc" data-act="gps" ${a.busy?'disabled':''}>📍 ${a.pos?.src==='gps'?'Actualiser ma position':'Me localiser'}</button>
+      <input class="in" id="pos-in" style="flex:1;min-width:200px" placeholder="ou une adresse (« 12 rue de la Station »)" value="${esc(keep??'')}" enterkeyhint="search">
+      <button class="btn btn-g" data-act="aroundgo" ${a.busy?'disabled':''}>Chercher</button></div>
+    <div class="ident-row"><span class="lbl">Rayon</span><div class="chips">${[25,50,100,200].map(r=>`<button class="chip" data-act="radius" data-v="${r}" aria-pressed="${a.radius===r}">${r} m</button>`).join('')}</div></div>
+    <div class="ident-row"><span class="lbl">Types</span><div class="chips">${GROUPS.map(g=>`<button class="chip" data-act="grp" data-v="${g.k}" aria-pressed="${a.groups.includes(g.k)}">${g.l}</button>`).join('')}<button class="chip" data-act="eitog" aria-pressed="${a.ei}">Indépendants (EI)</button></div></div>
+    ${a.pos?`<div class="posline"><span>📍 ${esc(a.pos.label)}</span>${a.pos.acc?`<span class="mono">GPS ±${a.pos.acc} m</span>`:''}${a.pos.acc>60?'<span style="color:var(--warn)">précision faible : les résultats peuvent être décalés</span>':''}</div>`:''}
+    ${a.msg||a.busy?`<div class="ai" data-s="${a.busy?'busy':''}">${a.busy?'<span class="spin"></span>':''}<span>${esc(a.msg)}</span></div>`:''}
+  </div>
+  ${a.res.length?`<div class="card"><h2>${a.res.length} entreprise${a.res.length>1?'s':''} <span style="display:flex;gap:6px"><button class="btn btn-q btn-s" data-act="selall">Tout</button><button class="btn btn-q btn-s" data-act="selnone">Rien</button></span></h2>
+    <div class="plist">${a.res.map(x=>`<label class="prow${x.out||x.known?' dim':''}"><input type="checkbox" data-act="selone" data-id="${esc(x.id)}" ${a.sel.has(x.id)?'checked':''}>
+      <span style="min-width:0"><b>${esc(x.name)}</b><small>${esc([nafLabel(x.naf),x.forme,x.eff&&x.eff+' sal.'].filter(Boolean).join(' · '))}</small><small>${esc(x.adr.rue)}${x.name!==x.denom?` · ${esc(x.denom)}`:''}</small>
+      ${x.known?`<button class="tag ok" data-act="open" data-id="${x.known}">Déjà en fiche →</button>`:x.out?`<span class="tag">${esc(x.out)}</span>`:''}</span><em class="num">${Math.round(x.dist)} m</em></label>`).join('')}</div>
+    <div class="createbar"><span>${n} sélectionnée${n>1?'s':''}</span>${a.batch.length?`<button class="btn btn-g" data-act="filter" data-v="batch">Voir les fiches créées</button>`:''}<button class="btn btn-p" data-act="aroundcreate" ${n?'':'disabled'}>Créer ${n} fiche${n>1?'s':''}</button></div>
+    <p style="margin:0;font-size:12px;color:var(--ink-3)">Source : registre public des entreprises (INSEE / RNE, via recherche-entreprises.api.gouv.fr). Les adresses enregistrées peuvent dater : vérifie sur place.</p></div>`:''}`}
+
+/* ---------- Suggestions pendant la frappe ---------- */
+const SG={input:null,items:[],idx:-1};let sugT=null,sugCtl=null;
+function sgShow(input,html){let b=$('#sugg');if(!b){b=document.createElement('div');b.id='sugg';b.className='sugg';b.setAttribute('role','listbox');document.body.append(b);b.addEventListener('mousedown',e=>e.preventDefault())}
+  const r=input.getBoundingClientRect();const w=Math.min(Math.max(r.width,300),innerWidth-16);b.style.width=w+'px';b.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';b.style.top=(r.bottom+4)+'px';b.innerHTML=html;b.hidden=false;SG.input=input}
+function sgHide(){const b=$('#sugg');if(b)b.hidden=true;SG.items=[];SG.idx=-1}
+function sgMark(){$$('#sugg .sg-i').forEach((x,i)=>x.classList.toggle('on',i===SG.idx));$('#sugg .sg-i.on')?.scrollIntoView({block:'nearest'})}
+async function suggest(input){const p=cur();if(!p||document.activeElement!==input)return;const q=input.value.trim();
+  if(q.length<3||q.includes('\n')||q.length>90){sgHide();return}
+  const digits=q.replace(/[\s.\-]/g,'');
+  if(/^\d+$/.test(digits)){sgHide();if((digits.length===9||digits.length===14)&&(p.ent?.siren!==digits.slice(0,9)||p.rne?.status!=='ok'))identify(p,digits);return}
+  sugCtl?.abort();const ctl=sugCtl=new AbortController();sgShow(input,`<div class="sg-msg"><span class="spin"></span>Recherche au registre…</div>`);
+  try{const cp=(q.match(/\b\d{5}\b/)||[])[0]||p.ent?.cp||'';const res=rankRes(await reSearch(q.replace(/\b\d{5}\b/,'').trim()||q,{per_page:12,signal:ctl.signal}),q+' '+(p.ent?.ville||''),cp).slice(0,7);
+    if(ctl.signal.aborted||document.activeElement!==input)return;
+    SG.items=res;SG.idx=res.length?0:-1;
+    sgShow(input,res.length?res.map((r,i)=>{const e=pickEtab(r,{cp});const a=addrOf(e||r.siege);return `<button class="sg-i${i===0?' on':''}" role="option" data-act="sgpick" data-i="${i}"><b>${esc(nameOf(r))}</b><span>${esc([formeFromCode(r.nature_juridique),[a.cp,a.ville].filter(Boolean).join(' '),nafLabel(nafFmt(r.activite_principale)),r.etat_administratif==='C'?'fermée':''].filter(Boolean).join(' · '))}</span><em>${esc(fmtSiret(r.siren))}</em></button>`}).join('')+`<div class="sg-foot">Entrée pour choisir · registre officiel des entreprises</div>`
+      :`<div class="sg-msg">Aucune entreprise « ${esc(q)} » au registre. Essaie une autre orthographe ou le SIRET.</div>`)}
+  catch(e){if(e?.name==='AbortError'||ctl.signal.aborted)return;sgShow(input,`<div class="sg-msg">${esc(e?.fr||'Registre indisponible pour l’instant.')}</div>`)}}
+function sgPick(i){const r=SG.items[i];const p=cur();if(!r||!p)return;sgHide();sugCtl?.abort();if(S.tab!=='ent'){S.tab='ent';renderFiche()}idDone(p,applyRe(p,r,{}))}
+document.addEventListener('focusout',e=>{if(e.target===SG.input)setTimeout(()=>{if(document.activeElement!==SG.input)sgHide()},150)});
+window.addEventListener('scroll',e=>{if(!e.target?.closest?.('#sugg'))sgHide()},true);
+
+/* ================= Événements ================= */
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==='A'&&b.dataset.act!=='closem')return;f(b,e)}});
+document.addEventListener('input',e=>{const el=e.target;
+  if(el.id==='q'){S.q=el.value;if(S.view!=='list'){S.view='list';if(S.mode==='terrain')S.sel=null;render();$('#q').focus()}else if(S.mode==='terrain'&&S.sel){S.sel=null;render();$('#q').focus()}else renderList();return}
+  if(el.id==='note-in'&&S.sel){lsSet('radar-draft-'+S.sel,el.value);return}
+  if((el.id==='ident-in'||(el.dataset.k==='ent.nom'&&cur()?.rne?.status!=='ok'))){clearTimeout(sugT);sugT=setTimeout(()=>suggest(el),380)}
+  if((el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren')&&cur()){const d=el.value.replace(/\D/g,'');const p=cur();if(((d.length===14&&luhn(d))||(d.length===9&&el.dataset.k==='ent.siren'))&&(p.rne?.status!=='ok'||p.ent?.siren!==d.slice(0,9))){setTimeout(()=>identify(p,d),50)}}
+  if(el.dataset.k&&!el.classList.contains('chip-in')){const f=defOf(el.dataset.def||el.dataset.k);let v=el.value;if(f&&f.t==='num')v=v===''?'':+v;if(f&&(f.t==='tel'||/siret|siren/.test(f.k)))v=v.replace(/[^\d+]/g,'');
+    setField(el.dataset.k,v);if(el.dataset.k==='ent.nom'||el.dataset.k.startsWith('ent.'))renderList();
+    if(el.dataset.k==='ent.siret'&&v.length===14&&!cur().ent.siren){cur().ent.siren=v.slice(0,9);const s=$('#f-ent-siren');if(s)s.value=fmtSiret(cur().ent.siren)}}});
+document.addEventListener('change',e=>{const el=e.target;if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
+  if(el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren'){el.value=fmtSiret(el.value);renderFiche()}if(el.dataset.def==='c.decideur')$('#tabbody').innerHTML=tabBody(cur())});
+document.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)||document.activeElement?.isContentEditable;
+  if($('#sugg')&&!$('#sugg').hidden&&document.activeElement===SG.input){
+    if(e.key==='ArrowDown'&&SG.items.length){e.preventDefault();SG.idx=(SG.idx+1)%SG.items.length;sgMark();return}
+    if(e.key==='ArrowUp'&&SG.items.length){e.preventDefault();SG.idx=(SG.idx-1+SG.items.length)%SG.items.length;sgMark();return}
+    if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey&&SG.idx>=0){e.preventDefault();sgPick(SG.idx);return}
+    if(e.key==='Escape'){sgHide();return}}
+  if(e.key==='Enter'&&document.activeElement?.id==='pos-in'){e.preventDefault();aroundSearch();return}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();if(document.activeElement?.id==='ident-in')ACT.identify();else if(document.activeElement?.id==='na-note')ACT.addact();else if(S.sel)ACT.analyze();return}
+  if(e.key==='Escape'){if(S.help||S.menu||S.sheet){S.help=S.menu=S.sheet=false;renderLayer()}else if(typing)document.activeElement.blur();return}
+  if(e.altKey&&S.mode==='poste'&&S.sel&&/^Digit[1-8]$/.test(e.code)){e.preventDefault();const n=+e.code.slice(5);
+    if(e.shiftKey){const t=TABS[n-1];if(t){S.tab=t.id;S.flash.delete('tab:'+t.id);$('#tabs').innerHTML=tabsHtml(cur());$('#tabbody').innerHTML=tabBody(cur())}}
+    else{const o=OUT.poste.find(x=>x.key===String(n));if(o){const b=$(`[data-act="out"][data-v="${o.k}"]`);if(b)ACT.out(b)}}return}
+  if(typing||e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key==='/'){e.preventDefault();$('#q').focus()}
+  else if(e.key==='n'||e.key==='N'){e.preventDefault();newProspect()}
+  else if(e.key==='?'){S.help=true;renderLayer()}
+  else if(e.key==='j'||e.key==='k'){if(S.session&&e.key==='j'){nextInSession();return}const L=filtered();if(!L.length)return;const i=L.findIndex(p=>p.id===S.sel);const ni=e.key==='j'?Math.min(L.length-1,i+1):Math.max(0,i-1);open(L[ni<0?0:ni].id)}
+});
+window.addEventListener('online',()=>{renderStore();pushQueue();pullAll()});window.addEventListener('offline',renderStore);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){pullAll();pushQueue()}else saveLocal()});
+window.addEventListener('pagehide',saveLocal);
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();S.installEvt=e;const b=$('#install-btn');if(b)b.hidden=false});
+window.addEventListener('appinstalled',()=>{S.installEvt=null;const b=$('#install-btn');if(b)b.hidden=true;toast('Application installée')});
+
+/* ================= Démarrage ================= */
+(function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
+  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+  try{const h=(location.hash||'').match(/^#(?:gps)?(-?\d{1,2}\.\d+)_(-?\d{1,3}\.\d+)$/);if(h){S.gpsTried=true;S.view='around';setTimeout(()=>aroundSearch(`${h[1]},${h[2]}`),300)}}catch{}
+  initStore()})();

@@ -1,0 +1,31 @@
+{
+ "id": "radar-poste",
+ "name": "Radar Poste — Data Links",
+ "short_name": "Radar Poste",
+ "description": "Prospection téléphonique : appels, qualification et suivi.",
+ "lang": "fr",
+ "start_url": "pc.html",
+ "scope": "./",
+ "display": "standalone",
+ "orientation": "any",
+ "background_color": "#ECEFF3",
+ "theme_color": "#0B6B6A",
+ "icons": [
+  {
+   "src": "pc-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "pc-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "pc-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

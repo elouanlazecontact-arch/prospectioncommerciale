@@ -1,0 +1,31 @@
+{
+ "id": "radar-terrain",
+ "name": "Radar Terrain — Data Links",
+ "short_name": "Radar Terrain",
+ "description": "Prospection terrain : entreprises autour de toi, visites et suivi.",
+ "lang": "fr",
+ "start_url": "mobile.html",
+ "scope": "./",
+ "display": "standalone",
+ "orientation": "portrait",
+ "background_color": "#ECEFF3",
+ "theme_color": "#CF4434",
+ "icons": [
+  {
+   "src": "mobile-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "mobile-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "mobile-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

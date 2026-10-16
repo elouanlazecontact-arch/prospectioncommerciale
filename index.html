@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Radar — Data Links</title>
+<meta name="theme-color" content="#0B6B6A">
+<link rel="icon" type="image/png" href="pc-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+<style>
+  html,body{height:auto}
+  .home{max-width:880px;margin:0 auto;padding-block:40px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:24px}
+  .home h1{margin:0;font-family:var(--f-display);font-size:clamp(30px,6vw,44px);letter-spacing:-.02em;line-height:1.05;text-wrap:balance}
+  .home .lead{margin:0;color:var(--ink-2);font-size:16px;max-width:60ch}
+  .apps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .appc{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px}
+  .appc.reco{border-color:var(--accent);box-shadow:var(--shadow)}
+  .appc header{display:flex;gap:14px;align-items:center}
+  .appc header img{width:56px;height:56px;border-radius:13px}
+  .appc h2{margin:0;font-family:var(--f-display);font-size:21px}
+  .appc header span{font-size:13px;color:var(--ink-3)}
+  .appc ul{margin:0;padding-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:4px}
+  .appc .btn{height:44px}
+  .how{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px}
+  .how h3{margin:0;font-family:var(--f-display);font-size:17px}
+  .how ol{margin:0;padding-left:20px;color:var(--ink-2);display:flex;flex-direction:column;gap:6px}
+  .badge{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:2px 8px;border-radius:999px;margin-left:auto}
+</style>
+</head>
+<body>
+<main class="home">
+  <div class="brand" style="font-size:20px"><svg width="28" height="28" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11.5" fill="none" stroke="var(--accent)" stroke-width="1.6"/><circle cx="13" cy="13" r="6.5" fill="none" stroke="var(--accent)" stroke-width="1.6" opacity=".55"/><path d="M13 13 L22 6" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/><circle cx="18.5" cy="9" r="2.2" fill="var(--hot)"/></svg>Radar <small>Data Links</small></div>
+  <h1>Deux applis, les mêmes fiches.</h1>
+  <p class="lead">Installe Radar Poste sur ton PC pour les sessions d'appels, et Radar Terrain sur ton téléphone pour le porte-à-porte. Connecte-toi avec le même compte : tout se synchronise.</p>
+  <div class="apps">
+    <section class="appc" id="c-pc">
+      <header><img src="pc-192.png" alt=""><div><h2>Radar Poste</h2><span>PC · prospection téléphonique</span></div><span class="badge" id="b-pc" hidden>Pour cet appareil</span></header>
+      <ul><li>Session d'appels qui enchaîne les rappels du jour</li><li>Issue d'appel en un clic, raccourcis clavier</li><li>Fiche complète à onglets, notes analysées</li></ul>
+      <a class="btn btn-p" href="pc.html">Ouvrir Radar Poste</a>
+    </section>
+    <section class="appc" id="c-mob">
+      <header><img src="mobile-192.png" alt=""><div><h2>Radar Terrain</h2><span>Téléphone · prospection terrain</span></div><span class="badge" id="b-mob" hidden>Pour cet appareil</span></header>
+      <ul><li>Entreprises à 50 m autour de toi, via le GPS</li><li>Fiches créées et identifiées en un geste</li><li>Issue de visite et prochaine action au pouce</li></ul>
+      <a class="btn btn-loc" href="mobile.html">Ouvrir Radar Terrain</a>
+    </section>
+  </div>
+  <section class="how">
+    <h3>Installer l'appli</h3>
+    <ol>
+      <li><b>iPhone</b> : ouvre Radar Terrain dans Safari, touche Partager, puis « Sur l'écran d'accueil ».</li>
+      <li><b>Android</b> : ouvre Radar Terrain dans Chrome, menu ⋮, puis « Installer l'application ».</li>
+      <li><b>PC</b> : ouvre Radar Poste dans Chrome ou Edge, puis clique l'icône d'installation à droite de la barre d'adresse (ou le bouton « Installer » dans l'appli).</li>
+    </ol>
+  </section>
+</main>
+<script>
+  if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){document.getElementById('b-mob').hidden=false;document.getElementById('c-mob').classList.add('reco');document.querySelector('.apps').prepend(document.getElementById('c-mob'))}
+  else{document.getElementById('b-pc').hidden=false;document.getElementById('c-pc').classList.add('reco')}
+  if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
