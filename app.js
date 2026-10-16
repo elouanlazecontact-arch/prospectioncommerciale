@@ -1066,7 +1066,7 @@ async function getJSON(url,{signal}={}){
 const reCache=new Map();
 async function reSearch(q,opt={}){
   const u=new URL(RE+'/search');u.searchParams.set('q',q);u.searchParams.set('per_page',String(opt.per_page||10));u.searchParams.set('page','1');
-  if(opt.code_postal)u.searchParams.set('code_postal',opt.code_postal);
+  if(opt.code_postal)u.searchParams.set('code_postal',opt.code_postal);if(opt.etabs)u.searchParams.set('limite_matching_etablissements','100');
   const k=u.toString();if(reCache.has(k))return reCache.get(k);
   const out=(await getJSON(k,opt))?.results||[];reCache.set(k,out);return out}
 async function geocode(q){const u=new URL(GEO+'/search');u.searchParams.set('q',q);u.searchParams.set('limit','1');u.searchParams.set('index','address');
@@ -1108,25 +1108,27 @@ function pickEtab(r,hint={}){const ets=etabsOf(r);let e=null;
   if(hint.siret)e=ets.find(x=>x.siret===hint.siret);
   if(!e&&(hint.cp||hint.adresse)){let best=-1;for(const x of ets){const a=addrOf(x);const s=(x.etat_administratif==='F'?0:1)+(hint.cp&&a.cp===hint.cp?3:0)+(hint.adresse?sim(hint.adresse,a.rue)*2:0);if(s>best){best=s;e=x}}if(best<3)e=null}
   return e||r.siege||ets[0]||null}
+const isGroup=r=>(r.nombre_etablissements_ouverts||0)>1;
+const etabTranche=(r,e)=>{const t=e?.tranche_effectif_salarie;if(t&&t!=='NN')return t;return isGroup(r)?'':(r.tranche_effectif_salarie||'')};
 function reToPatch(r,e){
-  const naf=nafFmt(e?.activite_principale||r.activite_principale);const a=addrOf(e||r.siege);
+  const naf=nafFmt(e?.activite_principale||r.activite_principale);const a=addrOf(e||r.siege);const grp=isGroup(r);const local=grp&&e&&!e.est_siege;
   const set={'ent.nom':nameOf(r),'ent.siren':r.siren,'ent.siret':e?.siret||r.siege?.siret,'ent.forme':formeFromCode(r.nature_juridique),'ent.naf':naf,
-    'ent.creation':frDate(r.date_creation),'ent.effectif':effLabel(e?.tranche_effectif_salarie||r.tranche_effectif_salarie),'ent.adresse':a.rue,'ent.cp':a.cp,'ent.ville':a.ville};
+    'ent.creation':frDate(r.date_creation),'ent.effectif':effLabel(etabTranche(r,e)),'ent.adresse':a.rue,'ent.cp':a.cp,'ent.ville':a.ville};
   const en=enseigneOf(r,e);if(en&&norm(en)!==norm(set['ent.nom']))set['ent.enseigne']=en;
   const sec=secteurFromNaf(naf,[r.nom_complet,(r.dirigeants||[]).map(d=>d.qualite).join(' ')].join(' '));if(sec)set['ent.secteur']=sec;
   if((r.nombre_etablissements_ouverts||0)>1)set['ent.sites']='Oui';else if(r.nombre_etablissements_ouverts===1)set['ent.sites']='Non';
   if(!set['ent.enseigne']&&r.sigle&&norm(r.sigle)!==norm(set['ent.nom']))set['ent.enseigne']=r.sigle;
   const lab=nafLabel(naf);if(lab)set['ent.activite']=lab;
-  const cat={PME:'PME',ETI:'ETI',GE:'Grande entreprise'}[r.categorie_entreprise];if(cat)set['ent.categorie']=cat;
+  const cat={PME:'PME',ETI:'ETI',GE:'Grande entreprise'}[r.categorie_entreprise];if(cat&&!grp)set['ent.categorie']=cat;if(local)set['ent.groupe']='Oui';
   if(e)set['ent.etab']=e.est_siege?'Siège':'Établissement secondaire';
   if(r.nombre_etablissements_ouverts)set['ent.nbEtabs']=r.nombre_etablissements_ouverts;
   set['ent.tva']=(r.tva&&r.tva[0])||tvaOf(r.siren);
   const ec=e?.date_creation||'';if(ec){const y=ec.slice(0,4);set['ent.installe']=ec!==r.date_creation&&ec>(r.date_creation||'')?`depuis ${moisAn(ec)}`:`depuis la création (${y})`}
   const fin=r.finances&&Object.entries(r.finances).sort((a,b)=>b[0]-a[0])[0];
-  if(fin){const [y,f]=fin;if(f.ca>0)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
-  const idcc=(e?.liste_idcc||r.complements?.liste_idcc||[]).filter(x=>x&&x!=='9999');if(idcc.length)set['ent.convention']=idcc.map(c=>IDCC[c.replace(/^0+/,'')]?`${IDCC[c.replace(/^0+/,'')]} (IDCC ${c})`:`IDCC ${c}`).join(', ');
-  const pm=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);if(pm.length)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
-  const contacts=(r.dirigeants||[]).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom).slice(0,3)
+  if(fin&&!grp){const [y,f]=fin;if(f.ca>0)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
+  const idcc=(e?.liste_idcc||(grp?[]:r.complements?.liste_idcc)||[]).filter(x=>x&&x!=='9999');if(idcc.length)set['ent.convention']=idcc.map(c=>IDCC[c.replace(/^0+/,'')]?`${IDCC[c.replace(/^0+/,'')]} (IDCC ${c})`:`IDCC ${c}`).join(', ');
+  const pm=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);if(pm.length&&!grp)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
+  const contacts=(local||(grp&&(r.nombre_etablissements_ouverts||0)>5)?[]:(r.dirigeants||[])).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom).slice(0,3)
     .map(d=>({prenom:niceCase(String(d.prenoms||d.prenom||'').split(/[\s,]+/)[0]),nom:niceCase(d.nom),fonction:fonctionRne(d.qualite),decideur:'Oui',note:'Dirigeant au registre'+(d.qualite?' : '+d.qualite:'')}));
   return{set,contacts}}
 const tvaOf=s=>{s=String(s||'');if(!/^\d{9}$/.test(s))return'';return'FR'+String((12+3*(+s%97))%97).padStart(2,'0')+s};
@@ -1188,8 +1190,10 @@ function applyRe(p,r,hint={}){
   if(p.ent?.cp&&a.cp&&a.cp!==p.ent.cp&&!hint.siret&&!hint.force){for(const k of ['ent.adresse','ent.cp','ent.ville','ent.siret'])delete patch.set[k]}
   if(hint.siret)patch.set['ent.siret']=hint.siret;
   const ch=applyPatch(p,patch,!hint.soft);
+  if(isGroup(r)){for(const k of ['ca','resultat','categorie','holding'])if(p.ent[k]!=null){delete p.ent[k];ch.push('ent.'+k)}
+    const ef=patch.set['ent.effectif'];if(hint.soft&&p.rne?.v!==3){if(ef)p.ent.effectif=ef;else if(e&&!e.est_siege)delete p.ent.effectif;if(p.est)for(const k of Object.keys(p.est)){setP(p,k,'');delete p.est[k]}}}
   if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:2,tranche:e?.tranche_effectif_salarie||r.tranche_effectif_salarie||'',annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
+  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:3,tranche:etabTranche(r,e),annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
   ch.push(...applyEstimates(p));touch(p);markFlash(ch);
   return{r,e,ch,before}}
 async function applyRne(p,num,hint={}){const res=await reSearch(num);const r=res.find(x=>x.siren===String(num).slice(0,9))||res[0];
@@ -1531,7 +1535,7 @@ async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.
   let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
   S.ph={pid:p.id,ok:r.status==='ok',msg:r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).'};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
-function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===2||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
+function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===3||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
   applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret,soft:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{})}
 function autoPhone(p){if(!p||p.ent?.tel||p.ent?.telLookup||!(p.ent?.nom||p.ent?.enseigne)||!(p.geo||p.ent?.adresse||p.ent?.ville))return;S.phAuto=S.phAuto||new Set();if(S.phAuto.has(p.id))return;S.phAuto.add(p.id);findPhoneUI(p)}
 function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}
@@ -1586,8 +1590,8 @@ async function runImport(){const txt=$('#imp-text')?.value||'';const st=S.imp=S.
   if(S.imp===st)renderLayer();renderSoft(false);toast(`${made.length} fiches créées`)}
 
 /* ================= Import d'un fichier (Excel, CSV, PDF) ================= */
-const FCOLS=[['','Ignorer'],['sir','SIRET / SIREN'],['nom','Raison sociale'],['enseigne','Nom commercial'],['tel','Standard (téléphone)'],['mobile','Mobile'],['contact','Contact (nom complet)'],['prenom','Prénom'],['cnom','Nom du contact'],['fonction','Fonction'],['email','Email'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['note','Notes / commentaire']];
-const FHDR=[['sir',/siret|siren|n°\s*(d')?entreprise|identifiant/],['tel',/t[ée]l|phone|standard|fixe|num[ée]ro(?!.*(siret|siren))/],['mobile',/mobile|portable|gsm|cell/],['email',/mail|courriel/],['nom',/raison|soci[ée]t[ée]|entreprise|d[ée]nomination|client|compte|^nom$|company/],['enseigne',/enseigne|commercial/],['contact',/contact|interlocut|dirigeant|responsable/],['prenom',/pr[ée]nom/],['cnom',/^nom\s*(du)?\s*contact|nom de famille/],['fonction',/fonction|poste|titre|r[ôo]le/],['adresse',/adresse|rue|voie/],['cp',/code\s*postal|^cp$|postal/],['ville',/ville|commune|localit/],['note',/note|comment|remarque|observ|info/]];
+const FCOLS=[['','Ignorer'],['siret','SIRET (établissement)'],['siren','SIREN (entreprise)'],['sir','SIRET ou SIREN'],['nom','Raison sociale'],['enseigne','Nom commercial'],['tel','Standard (téléphone)'],['mobile','Mobile'],['contact','Contact (nom complet)'],['prenom','Prénom'],['cnom','Nom du contact'],['fonction','Fonction'],['email','Email'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['note','Notes / commentaire']];
+const FHDR=[['siret',/siret/],['siren',/siren/],['sir',/n°\s*(d')?entreprise|identifiant|immatricul/],['tel',/t[ée]l|phone|standard|fixe|num[ée]ro(?!.*(siret|siren))/],['mobile',/mobile|portable|gsm|cell/],['email',/mail|courriel/],['nom',/raison|soci[ée]t[ée]|entreprise|d[ée]nomination|client|compte|^nom$|company/],['enseigne',/enseigne|commercial/],['contact',/contact|interlocut|dirigeant|responsable/],['prenom',/pr[ée]nom/],['cnom',/^nom\s*(du)?\s*contact|nom de famille/],['fonction',/fonction|poste|titre|r[ôo]le/],['adresse',/adresse|rue|voie/],['cp',/code\s*postal|^cp$|postal/],['ville',/ville|commune|localit/],['note',/note|comment|remarque|observ|info/]];
 let fLibs={};
 function loadLib(key,url,glob){if(window[glob])return Promise.resolve(window[glob]);if(fLibs[key])return fLibs[key];
   fLibs[key]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=url;s.onload=()=>res(window[glob]);s.onerror=()=>{fLibs[key]=null;rej(new Error('lib'))};document.head.appendChild(s)});return fLibs[key]}
@@ -1618,24 +1622,28 @@ function guessMap(rows){const W=Math.max(0,...rows.slice(0,200).map(r=>r.length)
   const body=rows.slice(hdr+1).filter(r=>r.some(c=>cellStr(c)));
   for(let j=0;j<W;j++){const vals=body.map(r=>cellStr(r[j])).filter(Boolean).slice(0,300);if(!vals.length)continue;const share=f=>vals.filter(f).length/vals.length;
     if(map[j]==='tel'||map[j]==='mobile'){if(share(v=>telOf(v))<0.3&&share(v=>sirOfCell(v))>0.6)map[j]='sir';continue}
+    if(map[j]==='siren'&&share(v=>/^\d{14}$/.test(v.replace(/[\s.]/g,'')))>0.6){map[j]='siret';continue}
+    if(map[j]==='siret'&&share(v=>/^\d{9}$/.test(v.replace(/[\s.]/g,'')))>0.6&&!map.includes('siren')){map[j]='siren';continue}
     if(map[j])continue;
-    if(share(v=>/^\d{14}$/.test(v.replace(/[\s.]/g,'')))>0.6&&!used.has('sir')){map[j]='sir';used.add('sir');continue}
-    if(share(v=>/^\d{3}\s?\d{3}\s?\d{3}$/.test(v))>0.6&&!used.has('sir')&&share(v=>/^0/.test(v))<0.5){map[j]='sir';used.add('sir');continue}
+    if(share(v=>/^\d{14}$/.test(v.replace(/[\s.]/g,'')))>0.6&&!map.includes('siret')){map[j]='siret';continue}
+    if(share(v=>/^\d{3}\s?\d{3}\s?\d{3}$/.test(v))>0.6&&!map.includes('siren')&&share(v=>/^0/.test(v))<0.5){map[j]='siren';continue}
     if(share(v=>telOf(v))>0.6){const mob=share(v=>/^0[67]/.test(telOf(v)))>0.6;const k=mob&&!used.has('mobile')?'mobile':!used.has('tel')?'tel':!used.has('mobile')?'mobile':'';if(k){map[j]=k;used.add(k)}continue}
     if(share(v=>/@/.test(v))>0.6&&!used.has('email')){map[j]='email';used.add('email');continue}
     if(share(v=>/^\d{5}$/.test(v))>0.7&&!used.has('cp')){map[j]='cp';used.add('cp');continue}}
-  const auto=!map.includes('sir');
+  const auto=!map.some(k=>/^(sir|siret|siren)$/.test(k));
   return{hdr,map,auto,W}}
 function fimpRows(st){return st.rows.slice(st.hdr+1).filter(r=>r.some(c=>cellStr(c)))}
 function rowRec(st,r){const o={};st.map.forEach((k,j)=>{if(!k)return;const v=cellStr(r[j]);if(!v)return;o[k]=o[k]?o[k]+' '+v:v});
   const full=r.map(cellStr).join('  ');
-  let sir=sirOfCell(o.sir);if(!sir){const ns=parseNums(st.map.includes('sir')?(o.sir||''):full);sir=ns.find(n=>n.length===14)||ns.find(n=>n.length===9&&!isPhone(n))||''}
+  const hasCol=st.map.some(k=>/^(sir|siret|siren)$/.test(k));
+  let sir=[o.siret,o.sir,o.siren].map(v=>sirOfCell(v)).find(v=>v.length===14)||[o.sir,o.siren,o.siret].map(v=>sirOfCell(v)).find(Boolean)||'';
+  if(!sir){const ns=parseNums(hasCol?[o.siret,o.sir,o.siren].filter(Boolean).join(' '):full);sir=ns.find(n=>n.length===14)||ns.find(n=>n.length===9&&!isPhone(n))||''}
   let tel=telOf(o.tel),mob=telOf(o.mobile);if(!tel&&!mob&&!st.map.some(k=>k==='tel'||k==='mobile')){const ph=[...full.matchAll(/(?:\+33\s?|0)[1-9](?:[\s.\-]?\d{2}){4}/g)].map(m=>telOf(m[0])).filter(Boolean);tel=ph.find(x=>!/^0[67]/.test(x))||'';mob=ph.find(x=>/^0[67]/.test(x))||''}
   if(!tel&&mob&&!o.contact&&!o.cnom&&!o.prenom){tel=mob;mob=''}
   const email=o.email||(full.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)||[])[0]||'';
   return{sir,tel,mob,email:email.replace(/[.\-]+$/,''),nom:o.nom||'',enseigne:o.enseigne||'',contact:o.contact||'',prenom:o.prenom||'',cnom:o.cnom||'',fonction:o.fonction||'',adresse:o.adresse||'',cp:(o.cp||'').match(/\d{5}/)?.[0]||'',ville:o.ville||'',note:o.note||''}}
 function fimpStats(st){const recs=fimpRows(st).map(r=>rowRec(st,r));const ok=recs.filter(x=>x.sir);const seen=new Set();let dup=0,inFile=0;
-  for(const x of ok){const k=x.sir.length===14?x.sir:x.sir;if(seen.has(k)){inFile++;continue}seen.add(k);if(dupOf(x.sir))dup++}
+  for(const x of ok){const k=x.sir.length===14?x.sir:x.sir+'|'+norm([x.cp,x.adresse,x.ville].join(' '));if(seen.has(k)){inFile++;continue}seen.add(k);if(dupOf(x.sir.length===14?x.sir:'')||(x.sir.length===9&&dupOf(x.sir)&&!x.cp&&!x.adresse))dup++}
   return{lignes:recs.length,sir:ok.length,tel:recs.filter(x=>x.tel||x.mob).length,dup,inFile,sansSir:recs.filter(x=>!x.sir&&(x.nom||x.enseigne)&&(x.tel||x.mob)).length}}
 function fimpHtml(){const st=S.fimp||{};const src=st.src||'tel';
   const head=`<h2>Importer un fichier</h2><p class="fsub">Excel, CSV ou PDF de ton entreprise : chaque ligne avec un SIRET ou un SIREN devient une fiche complète (registre officiel, estimations, brief) avec le numéro de ton fichier. Les fiches existantes sont complétées, jamais en double.</p>`;
@@ -1667,6 +1675,23 @@ async function fimpFile(f){const st=S.fimp={src:S.fimp?.src||(S.mode==='terrain'
     Object.assign(st,guessMap(rows),{rows,busy:false})}
   catch(e){Object.assign(st,{busy:false,msg:e?.fr||(e?.message==='lib'?'Impossible de charger le lecteur de fichiers sans connexion internet.':'Fichier illisible. Enregistre-le en .xlsx ou .csv et réessaie.')})}
   if(S.fimp===st)renderLayer()}
+/* SIREN seul : retrouver l'établissement visé (adresse / code postal / ville du fichier) plutôt que le siège */
+async function resolveEtab(x){const siren=x.sir.slice(0,9);
+  if(x.sir.length===14){const res=await reSearch(x.sir);const r=res.find(z=>z.siren===siren);if(!r)return{};const e=etabsOf(r).find(z=>z.siret===x.sir);if(e)return{r,e};
+    const r2=(await reSearch(nameOf(r),{code_postal:x.cp||undefined,etabs:true,per_page:20})).find(z=>z.siren===siren);const e2=r2&&etabsOf(r2).find(z=>z.siret===x.sir);return e2?{r:r2,e:e2}:{r,e:{siret:x.sir}}}
+  const res=await reSearch(siren);const r=res.find(z=>z.siren===siren)||null;if(!r)return{};
+  if(!isGroup(r))return{r,e:r.siege};
+  const nb=r.nombre_etablissements_ouverts;
+  if(!x.cp&&!x.ville&&!x.adresse)return{r,e:r.siege,how:`${nb} établissements et pas d’adresse dans le fichier : siège utilisé (ajoute une colonne adresse / code postal pour cibler l’établissement)`};
+  const tries=[];if(x.cp)tries.push([r.nom_complet||nameOf(r),{code_postal:x.cp}]);if(x.adresse||x.ville)tries.push([[r.nom_complet||nameOf(r),x.adresse,x.cp,x.ville].filter(Boolean).join(' '),{}]);if(x.ville)tries.push([[r.nom_complet||nameOf(r),x.ville].join(' '),{}]);
+  let best=null,bs=-1,br=null;
+  for(const [q,o] of tries){
+    const rr=(await reSearch(q,{...o,etabs:true,per_page:20}).catch(()=>[])).find(z=>z.siren===siren);if(!rr)continue;
+    for(const e of (rr.matching_etablissements||[])){if(e.etat_administratif==='F')continue;const a=addrOf(e);const s=(x.cp&&a.cp===x.cp?3:0)+(x.ville&&norm(a.ville).includes(norm(x.ville).split(/[\s-]/)[0])?1:0)+(x.adresse?sim(x.adresse,a.rue)*3+(String(x.adresse).match(/^\d+/)?.[0]===String(a.rue).match(/^\d+/)?.[0]?1:0):0);if(s>bs){bs=s;best=e;br=rr}}
+    if(bs>=4)break}
+  if(best&&bs>=3)return{r:br,e:best};
+  if(best)return{r:br,e:best,how:`établissement le plus proche de l’adresse du fichier (${addrOf(best).rue}, ${addrOf(best).cp}) : à vérifier`};
+  return{r,e:r.siege,how:`aucun établissement trouvé à l’adresse du fichier : siège utilisé`}}
 async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=fimpRows(st).map(r=>rowRec(st,r));const src=st.src||'tel';
   const run=st.run={done:0,total:recs.length,log:[],msg:'Démarrage…',made:[],upd:[],stop:false};renderLayer();const seen=new Set();let nok=0;
   const fill=(p,x,fromReg)=>{const ch=[];const set=(k,v)=>{if(!v)return;const cv=getP(p,k);if(!filled(cv)){setP(p,k,v);ch.push(k)}};
@@ -1685,12 +1710,12 @@ async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=
         if(d){fill(d,x,true);touch(d);run.upd.push(d.id);run.log.push({ok:true,t:`${displayName(d)} : complétée (sans SIRET)`})}
         else{const p=blank(src);p.createdAt=Date.now()+i;fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : créée sans SIRET (à identifier)`})}}
       continue}
-    const key=x.sir;if(seen.has(key)){continue}seen.add(key);
-    const dup=dupOf(x.sir);
+    const key=x.sir.length===14?x.sir:x.sir+'|'+norm([x.cp,x.adresse,x.ville].join(' '));if(seen.has(key)){continue}seen.add(key);
+    const dup=x.sir.length===14?dupOf(x.sir):null;
     if(dup){const ch=fill(dup,x,true);if(ch.length){touch(dup);run.upd.push(dup.id);run.log.push({ok:true,t:`${displayName(dup)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(dup)} : déjà en fiche, rien de nouveau`});continue}
-    try{const res=await reSearch(x.sir);const r=res.find(z=>z.siren===x.sir.slice(0,9))||res[0];if(!r)throw{fr:'introuvable'};
-      const p=blank(src);applyRe(p,r,x.sir.length===14?{siret:x.sir,force:true}:{cp:x.cp});const e=pickEtab(r,{siret:x.sir.length===14?x.sir:'',cp:x.cp});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-      const d2=dupOf(p.ent.siret||x.sir);if(d2){fill(d2,x,true);touch(d2);run.upd.push(d2.id);run.log.push({ok:true,t:`${displayName(d2)} : déjà en fiche, complétée`});continue}
+    try{const {r,e:et,how}=await resolveEtab(x);if(!r)throw{fr:'introuvable'};
+      const p=blank(src);applyRe(p,r,et?{siret:et.siret,force:true}:{cp:x.cp});const e=et||pickEtab(r,{});if(how)run.log.push({warn:true,t:`${nameOf(r)} : ${how}`});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
+      const d2=dupOf(p.ent.siret||x.sir);if(d2){const ch=fill(d2,x,true);if(ch.length){touch(d2);run.upd.push(d2.id);run.log.push({ok:true,t:`${displayName(d2)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(d2)} : déjà en fiche, rien de nouveau`});continue}
       fill(p,x,true);p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Importée depuis '+st.name,texte:fmtSiret(x.sir)});
       p.createdAt=Date.now()+i;S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({ok:true,t:`${displayName(p)}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''}`})}
     catch(err){nok++;if(x.nom||x.tel){const p=blank(src);p.createdAt=Date.now()+i;p.ent.siret=x.sir.length===14?x.sir:'';p.ent.siren=x.sir.slice(0,9);fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : ${err?.fr==='introuvable'?'SIRET '+fmtSiret(x.sir)+' introuvable au registre':'registre indisponible'}, fiche créée avec les données du fichier`})}
