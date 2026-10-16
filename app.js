@@ -1306,8 +1306,8 @@ let ovNext=0;
 async function overpassPhones(pos,radius){
   const q=`[out:json][timeout:20];nwr(around:${Math.round(radius)},${pos.lat.toFixed(6)},${pos.lon.toFixed(6)})["name"][~"^(phone|contact:phone|contact:mobile)$"~"."];out tags center 200;`;
   const wait=Math.max(0,ovNext-Date.now());ovNext=Math.max(ovNext,Date.now())+1200;if(wait)await sleep(wait);
-  for(const url of OVERPASS){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(!r.ok)continue;const j=await r.json();
-    return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}catch{}}
+  for(const url of [...OVERPASS,OVERPASS[0]]){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(!r.ok){await sleep(1500);continue}const j=await r.json();
+    return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}catch{await sleep(800)}}
   return[]}
 async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return[];
   try{const u=new URL(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'')}.json`);
