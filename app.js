@@ -401,7 +401,7 @@ function renderAgenda(){
 function renderList(){
   const el=$('#list');if(!el)return;const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
-  el.innerHTML=`<div class="list-head"><div style="display:flex;gap:6px"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="flex:1">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" style="flex:1">+ SIRET / SIREN</button></div>
+  el.innerHTML=`<div class="list-head"><div class="lh-acts"><button class="btn btn-loc btn-s" data-act="view" data-v="around">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen">+ SIRET / SIREN</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer un fichier</button></div>
    ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
@@ -553,7 +553,7 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.menu)L.innerHTML=menuHtml();else L.innerHTML=''}
+  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.menu)L.innerHTML=menuHtml();else L.innerHTML=''}
 function helpHtml(){return `<div class="modal" data-act="closem"><div><h2>Raccourcis clavier</h2><div class="keys">
  <kbd>N</kbd><span>Nouveau prospect</span><kbd>/</kbd><span>Rechercher</span><kbd>J</kbd> <kbd>K</kbd><span>Prospect suivant / précédent (ou suivant en session d'appels)</span>
  <kbd>Ctrl Entrée</kbd><span>Analyser la note (ou l'identification)</span><kbd>Alt 1…8</kbd><span>Issue d'appel rapide</span><kbd>Alt ⇧ 1…8</kbd><span>Changer d'onglet</span><kbd>Échap</kbd><span>Sortir du champ</span></div>
@@ -567,7 +567,8 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
-  <button class="btn btn-p" data-act="importopen">Créer des fiches depuis des SIRET / SIREN</button>
+  <button class="btn btn-p" data-act="fimpopen">Importer un fichier (Excel, CSV, PDF)</button>
+  <button class="btn btn-g" data-act="importopen">Créer des fiches depuis des SIRET / SIREN</button>
   <button class="btn btn-g" data-act="xlsx">Exporter en Excel</button>
   <button class="btn btn-g" data-act="export">Exporter en CSV (import Artis)</button>
   <button class="btn btn-g" data-act="backup">Télécharger une sauvegarde complète</button>
@@ -674,7 +675,13 @@ const ACT={
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
  calpick:b=>{S.settings.cal=b.dataset.v;saveSettings();renderLayer()},
  cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
- closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;if(!(S.imp&&S.imp.busy))S.importing=false;else S.importing=false;renderLayer()},
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;S.importing=false;S.fimpOpen=false;renderLayer()},
+ fimpopen:()=>{S.menu=false;S.importing=false;S.fimpOpen=true;if(S.fimp?.run?.end)S.fimp=null;renderLayer()},
+ fimpsrc:b=>{S.fimp.src=b.dataset.v;renderLayer()},
+ fimpreset:()=>{S.fimp={src:S.fimp?.src};renderLayer()},
+ fimpgo:()=>fimpRun(),
+ fimpstop:()=>{if(S.fimp?.run)S.fimp.run.stop=true},
+ fimpsee:()=>{S.fimpOpen=false;S.fimp=null;S.filter='batch';S.view='list';S.q='';renderLayer();render()},
  export:()=>exportCsv(),backup:()=>exportBackup(),logout:()=>logout(),install:async()=>{const ev=S.installEvt;if(!ev)return;ev.prompt();await ev.userChoice.catch(()=>{});S.installEvt=null;S.menu=false;renderLayer()},
  authmode:b=>{S.authMode=b.dataset.v;showAuth()},
  eitog:()=>{const a=A();a.ei=!a.ei;lsSet('radar-ei',a.ei);filterAround();renderAround()},
@@ -1578,6 +1585,120 @@ async function runImport(){const txt=$('#imp-text')?.value||'';const st=S.imp=S.
   st.busy=false;st.text='';st.msg=`${made.length} fiche${made.length>1?'s':''} créée${made.length>1?'s':''}, ${ph} numéro${ph>1?'s':''} de standard trouvé${ph>1?'s':''}. Elles sont dans Prospects (filtre « Dernier ajout »).`;
   if(S.imp===st)renderLayer();renderSoft(false);toast(`${made.length} fiches créées`)}
 
+/* ================= Import d'un fichier (Excel, CSV, PDF) ================= */
+const FCOLS=[['','Ignorer'],['sir','SIRET / SIREN'],['nom','Raison sociale'],['enseigne','Nom commercial'],['tel','Standard (téléphone)'],['mobile','Mobile'],['contact','Contact (nom complet)'],['prenom','Prénom'],['cnom','Nom du contact'],['fonction','Fonction'],['email','Email'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['note','Notes / commentaire']];
+const FHDR=[['sir',/siret|siren|n°\s*(d')?entreprise|identifiant/],['tel',/t[ée]l|phone|standard|fixe|num[ée]ro(?!.*(siret|siren))/],['mobile',/mobile|portable|gsm|cell/],['email',/mail|courriel/],['nom',/raison|soci[ée]t[ée]|entreprise|d[ée]nomination|client|compte|^nom$|company/],['enseigne',/enseigne|commercial/],['contact',/contact|interlocut|dirigeant|responsable/],['prenom',/pr[ée]nom/],['cnom',/^nom\s*(du)?\s*contact|nom de famille/],['fonction',/fonction|poste|titre|r[ôo]le/],['adresse',/adresse|rue|voie/],['cp',/code\s*postal|^cp$|postal/],['ville',/ville|commune|localit/],['note',/note|comment|remarque|observ|info/]];
+let fLibs={};
+function loadLib(key,url,glob){if(window[glob])return Promise.resolve(window[glob]);if(fLibs[key])return fLibs[key];
+  fLibs[key]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=url;s.onload=()=>res(window[glob]);s.onerror=()=>{fLibs[key]=null;rej(new Error('lib'))};document.head.appendChild(s)});return fLibs[key]}
+const cellStr=v=>{if(v==null)return'';if(typeof v==='number')return Number.isInteger(v)?v.toFixed(0):String(v);if(v instanceof Date)return iso(v);return String(v).replace(/\s+/g,' ').trim()};
+function decodeText(buf){let t=new TextDecoder('utf-8').decode(buf);if(/\uFFFD/.test(t))try{t=new TextDecoder('windows-1252').decode(buf)}catch{}return t.replace(/^\uFEFF/,'')}
+function parseCsv(t){const first=t.split(/\r?\n/).find(l=>l.trim())||'';const d=[';','\t',',','|'].map(c=>[c,first.split(c).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[];let row=[],cell='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch==='"'){if(t[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch;continue}
+    if(ch==='"'){q=true;continue}if(ch===d){row.push(cell);cell='';continue}if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell='';continue}cell+=ch}
+  if(cell||row.length){row.push(cell);rows.push(row)}return rows}
+async function readXlsx(buf){const X=await loadLib('xlsx','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js','XLSX');const wb=X.read(buf,{type:'array',cellDates:true});
+  let best=[];for(const n of wb.SheetNames){const r=X.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});if(r.filter(x=>x.some(c=>cellStr(c))).length>best.filter(x=>x.some(c=>cellStr(c))).length)best=r}return best}
+async function readPdf(buf){const L=await loadLib('pdf','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','pdfjsLib');L.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const doc=await L.getDocument({data:buf}).promise;const rows=[];
+  for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i);const tc=await pg.getTextContent();const lines=new Map();
+    for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3);const k=[...lines.keys()].find(z=>Math.abs(z-y)<=1)??y;if(!lines.has(k))lines.set(k,[]);lines.get(k).push({x:it.transform[4],w:it.width||0,s:it.str})}
+    for(const k of [...lines.keys()].sort((a,b)=>b-a)){const its=lines.get(k).sort((a,b)=>a.x-b.x);const cells=[];let last=null;
+      for(const it of its){if(last&&it.x-(last.x+last.w)<10){cells[cells.length-1]+=(it.x-(last.x+last.w)>1.5?' ':'')+it.s}else cells.push(it.s);last=it}
+      rows.push(cells.map(c=>c.replace(/\s+/g,' ').trim()))}}
+  if(!rows.length)throw{fr:'Ce PDF ne contient pas de texte (document scanné). Demande la version Excel ou un PDF « texte ».'};return rows}
+const isPhone=s=>{const d=String(s).replace(/[^\d+]/g,'').replace(/^\+33|^0033/,'0');return /^0[1-9]\d{8}$/.test(d)||/^[1-9]\d{8}$/.test(d)&&/[\s.]/.test(String(s))};
+const telOf=s=>{let d=String(s||'').split(/[\/;,]| ou /)[0].replace(/[^\d+]/g,'');if(d.startsWith('+33'))d='0'+d.slice(3);if(d.startsWith('0033'))d='0'+d.slice(4);if(/^[1-9]\d{8}$/.test(d))d='0'+d;return /^0[1-9]\d{8}$/.test(d)?d:''};
+const sirOfCell=s=>{const d=String(s||'').replace(/[\s.\-]/g,'');return /^\d{14}$/.test(d)?d:/^\d{9}$/.test(d)?d:''};
+function guessMap(rows){const W=Math.max(0,...rows.slice(0,200).map(r=>r.length));let hdr=-1,best=0;
+  for(let i=0;i<Math.min(rows.length,15);i++){const sc=rows[i].filter(c=>FHDR.some(([,re])=>re.test(norm(cellStr(c))))).length;if(sc>best&&sc>=2){best=sc;hdr=i}}
+  const map=Array(W).fill('');const used=new Set();
+  if(hdr>=0)rows[hdr].forEach((c,j)=>{const h=norm(cellStr(c));const hit=FHDR.find(([k,re])=>re.test(h)&&!(used.has(k)&&!['note'].includes(k)));if(hit&&h){map[j]=hit[0];used.add(hit[0])}});
+  const body=rows.slice(hdr+1).filter(r=>r.some(c=>cellStr(c)));
+  for(let j=0;j<W;j++){const vals=body.map(r=>cellStr(r[j])).filter(Boolean).slice(0,300);if(!vals.length)continue;const share=f=>vals.filter(f).length/vals.length;
+    if(map[j]==='tel'||map[j]==='mobile'){if(share(v=>telOf(v))<0.3&&share(v=>sirOfCell(v))>0.6)map[j]='sir';continue}
+    if(map[j])continue;
+    if(share(v=>/^\d{14}$/.test(v.replace(/[\s.]/g,'')))>0.6&&!used.has('sir')){map[j]='sir';used.add('sir');continue}
+    if(share(v=>/^\d{3}\s?\d{3}\s?\d{3}$/.test(v))>0.6&&!used.has('sir')&&share(v=>/^0/.test(v))<0.5){map[j]='sir';used.add('sir');continue}
+    if(share(v=>telOf(v))>0.6){const mob=share(v=>/^0[67]/.test(telOf(v)))>0.6;const k=mob&&!used.has('mobile')?'mobile':!used.has('tel')?'tel':!used.has('mobile')?'mobile':'';if(k){map[j]=k;used.add(k)}continue}
+    if(share(v=>/@/.test(v))>0.6&&!used.has('email')){map[j]='email';used.add('email');continue}
+    if(share(v=>/^\d{5}$/.test(v))>0.7&&!used.has('cp')){map[j]='cp';used.add('cp');continue}}
+  const auto=!map.includes('sir');
+  return{hdr,map,auto,W}}
+function fimpRows(st){return st.rows.slice(st.hdr+1).filter(r=>r.some(c=>cellStr(c)))}
+function rowRec(st,r){const o={};st.map.forEach((k,j)=>{if(!k)return;const v=cellStr(r[j]);if(!v)return;o[k]=o[k]?o[k]+' '+v:v});
+  const full=r.map(cellStr).join('  ');
+  let sir=sirOfCell(o.sir);if(!sir){const ns=parseNums(st.map.includes('sir')?(o.sir||''):full);sir=ns.find(n=>n.length===14)||ns.find(n=>n.length===9&&!isPhone(n))||''}
+  let tel=telOf(o.tel),mob=telOf(o.mobile);if(!tel&&!mob&&!st.map.some(k=>k==='tel'||k==='mobile')){const ph=[...full.matchAll(/(?:\+33\s?|0)[1-9](?:[\s.\-]?\d{2}){4}/g)].map(m=>telOf(m[0])).filter(Boolean);tel=ph.find(x=>!/^0[67]/.test(x))||'';mob=ph.find(x=>/^0[67]/.test(x))||''}
+  if(!tel&&mob&&!o.contact&&!o.cnom&&!o.prenom){tel=mob;mob=''}
+  const email=o.email||(full.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)||[])[0]||'';
+  return{sir,tel,mob,email:email.replace(/[.\-]+$/,''),nom:o.nom||'',enseigne:o.enseigne||'',contact:o.contact||'',prenom:o.prenom||'',cnom:o.cnom||'',fonction:o.fonction||'',adresse:o.adresse||'',cp:(o.cp||'').match(/\d{5}/)?.[0]||'',ville:o.ville||'',note:o.note||''}}
+function fimpStats(st){const recs=fimpRows(st).map(r=>rowRec(st,r));const ok=recs.filter(x=>x.sir);const seen=new Set();let dup=0,inFile=0;
+  for(const x of ok){const k=x.sir.length===14?x.sir:x.sir;if(seen.has(k)){inFile++;continue}seen.add(k);if(dupOf(x.sir))dup++}
+  return{lignes:recs.length,sir:ok.length,tel:recs.filter(x=>x.tel||x.mob).length,dup,inFile,sansSir:recs.filter(x=>!x.sir&&(x.nom||x.enseigne)&&(x.tel||x.mob)).length}}
+function fimpHtml(){const st=S.fimp||{};const src=st.src||'tel';
+  const head=`<h2>Importer un fichier</h2><p class="fsub">Excel, CSV ou PDF de ton entreprise : chaque ligne avec un SIRET ou un SIREN devient une fiche complète (registre officiel, estimations, brief) avec le numéro de ton fichier. Les fiches existantes sont complétées, jamais en double.</p>`;
+  if(!st.rows)return `<div class="modal" data-act="closem"><div class="fimp">${head}
+    <label class="drop${st.drag?' on':''}" id="fdrop"><input type="file" id="fimp-in" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt,.pdf" hidden>
+      <b>${st.busy?'<span class="spin"></span> Lecture du fichier…':'Glisse ton fichier ici'}</b><span>ou clique pour le choisir · .xlsx, .xls, .csv, .pdf</span></label>
+    ${st.msg?`<div class="ai"><span>${esc(st.msg)}</span></div>`:''}
+    <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="closem">Fermer</button></div></div></div>`;
+  const rows=fimpRows(st);const s=fimpStats(st);const W=st.W;const prev=rows.slice(0,6);const run=st.run;
+  return `<div class="modal" data-act="closem"><div class="fimp wide">${head}
+   <div class="fname"><b>${esc(st.name)}</b><span>${s.lignes} ligne${s.lignes>1?'s':''}</span>${run?'':`<button class="btn btn-q btn-s" data-act="fimpreset">Changer de fichier</button>`}</div>
+   ${run?'':`<div class="lbl">Colonnes reconnues · corrige si besoin</div>
+   <div class="ftab"><table><thead><tr>${Array.from({length:W},(_,j)=>`<th><select data-fcol="${j}">${FCOLS.map(([k,l])=>`<option value="${k}" ${st.map[j]===k?'selected':''}>${l}</option>`).join('')}</select>${st.hdr>=0?`<small>${esc(trunc(cellStr(st.rows[st.hdr][j]),28))}</small>`:''}</th>`).join('')}</tr></thead>
+    <tbody>${prev.map(r=>`<tr>${Array.from({length:W},(_,j)=>`<td class="${st.map[j]?'on':''}">${esc(trunc(cellStr(r[j]),40))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+   <div class="fstats"><div><b>${s.sir}</b><span>avec SIRET / SIREN</span></div><div><b>${s.tel}</b><span>avec un numéro</span></div><div><b>${s.dup}</b><span>déjà en fiche (complétées)</span></div><div><b>${s.lignes-s.sir}</b><span>sans SIRET${s.sansSir?` (${s.sansSir} créées quand même)`:''}</span></div></div>
+   ${s.inFile?`<p class="fsub">${s.inFile} SIRET en double dans le fichier : une seule fiche par SIRET.</p>`:''}
+   <div class="ident-row"><span class="lbl">Canal</span><div class="chips">${[['tel','Téléphonique'],['terrain','Terrain']].map(([k,l])=>`<button class="chip" data-act="fimpsrc" data-v="${k}" aria-pressed="${src===k}">${l}</button>`).join('')}</div></div>`}
+   ${run?`<div class="ai" data-s="${run.end?'':'busy'}">${run.end?'':'<span class="spin"></span>'}<span>${esc(run.msg)}</span></div>
+     <div class="fbar"><i style="width:${Math.round(run.done/Math.max(1,run.total)*100)}%"></i></div>
+     ${run.log.length?`<div class="implog">${run.log.slice(-200).map(l=>`<div class="${l.ok?'':l.warn?'warn':'ko'}">${l.ok?'✓':l.warn?'•':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}`:''}
+   <div class="ident-row" style="justify-content:flex-end">${run&&!run.end?`<button class="btn btn-g" data-act="fimpstop">Arrêter</button>`:run?.end?`<button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="fimpsee">Voir les fiches importées</button>`:`<button class="btn btn-g" data-act="closem">Annuler</button><button class="btn btn-p" data-act="fimpgo" ${s.sir+s.sansSir?'':'disabled'}>Créer ${s.sir+s.sansSir-s.inFile} fiche${s.sir+s.sansSir-s.inFile>1?'s':''}</button>`}</div>
+  </div></div>`}
+async function fimpFile(f){const st=S.fimp={src:S.fimp?.src||(S.mode==='terrain'?'terrain':'tel'),busy:true,name:f.name};renderLayer();
+  try{const buf=new Uint8Array(await f.arrayBuffer());const ext=(f.name.split('.').pop()||'').toLowerCase();let rows;
+    if(ext==='pdf'||(buf[0]===0x25&&buf[1]===0x50))rows=await readPdf(buf);
+    else if(['csv','txt'].includes(ext))rows=parseCsv(decodeText(buf));
+    else rows=await readXlsx(buf);
+    rows=rows.map(r=>(r||[]).map(c=>c));if(!rows.some(r=>r.some(c=>cellStr(c))))throw{fr:'Le fichier est vide.'};
+    Object.assign(st,guessMap(rows),{rows,busy:false})}
+  catch(e){Object.assign(st,{busy:false,msg:e?.fr||(e?.message==='lib'?'Impossible de charger le lecteur de fichiers sans connexion internet.':'Fichier illisible. Enregistre-le en .xlsx ou .csv et réessaie.')})}
+  if(S.fimp===st)renderLayer()}
+async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=fimpRows(st).map(r=>rowRec(st,r));const src=st.src||'tel';
+  const run=st.run={done:0,total:recs.length,log:[],msg:'Démarrage…',made:[],upd:[],stop:false};renderLayer();const seen=new Set();let nok=0;
+  const fill=(p,x,fromReg)=>{const ch=[];const set=(k,v)=>{if(!v)return;const cv=getP(p,k);if(!filled(cv)){setP(p,k,v);ch.push(k)}};
+    if(x.tel){if(!p.ent.tel){p.ent.tel=x.tel;p.ent.telSource='fichier entreprise';p.ent.telLookup={at:iso(today()),status:'ok'};ch.push('tel')}else if(p.ent.tel!==x.tel&&p.ent.telAlt!==x.tel){p.ent.telAlt=x.tel;ch.push('telAlt')}}
+    if(!fromReg){set('ent.nom',niceCase(x.nom||x.enseigne));set('ent.adresse',x.adresse);set('ent.cp',x.cp);set('ent.ville',x.ville&&niceCase(x.ville))}
+    set('ent.enseigne',x.enseigne&&norm(x.enseigne)!==norm(p.ent.nom||'')?x.enseigne:'');
+    if(x.email&&!/@/.test(p.ent.email||'')&&/^(contact|info|accueil|secretariat|office|bonjour|cabinet|agence)@/i.test(x.email))set('ent.email',x.email);
+    let pn=x.prenom,nn=x.cnom;if(x.contact&&!pn&&!nn){const w=x.contact.replace(/^(M\.|Mr|Mme|Madame|Monsieur|Me|Dr)\s+/i,'').split(/\s+/);if(w.length>1){pn=w[0];nn=w.slice(1).join(' ')}else nn=w[0]}
+    const c={prenom:pn&&niceCase(pn),nom:nn&&niceCase(nn),fonction:x.fonction,mobile:x.mob,email:x.email&&!/^(contact|info|accueil|secretariat|office|bonjour|cabinet|agence)@/i.test(x.email)?x.email:'',civ:/^(Mme|Madame)/i.test(x.contact)?'Mme':/^(M\.|Mr|Monsieur)/i.test(x.contact)?'M.':''};
+    if(c.prenom||c.nom||c.mobile||c.email){const r=applyPatch(p,{contacts:[c]},false);if(r.length)ch.push('contact')}
+    if(x.note){p.journal=p.journal||[];p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Import '+st.name,texte:x.note})}
+    return ch};
+  for(const [i,x] of recs.entries()){if(run.stop)break;run.done=i;run.msg=`${i+1} / ${recs.length} · ${run.made.length} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''}`;if(S.fimp===st&&i%2===0)renderLayer();
+    const label=x.nom||x.enseigne||(x.sir?fmtSiret(x.sir):'ligne '+(i+1));
+    if(!x.sir){if((x.nom||x.enseigne)&&(x.tel||x.mob)){const d=[...S.P.values()].find(p=>norm(displayName(p))===norm(x.nom||x.enseigne)&&(!x.cp||p.ent?.cp===x.cp));
+        if(d){fill(d,x,true);touch(d);run.upd.push(d.id);run.log.push({ok:true,t:`${displayName(d)} : complétée (sans SIRET)`})}
+        else{const p=blank(src);p.createdAt=Date.now()+i;fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : créée sans SIRET (à identifier)`})}}
+      continue}
+    const key=x.sir;if(seen.has(key)){continue}seen.add(key);
+    const dup=dupOf(x.sir);
+    if(dup){const ch=fill(dup,x,true);if(ch.length){touch(dup);run.upd.push(dup.id);run.log.push({ok:true,t:`${displayName(dup)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(dup)} : déjà en fiche, rien de nouveau`});continue}
+    try{const res=await reSearch(x.sir);const r=res.find(z=>z.siren===x.sir.slice(0,9))||res[0];if(!r)throw{fr:'introuvable'};
+      const p=blank(src);applyRe(p,r,x.sir.length===14?{siret:x.sir,force:true}:{cp:x.cp});const e=pickEtab(r,{siret:x.sir.length===14?x.sir:'',cp:x.cp});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
+      const d2=dupOf(p.ent.siret||x.sir);if(d2){fill(d2,x,true);touch(d2);run.upd.push(d2.id);run.log.push({ok:true,t:`${displayName(d2)} : déjà en fiche, complétée`});continue}
+      fill(p,x,true);p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Importée depuis '+st.name,texte:fmtSiret(x.sir)});
+      p.createdAt=Date.now()+i;S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({ok:true,t:`${displayName(p)}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''}`})}
+    catch(err){nok++;if(x.nom||x.tel){const p=blank(src);p.createdAt=Date.now()+i;p.ent.siret=x.sir.length===14?x.sir:'';p.ent.siren=x.sir.slice(0,9);fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : ${err?.fr==='introuvable'?'SIRET '+fmtSiret(x.sir)+' introuvable au registre':'registre indisponible'}, fiche créée avec les données du fichier`})}
+      else run.log.push({ok:false,t:`${fmtSiret(x.sir)} : introuvable au registre`})}}
+  run.done=run.total;run.end=true;S.lastBatch=[...run.made,...run.upd];
+  run.msg=`${run.stop?'Arrêté. ':''}${run.made.length} fiche${run.made.length>1?'s':''} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''}${nok?`, ${nok} problème${nok>1?'s':''}`:''}.`;
+  renderSoft(false);if(S.fimp===st)renderLayer();toast(run.msg)}
+
 /* ================= Événements ================= */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==='A'&&b.dataset.act!=='closem')return;f(b,e)}});
 document.addEventListener('input',e=>{const el=e.target;
@@ -1589,6 +1710,8 @@ document.addEventListener('input',e=>{const el=e.target;
     setField(el.dataset.k,v);if(el.dataset.k==='ent.nom'||el.dataset.k.startsWith('ent.'))renderList();
     if(el.dataset.k==='ent.siret'&&v.length===14&&!cur().ent.siren){cur().ent.siren=v.slice(0,9);const s=$('#f-ent-siren');if(s)s.value=fmtSiret(cur().ent.siren)}}});
 document.addEventListener('change',e=>{const el=e.target;if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
+  if(el.id==='fimp-in'&&el.files[0]){const f=el.files[0];el.value='';fimpFile(f);return}
+  if(el.dataset.fcol!=null&&S.fimp){const j=+el.dataset.fcol,k=el.value;if(k&&k!=='note')S.fimp.map=S.fimp.map.map((x,i)=>i!==j&&x===k?'':x);S.fimp.map[j]=k;renderLayer();return}
   if(el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren'){el.value=fmtSiret(el.value);renderFiche()}if(el.dataset.def==='c.decideur')$('#tabbody').innerHTML=tabBody(cur())});
 document.addEventListener('keydown',e=>{
   const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)||document.activeElement?.isContentEditable;
@@ -1622,3 +1745,8 @@ document.addEventListener('wheel',e=>{const el=e.target.closest?.('.tabs,.filter
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
   try{const h=(location.hash||'').match(/^#(?:gps)?(-?\d{1,2}\.\d+)_(-?\d{1,3}\.\d+)$/);if(h){S.gpsTried=true;S.view='around';setTimeout(()=>aroundSearch(`${h[1]},${h[2]}`),300)}}catch{}
   initStore()})();
+
+/* Glisser-déposer d'un fichier sur la fenêtre d'import */
+document.addEventListener('dragover',e=>{if(!S.fimpOpen||S.fimp?.rows)return;if([...(e.dataTransfer?.types||[])].includes('Files')){e.preventDefault();const d=$('#fdrop');if(d)d.classList.add('on')}});
+document.addEventListener('dragleave',e=>{const d=$('#fdrop');if(d&&!d.contains(e.relatedTarget))d.classList.remove('on')});
+document.addEventListener('drop',e=>{if(!S.fimpOpen||S.fimp?.rows)return;const f=e.dataTransfer?.files?.[0];if(f){e.preventDefault();fimpFile(f)}});
