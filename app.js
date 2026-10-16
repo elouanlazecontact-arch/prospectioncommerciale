@@ -25,7 +25,7 @@ const TABS=[
   {k:'ent.naf',l:'Code NAF',t:'mono',ph:'69.10Z'},
   {k:'ent.creation',l:'Date de création',t:'text',ph:'2014'},
   {k:'ent.activite',l:'Activité',t:'text',w:2},
-  {k:'ent.effectif',l:'Effectif',t:'single',o:['1–5','6–10','11–19','20–49','50–99','100–249','250 +'],w:2},
+  {k:'ent.effectif',l:'Effectif du site',t:'single',o:['1–5','6–10','11–19','20–49','50–99','100–249','250 +'],w:2},
   {k:'ent.adresse',l:'Adresse',t:'text',w:2,sec:'Coordonnées'},
   {k:'ent.cp',l:'Code postal',t:'mono'},
   {k:'ent.ville',l:'Ville',t:'text'},
@@ -36,7 +36,6 @@ const TABS=[
   {k:'ent.groupe',l:'Décision au siège / réseau',t:'single',o:['Non','Oui'],w:2},
   {k:'ent.categorie',l:'Catégorie',t:'single',o:['Micro-entreprise','PME','ETI','Grande entreprise'],w:2,reg:true,sec:'Registre officiel'},
   {k:'ent.etab',l:'Cet établissement',t:'single',o:['Siège','Établissement secondaire'],reg:true},
-  {k:'ent.nbEtabs',l:'Établissements ouverts',t:'num',reg:true},
   {k:'ent.tva',l:'TVA intracommunautaire',t:'mono',reg:true},
   {k:'ent.installe',l:'Installé à cette adresse',t:'text',reg:true},
   {k:'ent.ca',l:'Chiffre d’affaires',t:'text',reg:true},
@@ -417,7 +416,7 @@ function ringSvg(v){const r=25,c=2*Math.PI*r;return `<svg viewBox="0 0 58 58"><c
 function renderFiche(){
   const el=$('#fiche');if(!el)return;const p=cur();
   if(!p){el.innerHTML=`<div class="placeholder"><div><h3>Choisis un prospect</h3><span>ou crée-en un nouveau. Raccourcis : <kbd>N</kbd> nouveau, <kbd>J</kbd>/<kbd>K</kbd> suivant/précédent, <kbd>/</kbd> recherche, <kbd>?</kbd> aide.</span><button class="btn btn-p" data-act="new">+ Nouveau prospect</button></div></div>`;return}
-  const q=qualif(p),ex=excluded(p);const sub=[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal.'].filter(Boolean);
+  const q=qualif(p),ex=excluded(p);const sub=[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
   el.innerHTML=`<div class="fiche">
    ${S.mode==='terrain'?`<div><button class="back" data-act="back">← Prospects</button></div>`:''}
    <div class="fhead">
@@ -440,7 +439,7 @@ function renderFiche(){
   ${S.mode==='terrain'?`<button class="fab" data-act="sheet"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5V17h1.5L15 7.5 13.5 6zM12.5 7l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notes & issue</button>`:''}`;
   flashApply();setTimeout(()=>{autoEnrich(cur());autoPhone(cur())},400);
 }
-function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal.'].filter(Boolean);
+function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
   return `${p.ent?.siret?`<span>SIRET <span class="mono">${esc(fmtSiret(p.ent.siret))}</span></span>`:p.ent?.siren?`<span>SIREN <span class="mono">${esc(fmtSiret(p.ent.siren))}</span></span>`:'<span style="color:var(--ink-3)">SIRET non renseigné</span>'}${sub.map(s=>`<span>${esc(s)}</span>`).join('')}${p.ent?.tel?`<span class="mono">${esc(fmtTel(p.ent.tel))}</span>`:''}${p.rne?.status==='ok'?'<span class="badge-dec">✓ Registre</span>':p.rne?.status==='a_verifier'?'<span class="tag">Registre à confirmer</span>':''}<span style="color:var(--ink-3)">${p.source==='terrain'?'Terrain':p.source==='linkedin'?'LinkedIn':'Téléphone'}</span>`}
 function tabsHtml(p){return TABS.map((t,i)=>{const [n,tot]=tabCount(p,t);return `<button class="tab${S.flash.has('tab:'+t.id)?' flash':''}" role="tab" data-act="tab" data-v="${t.id}" aria-selected="${S.tab===t.id}" title="${S.mode==='poste'?'Alt+'+(i+1):''}">${t.l}<span class="cnt${tot&&n===tot?' full':''}">${tot?n+'/'+tot:n}</span></button>`}).join('')}
 function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.innerHTML=fmetaHtml(p);const t=$('#tabs');if(t)t.innerHTML=tabsHtml(p);
@@ -484,7 +483,7 @@ function identHtml(p){
     if(c.kind==='etab'){const x=c.x;return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(x.name)}</b><span>${esc([nafLabel(x.naf),x.forme,x.adr.rue].filter(Boolean).join(' · '))}</span><em>${Math.round(x.dist)} m</em></button>`}
     if(c.kind==='re'){const r=c.r;const e=pickEtab(r,{cp:p.ent?.cp});const a=addrOf(e||r.siege);return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(nameOf(r))}</b><span>${esc([formeFromCode(r.nature_juridique),[a.cp,a.ville].filter(Boolean).join(' '),nafLabel(nafFmt(r.activite_principale)),r.etat_administratif==='C'?'fermée':''].filter(Boolean).join(' · '))}</span><em class="mono">${esc(fmtSiret(r.siren))}</em></button>`}
     return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(c.nom||c.siren)}</b><span>${esc(c.info||'')}</span><em class="mono">${esc(fmtSiret(c.siren))}</em></button>`};
-  if(ok&&!st.busy&&!st.msg&&!cands.length&&!S.identOpen?.has(p.id))return `<div class="ident ident-mini" id="ident-box"><span class="badge-dec">✓ Registre</span><span class="cr-sub" style="margin:0">Identifiée le ${esc(fmtDate(p.rne.at).toLowerCase())} (INSEE / RNE)</span>
+  if(ok&&!st.busy&&!st.msg&&!cands.length&&!S.identOpen?.has(p.id))return `<div class="ident ident-mini" id="ident-box"><span class="badge-dec">✓ Registre</span><span class="cr-sub" style="margin:0">Données de l’établissement ${p.ent?.siret?'SIRET <span class="mono">'+esc(fmtSiret(p.ent.siret))+'</span>':''}${p.ent?.etab?' · '+esc(p.ent.etab.toLowerCase()):''} · ${esc(fmtDate(p.rne.at).toLowerCase())}</span>${p.ent?.siret?`<a class="lnk" href="https://annuaire-entreprises.data.gouv.fr/etablissement/${esc(p.ent.siret)}" target="_blank" rel="noopener">voir la fiche officielle</a>`:''}
      <span class="sp"></span><button class="btn btn-q btn-s" data-act="rnerefresh">Actualiser</button><button class="btn btn-q btn-s" data-act="identopen">Changer d’entreprise</button></div>`;
   return `<div class="ident" id="ident-box" style="margin-bottom:14px">
    <h3><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.2 4.4.3-3.4 2.8 1.1 4.3L8 10.7l-3.7 2.4 1.1-4.3L2 6l4.4-.3z" fill="var(--accent)"/></svg>Identification automatique ${ok?'<span class="badge-dec" style="margin-left:auto">✓ Registre</span>':''}</h3>
@@ -498,7 +497,7 @@ function identHtml(p){
       <button class="btn btn-q btn-s" data-act="candx" style="align-self:flex-start">Aucune ne correspond</button></div>`:''}
    ${ok?`<p style="font-size:11.5px">Données officielles (${esc(fmtDate(p.rne.at).toLowerCase())}) · registre public des entreprises (INSEE / RNE).</p>`:''}
    ${has||p.ent?.siret?`<div class="links"><span class="lbl" style="align-self:center">Vérifier :</span>
-     <a href="https://annuaire-entreprises.data.gouv.fr/rechercher?terme=${q2}" target="_blank" rel="noopener">Annuaire des entreprises</a>
+     <a href="${p.ent?.siret?'https://annuaire-entreprises.data.gouv.fr/etablissement/'+encodeURIComponent(p.ent.siret):'https://annuaire-entreprises.data.gouv.fr/rechercher?terme='+q2}" target="_blank" rel="noopener">Annuaire des entreprises</a>
      <a href="https://www.pappers.fr/recherche?q=${q2}" target="_blank" rel="noopener">Pappers</a>
      <a href="https://www.google.com/maps/search/${qn}" target="_blank" rel="noopener">Maps</a>
      <a href="https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(p.ent?.nom||'')}" target="_blank" rel="noopener">LinkedIn</a>
@@ -1108,6 +1107,7 @@ function pickEtab(r,hint={}){const ets=etabsOf(r);let e=null;
   if(hint.siret)e=ets.find(x=>x.siret===hint.siret);
   if(!e&&(hint.cp||hint.adresse)){let best=-1;for(const x of ets){const a=addrOf(x);const s=(x.etat_administratif==='F'?0:1)+(hint.cp&&a.cp===hint.cp?3:0)+(hint.adresse?sim(hint.adresse,a.rue)*2:0);if(s>best){best=s;e=x}}if(best<3)e=null}
   return e||r.siege||ets[0]||null}
+const NOT_DIR=/commissaire|suppl[ée]ant|liquidateur|mandataire|administrateur judiciaire|repr[ée]sentant permanent|contr[ôo]leur/i;
 const isGroup=r=>(r.nombre_etablissements_ouverts||0)>1;
 const etabTranche=(r,e)=>{const t=e?.tranche_effectif_salarie;if(t&&t!=='NN')return t;return isGroup(r)?'':(r.tranche_effectif_salarie||'')};
 function reToPatch(r,e){
@@ -1121,14 +1121,13 @@ function reToPatch(r,e){
   const lab=nafLabel(naf);if(lab)set['ent.activite']=lab;
   const cat={PME:'PME',ETI:'ETI',GE:'Grande entreprise'}[r.categorie_entreprise];if(cat&&!grp)set['ent.categorie']=cat;if(local)set['ent.groupe']='Oui';
   if(e)set['ent.etab']=e.est_siege?'Siège':'Établissement secondaire';
-  if(r.nombre_etablissements_ouverts)set['ent.nbEtabs']=r.nombre_etablissements_ouverts;
   set['ent.tva']=(r.tva&&r.tva[0])||tvaOf(r.siren);
   const ec=e?.date_creation||'';if(ec){const y=ec.slice(0,4);set['ent.installe']=ec!==r.date_creation&&ec>(r.date_creation||'')?`depuis ${moisAn(ec)}`:`depuis la création (${y})`}
   const fin=r.finances&&Object.entries(r.finances).sort((a,b)=>b[0]-a[0])[0];
   if(fin&&!grp){const [y,f]=fin;if(f.ca>0)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
   const idcc=(e?.liste_idcc||(grp?[]:r.complements?.liste_idcc)||[]).filter(x=>x&&x!=='9999');if(idcc.length)set['ent.convention']=idcc.map(c=>IDCC[c.replace(/^0+/,'')]?`${IDCC[c.replace(/^0+/,'')]} (IDCC ${c})`:`IDCC ${c}`).join(', ');
   const pm=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);if(pm.length&&!grp)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
-  const contacts=(local||(grp&&(r.nombre_etablissements_ouverts||0)>5)?[]:(r.dirigeants||[])).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom).slice(0,3)
+  const contacts=(local||(grp&&(r.nombre_etablissements_ouverts||0)>5)?[]:(r.dirigeants||[])).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom&&!NOT_DIR.test(d.qualite||'')).slice(0,3)
     .map(d=>({prenom:niceCase(String(d.prenoms||d.prenom||'').split(/[\s,]+/)[0]),nom:niceCase(d.nom),fonction:fonctionRne(d.qualite),decideur:'Oui',note:'Dirigeant au registre'+(d.qualite?' : '+d.qualite:'')}));
   return{set,contacts}}
 const tvaOf=s=>{s=String(s||'');if(!/^\d{9}$/.test(s))return'';return'FR'+String((12+3*(+s%97))%97).padStart(2,'0')+s};
@@ -1166,11 +1165,13 @@ const ANGLES={
  'Commerce':['Caisse, TPE et Wi-Fi : réseau fiable.','Téléphonie et internet de secours (4G).','Vidéosurveillance / réseau.'],
  'Restauration / hôtellerie':['Wi-Fi clients et réseau caisse séparés.','Internet de secours : une coupure = pas de paiement.','Téléphonie / réservations.']};
 function briefData(p){const e=estimates(p);const sec=p.ent?.secteur||'';const sig=[];const now=today().getFullYear();
-  const t=p.rne?.tranche;if(t&&TRM[t])sig.push(['👥',`Effectif INSEE : ${{'00':'0','01':'1 à 2','02':'3 à 5','03':'6 à 9','11':'10 à 19','12':'20 à 49','21':'50 à 99','22':'100 à 199','31':'200 à 249','32':'250 à 499','41':'500 à 999'}[t]||p.ent?.effectif} salariés${p.rne.annee?' ('+p.rne.annee+')':''}`]);
+  const t=p.rne?.tranche;if(t&&TRM[t])sig.push(['👥',`Effectif sur ce site (SIRET ${fmtSiret(p.ent?.siret||'')}) : ${{'00':'0','01':'1 à 2','02':'3 à 5','03':'6 à 9','11':'10 à 19','12':'20 à 49','21':'50 à 99','22':'100 à 199','31':'200 à 249','32':'250 à 499','41':'500 à 999'}[t]||p.ent?.effectif} salariés${p.rne.annee?' ('+p.rne.annee+')':''}`]);
   else if(p.ent?.effectif)sig.push(['👥',`Effectif : ${p.ent.effectif} salariés`]);
+  else if(p.rne?.status==='ok')sig.push(['👥','Effectif de ce site non publié par l’INSEE : demande combien ils sont sur place.']);
   const inst=p.rne?.installe;if(inst&&inst>(p.rne?.creation||'')){const y=+inst.slice(0,4);const age=now-y;sig.push(['🚚',`Installé à cette adresse en ${moisAn(inst)}${age<=6?` : contrats souvent signés à l’emménagement, donc ${age>=3?'renouvellements en cours ou proches (copieur ≈ 5 ans, télécom 2-3 ans)':'premiers renouvellements à venir'}.`:'.'}`])}
   if(p.ent?.creation){const y=+String(p.ent.creation).slice(-4);if(y&&now-y<=3)sig.push(['🌱',`Entreprise jeune (créée en ${y}) : équipement souvent minimal, besoin de structurer.`]);else if(y)sig.push(['🏛️',`Créée en ${y} (${now-y} ans).`])}
-  if((p.ent?.nbEtabs||0)>1)sig.push(['🏢',`${p.ent.nbEtabs} établissements ouverts${p.ent.etab?' · celui-ci : '+p.ent.etab.toLowerCase():''} : interconnexion, téléphonie et parc à harmoniser.`]);
+  if(p.ent?.etab==='Établissement secondaire')sig.push(['🏢','Site secondaire d’une entreprise multi-sites : la décision IT / achats peut se prendre au siège. Demande qui décide.']);
+  if(false)sig.push(['🏢',`${p.ent.nbEtabs} établissements ouverts${p.ent.etab?' · celui-ci : '+p.ent.etab.toLowerCase():''} : interconnexion, téléphonie et parc à harmoniser.`]);
   if(p.ent?.holding)sig.push(['🧩',`Dirigée par une société (${p.ent.holding}) : la décision peut se prendre au niveau de la holding.`]);
   if(p.ent?.ca)sig.push(['💶',`CA ${p.ent.ca}${p.ent.resultat?' · résultat '+p.ent.resultat:''}`]);
   if(p.ent?.categorie==='PME'||!p.ent?.categorie)sig.push(['🧾','Facture électronique : réception obligatoire depuis le 1er sept. 2026, émission obligatoire au 1er sept. 2027 pour les PME et TPE. Argument scan / GED / dématérialisation.']);
@@ -1190,10 +1191,11 @@ function applyRe(p,r,hint={}){
   if(p.ent?.cp&&a.cp&&a.cp!==p.ent.cp&&!hint.siret&&!hint.force){for(const k of ['ent.adresse','ent.cp','ent.ville','ent.siret'])delete patch.set[k]}
   if(hint.siret)patch.set['ent.siret']=hint.siret;
   const ch=applyPatch(p,patch,!hint.soft);
+  delete p.ent.nbEtabs;if(p.contacts?.length)p.contacts=p.contacts.filter(c=>!NOT_DIR.test(c.note||''));
   if(isGroup(r)){for(const k of ['ca','resultat','categorie','holding'])if(p.ent[k]!=null){delete p.ent[k];ch.push('ent.'+k)}
-    const ef=patch.set['ent.effectif'];if(hint.soft&&p.rne?.v!==3){if(ef)p.ent.effectif=ef;else if(e&&!e.est_siege)delete p.ent.effectif;if(p.est)for(const k of Object.keys(p.est)){setP(p,k,'');delete p.est[k]}}}
+    const ef=patch.set['ent.effectif'];if(hint.soft&&(p.rne?.v||0)<3){if(ef)p.ent.effectif=ef;else if(e&&!e.est_siege)delete p.ent.effectif;if(p.est)for(const k of Object.keys(p.est)){setP(p,k,'');delete p.est[k]}}}
   if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:3,tranche:etabTranche(r,e),annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
+  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:4,tranche:etabTranche(r,e),annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
   ch.push(...applyEstimates(p));touch(p);markFlash(ch);
   return{r,e,ch,before}}
 async function applyRne(p,num,hint={}){const res=await reSearch(num);const r=res.find(x=>x.siren===String(num).slice(0,9))||res[0];
@@ -1535,7 +1537,7 @@ async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.
   let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
   S.ph={pid:p.id,ok:r.status==='ok',msg:r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).'};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
-function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===3||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
+function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===4||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
   applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret,soft:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{})}
 function autoPhone(p){if(!p||p.ent?.tel||p.ent?.telLookup||!(p.ent?.nom||p.ent?.enseigne)||!(p.geo||p.ent?.adresse||p.ent?.ville))return;S.phAuto=S.phAuto||new Set();if(S.phAuto.has(p.id))return;S.phAuto.add(p.id);findPhoneUI(p)}
 function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}

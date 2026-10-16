@@ -482,3 +482,4 @@ a.btn{text-decoration:none}
 .lh-acts .btn{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lh-acts .btn:first-child{grid-column:1/-1}
 .implog .warn{color:var(--warn)}
+.ident-mini .lnk{padding:0}
