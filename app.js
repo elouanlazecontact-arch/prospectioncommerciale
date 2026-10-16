@@ -1,5 +1,6 @@
 
 "use strict";
+const APP_V=24;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -187,7 +188,7 @@ const cur=()=>S.P.get(S.sel);
 const CFG=window.RADAR_CONFIG||{};let SB=null,USER=null,RT=null;
 const LK=()=>'radar-'+(USER?.id||'local');
 function loadLocal(){S.P.clear();for(const p of lsGet(LK()+'-data',[]))if(p&&p.id)S.P.set(p.id,p);
-  S.settings={objectif:20,...lsGet(LK()+'-settings',{})};S.queue=new Set(lsGet(LK()+'-queue',[]))}
+  S.settings={objectif:20,...lsGet(LK()+'-settings',{})};if(S.settings.cal==='live'&&proMail())S.settings.cal='m365';S.queue=new Set(lsGet(LK()+'-queue',[]))}
 function saveLocal(){lsSet(LK()+'-data',[...S.P.values()]);lsSet(LK()+'-queue',[...S.queue])}
 let saveT=null;const saveLocalSoon=()=>{clearTimeout(saveT);saveT=setTimeout(saveLocal,200)};
 function markDirty(id){S.queue.add(id);saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800);renderStore()}
@@ -567,7 +568,7 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
  <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
  <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
- <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['ics','Outlook (application Windows)'],['m365','Outlook web (Microsoft 365)'],['live','Outlook.com perso']].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
+ <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['ics','Outlook (application Windows, fichier)'],...(proMail()?[]:[['live','Outlook.com perso']])].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
@@ -659,7 +660,7 @@ const ACT={
   if(date&&[0,6].includes(new Date(date+'T12:00').getDay())){toast('Ce jour tombe un week-end : choisis un jour de semaine.');return}
   S.ask=null;
   const pp=cur();commitNote(pp,$('#note-in')?.value.trim()||'',o,{date,heure,lieu:o.k==='rdv'?lieu:''});
-  if(o.k==='rdv'&&S.settings.calAuto!==false){const a=(pp.actions||[]).filter(x=>x.type==='RDV'&&!x.fait&&x.date===date).slice(-1)[0];if(a)addToCal(pp,a)}},
+  if(o.k==='rdv'){const a=(pp.actions||[]).filter(x=>x.type==='RDV'&&!x.fait&&x.date===date).slice(-1)[0];if(a){if(S.settings.calAuto!==false)addToCal(pp,a);else{S.calMsg={pid:pp.id,aid:a.id};renderNotesOnly()}}}},
  askno:()=>{S.ask=null;renderNotesOnly()},
  askslot:b=>{S.ask.heure=b.dataset.v;$('#ask-heure').value=b.dataset.v;$$('[data-act="askslot"]').forEach(x=>{const on=x===b;x.setAttribute('aria-pressed',String(on));x.classList.toggle('on',on)})},
  copyph:b=>copy(String(b.dataset.v).replace(/\s/g,''),'Numéro copié'),
@@ -1516,7 +1517,8 @@ const fold=l=>{const out=[];let s=l;while(new TextEncoder().encode(s).length>73)
 function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/([,;])/g,'\\$1');
   return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH',...VTZ,'BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
     `DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`,`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
-function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';const i=rdvInfo(p,a);
+const proMail=()=>!!USER?.email&&!/@(outlook|hotmail|live|msn)\./i.test(USER.email);
+function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';if(mode==='live'&&proMail())mode='m365';const i=rdvInfo(p,a);
   if(mode==='ics'){downloadFile(`RDV-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast('Fichier RDV téléchargé : ouvre-le, Outlook affiche le RDV, clique « Enregistrer et fermer »');}
   else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast('Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Outlook » du RDV.');else toast('Outlook s\u2019ouvre avec le RDV prérempli : clique Enregistrer')}
   a.cal=true;S.calMsg={pid:p.id,aid:a.id};touch(p);if(S.sel===p.id)renderNotesOnly()}
@@ -1814,6 +1816,9 @@ document.addEventListener('wheel',e=>{const el=e.target.closest?.('.tabs,.filter
 /* ================= Démarrage ================= */
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+  /* Mise à jour automatique : dès qu'une nouvelle version est en ligne, l'appli se recharge (sans perdre de saisie) */
+  const checkV=async()=>{try{const t=await fetch('sw.js',{cache:'no-store'}).then(r=>r.text());const v=+(t.match(/radar-v(\d+)/)||[])[1];if(v>APP_V){const busy=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)||S.ask||S.fimp?.run&&!S.fimp.run.end;if(busy){S.updWait=true;return}toast('Nouvelle version de Radar : mise à jour…');setTimeout(()=>location.reload(),900)}}catch{}};
+  if(location.protocol==='https:'){setInterval(checkV,5*60*1000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkV()});document.addEventListener('focusout',()=>{if(S.updWait)setTimeout(checkV,1500)});setTimeout(checkV,4000)}
   try{const h=(location.hash||'').match(/^#(?:gps)?(-?\d{1,2}\.\d+)_(-?\d{1,3}\.\d+)$/);if(h){S.gpsTried=true;S.view='around';setTimeout(()=>aroundSearch(`${h[1]},${h[2]}`),300)}}catch{}
   initStore()})();
 
