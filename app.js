@@ -361,7 +361,7 @@ function renderList(){
   const el=$('#list');if(!el)return;const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div style="display:flex;gap:6px"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="flex:1">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" style="flex:1">+ SIRET / SIREN</button></div>
-   ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+   ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service OpenStreetMap est saturé, réessaie dans quelques minutes. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
@@ -1302,7 +1302,7 @@ function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';const i=rdvInfo(p,
   a.cal=true;touch(p)}
 function calBtns(p,a){return `<span class="calbtns"><button class="btn btn-g btn-s" data-act="cal" data-id="${p.id}" data-a="${a.id}">📅 ${a.cal?'Outlook ✓':'Ajouter à Outlook'}</button><button class="btn btn-q btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}" title="Fichier pour tout agenda">.ics</button></span>`}
 /* ================= Numéros de téléphone (OpenStreetMap, TomTom en option) ================= */
-const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const OVERPASS=['https://overpass-api.de/api/interpreter'];
 const normTel=t=>{let d=String(t||'').split(/[;,/]/)[0].replace(/[^\d+]/g,'');if(d.startsWith('+33'))d='0'+d.slice(3);if(d.startsWith('0033'))d='0'+d.slice(4);return /^0[1-9]\d{8}$/.test(d)?d:''};
 let ovNext=0;
 async function overpassPhones(pos,radius){
@@ -1344,10 +1344,22 @@ async function findPhoneUI(p){S.ph={pid:p.id,busy:true};rePhone();
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
 function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}
 
-async function phoneAll(){const ids=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne)).map(p=>p.id);if(!ids.length)return;
-  const r=S.phoneRun={ids,done:[],found:0};renderList();
-  for(const id of ids){const p=S.P.get(id);if(p){try{const x=await findPhone(p);if(x.status==='ok')r.found++}catch{}}r.done.push(id);renderList()}
-  r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},15000)}
+async function overpassBbox(b){const q=`[out:json][timeout:25];nwr(${b.s.toFixed(5)},${b.w.toFixed(5)},${b.n.toFixed(5)},${b.e.toFixed(5)})["name"][~"^(phone|contact:phone|contact:mobile)$"~"."];out tags center 3000;`;
+  for(let k=0;k<3;k++){try{const r=await fetch(OVERPASS[0],{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
+      if(r.ok){const j=await r.json();return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}}catch{}
+    await sleep(4000*(k+1))}
+  return null}
+async function phoneAll(){const list=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));if(!list.length)return;
+  const r=S.phoneRun={ids:list.map(p=>p.id),done:[],found:0,step:'Localisation des adresses…'};renderList();
+  for(const p of list){if(!p.geo)await posOf(p)}
+  const groups=new Map();for(const p of list){if(!p.geo){r.done.push(p.id);continue}const k=Math.floor(p.geo.lat/0.03)+'_'+Math.floor(p.geo.lon/0.03);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)}
+  for(const ps of groups.values()){const b={s:Math.min(...ps.map(p=>p.geo.lat))-0.002,n:Math.max(...ps.map(p=>p.geo.lat))+0.002,w:Math.min(...ps.map(p=>p.geo.lon))-0.003,e:Math.max(...ps.map(p=>p.geo.lon))+0.003};
+    const pool=await overpassBbox(b);
+    for(const p of ps){if(pool){const near=pool.filter(x=>x.lat&&haversine(p.geo,{lat:x.lat,lon:x.lon})<250);
+        let x=await findPhone(p,{pool:near}).catch(()=>({status:'err'}));if(x.status!=='ok'&&S.settings.tomtomKey){const tt=await tomtomPhones(p,p.geo);const h=bestPhone(p,tt,p.geo);if(h){p.ent.tel=h.phone;p.ent.telSource=h.src;p.ent.telLookup={at:iso(today()),status:'ok'};touch(p);x={status:'ok'}}}
+        if(x.status==='ok')r.found++}else r.failed=true;
+      r.done.push(p.id);renderList()}}
+  r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},20000)}
 /* ================= Import de SIRET / SIREN en lot ================= */
 function importHtml(){const st=S.imp||{};return `<div class="modal" data-act="closem"><div style="max-width:620px"><h2>Créer des fiches depuis des SIRET / SIREN</h2>
   <p style="margin:0;color:var(--ink-2);font-size:13.5px">Colle un ou plusieurs numéros (un par ligne, ou séparés par des virgules ou des espaces). Chaque fiche est créée et remplie depuis le registre officiel, puis l'outil cherche son numéro de standard.</p>
