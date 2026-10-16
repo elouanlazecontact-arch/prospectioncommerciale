@@ -475,11 +475,20 @@ a.btn{text-decoration:none}
 .fstats div{background:var(--surface-2);border-radius:var(--r-s);padding:9px 10px;display:flex;flex-direction:column;gap:2px}
 .fstats b{font-family:var(--f-display);font-size:20px;font-variant-numeric:tabular-nums}
 .fstats span{font-size:11.5px;color:var(--ink-3)}
-.fbar{height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden}
-.fbar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.fprog{height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.fprog i{display:block;height:100%;background:var(--accent);transition:width .3s}
 @media (max-width:640px){.fstats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .lh-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:0}
 .lh-acts .btn{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lh-acts .btn:first-child{grid-column:1/-1}
 .implog .warn{color:var(--warn)}
 .ident-mini .lnk{padding:0}
+.fmeta .ens{font-weight:600;color:var(--ink)}
+.std-hero{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:12px 14px;border-radius:var(--r);background:var(--accent-soft);border:1px solid var(--accent);margin-bottom:12px}
+.std-hero .lbl{width:100%;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.std-hero .std-num{font-size:24px;font-weight:600;color:var(--ink);text-decoration:none;letter-spacing:.02em}
+.std-hero .std-num:hover{color:var(--accent)}
+.std-hero small{width:100%;font-size:11.5px;color:var(--ink-3)}
+.std-hero.none{background:var(--surface-2);border-color:var(--line)}
+.std-hero.none .lbl{color:var(--ink-3)}
+.std-hero .std-none{color:var(--ink-3);font-size:14px;margin-right:auto}
