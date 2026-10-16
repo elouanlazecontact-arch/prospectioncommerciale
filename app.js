@@ -360,13 +360,14 @@ function renderAgenda(){
 function renderList(){
   const el=$('#list');if(!el)return;const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
-  el.innerHTML=`<div class="list-head"><div style="display:flex;gap:6px"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="flex:1">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" style="flex:1">+ SIRET / SIREN</button></div><h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+  el.innerHTML=`<div class="list-head"><div style="display:flex;gap:6px"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="flex:1">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" style="flex:1">+ SIRET / SIREN</button></div>
+   ${(()=>{const miss=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
    <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
      ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="tdot" data-t="${p.temperature||''}"></span>`}<span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
-     <span class="sub">${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
+     <span class="sub">${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${p.ent?.tel?'📞 '+esc(fmtTel(p.ent.tel))+' · ':S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'📞 recherche… · ':''}${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
    :S.P.size?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
 }
 
@@ -600,7 +601,8 @@ const ACT={
  sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
  copy:()=>copy(crText(cur()),'Compte rendu copié'),
  findphone:()=>{const p=cur();if(p)findPhoneUI(p)},
- usealt:()=>{const p=cur();if(!p)return;const old=p.ent.tel;p.ent.tel=p.ent.telAlt;p.ent.telAlt=old||'';touch(p);renderFiche();renderNotesOnly()},
+ phoneall:()=>phoneAll(),
+ usealt:()=>{const p=cur();if(!p)return;const old=p.ent.tel;p.ent.tel=p.ent.telAlt;p.ent.telAlt=old||'';if(p.ent.telLookup)p.ent.telLookup.status='ok';touch(p);renderFiche();renderNotesOnly()},
  importopen:()=>{S.menu=false;S.imp=S.imp&&S.imp.busy?S.imp:{};S.importing=true;renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  impsrc:b=>{const st=S.imp=S.imp||{};st.text=$('#imp-text')?.value||st.text;st.src=b.dataset.v;renderLayer()},
  impgo:()=>runImport(),
@@ -1322,7 +1324,9 @@ async function findPhone(p,{silent=false,pool=null}={}){
   const pos=await posOf(p);if(!pos)return{status:'noaddr'};
   let list=pool||await overpassPhones(pos,120);let hit=bestPhone(p,list,pos);
   if(!hit){const tt=await tomtomPhones(p,pos);hit=bestPhone(p,tt,pos)}
-  if(!hit)return{status:'none'};
+  if(!hit){const near=list.filter(x=>pos&&x.lat&&haversine(pos,{lat:x.lat,lon:x.lon})<=20);p.ent.telLookup={at:iso(today()),status:'none'};
+    if(near.length===1&&!p.ent.tel){p.ent.telAlt=near[0].phone;p.ent.telSource=`même adresse : « ${near[0].name} » (${near[0].src})`;p.ent.telLookup.status='possible'}touch(p);return{status:p.ent.telLookup.status==='possible'?'possible':'none'}}
+  p.ent.telLookup={at:iso(today()),status:'ok'};
   if(!p.ent.tel||p.ent.tel===hit.phone){p.ent.tel=hit.phone;p.ent.telSource=hit.src;touch(p);markFlash(['ent.tel']);return{status:'ok',hit}}
   if(p.ent.tel!==hit.phone){p.ent.telAlt=hit.phone;p.ent.telSource=hit.src;touch(p);return{status:'alt',hit}}}
 function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||''),v=encodeURIComponent(p.ent?.ville||p.ent?.cp||'');
@@ -1330,7 +1334,8 @@ function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'
 function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
   return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<b class="mono">${esc(fmtTel(e.tel))}</b>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
    <button class="btn btn-g btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'Recherche…':'🔎 Trouver le numéro'}</button></div>
-   ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">Autre numéro trouvé : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
+   ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">${e.tel?'Autre numéro trouvé':'Numéro possible ('+esc(e.telSource||'')+')'} : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
+   ${!e.tel&&e.telLookup&&!st.msg?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Utilise PagesJaunes ou Google ci-dessous.'}</div>`:''}
    ${st.msg?`<div class="cr-sub" style="margin:0">${esc(st.msg)}</div>`:''}
    <div class="links"><span class="lbl" style="align-self:center">Chercher :</span>${phoneLinks(p)}</div></div>`}
 async function findPhoneUI(p){S.ph={pid:p.id,busy:true};rePhone();
@@ -1339,6 +1344,10 @@ async function findPhoneUI(p){S.ph={pid:p.id,busy:true};rePhone();
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
 function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}
 
+async function phoneAll(){const ids=[...S.P.values()].filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne)).map(p=>p.id);if(!ids.length)return;
+  const r=S.phoneRun={ids,done:[],found:0};renderList();
+  for(const id of ids){const p=S.P.get(id);if(p){try{const x=await findPhone(p);if(x.status==='ok')r.found++}catch{}}r.done.push(id);renderList()}
+  r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},15000)}
 /* ================= Import de SIRET / SIREN en lot ================= */
 function importHtml(){const st=S.imp||{};return `<div class="modal" data-act="closem"><div style="max-width:620px"><h2>Créer des fiches depuis des SIRET / SIREN</h2>
   <p style="margin:0;color:var(--ink-2);font-size:13.5px">Colle un ou plusieurs numéros (un par ligne, ou séparés par des virgules ou des espaces). Chaque fiche est créée et remplie depuis le registre officiel, puis l'outil cherche son numéro de standard.</p>
