@@ -359,8 +359,8 @@ function renderAgenda(){
 /* ================= Liste ================= */
 function renderList(){
   const el=$('#list');if(!el)return;const L=filtered();
-  const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier repérage']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
-  el.innerHTML=`<div class="list-head"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="width:100%">📍 Prospecter autour de moi (50 m)</button><h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+  const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
+  el.innerHTML=`<div class="list-head"><div style="display:flex;gap:6px"><button class="btn btn-loc btn-s" data-act="view" data-v="around" style="flex:1">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" style="flex:1">+ SIRET / SIREN</button></div><h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+S.P.size:''} ${S.P.size?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
@@ -403,7 +403,7 @@ function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.inn
   const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
   if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
-  return `${t.id==='ent'?identHtml(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
+  return `${t.id==='ent'?identHtml(p)+phoneBox(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
 function fieldHtml(f,path,v,def){
   const id='f-'+path.replace(/\./g,'-');const span=f.w===2?' span-2':'';const dk=def||f.k;
   if(f.t==='single'||f.t==='multi')return `<div class="f${span}"><span class="lab">${esc(f.l)}</span>${chipsHtml(f,path,v,dk)}</div>`;
@@ -478,7 +478,7 @@ function notesHtml(p){
   return `<div class="np">
    ${ses?`<div class="sess"><span>Session d'appels · <b>${ses.i+1}/${ses.q.length}</b></span><span style="display:flex;gap:6px"><button class="btn btn-s" data-act="snext">Suivant <kbd style="background:transparent;border-color:currentColor;color:inherit">J</kbd></button><button class="btn btn-q btn-s" style="color:inherit" data-act="sstop">Arrêter</button></span></div>`:''}
    <div class="np-h"><h2>${m==='poste'?'Appel en cours':'Visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
-   ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:`<span class="who">Pas encore de numéro. Ajoute-le dans la note ou l'onglet Entreprise.</span>`}
+   ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:`<span class="who">Pas encore de numéro.</span><button class="btn btn-g btn-s" data-act="findphone">🔎 Trouver le numéro</button><span class="links" style="width:100%">${phoneLinks(p)}</span>`}
      ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
    <textarea class="in note" id="note-in" placeholder="${m==='poste'?'Tape comme tu parles : « dg mr martin, 12 postes, canon en leasing fin 06/27 pas content, av avast, pas de svg, rapl jeudi 14h »':'ex. « vu accueil, gerante mme lopez absente, 8 pers, copieur ricoh, repasser mardi matin »'}">${esc(draft)}</textarea>
    <div class="hint"><span>Abréviations et fautes comprises.</span>${m==='poste'?'<span><kbd>Ctrl</kbd>+<kbd>Entrée</kbd> analyser</span>':''}</div>
@@ -496,7 +496,7 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.help)L.innerHTML=helpHtml();else if(S.menu)L.innerHTML=menuHtml();else L.innerHTML=''}
+  else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.menu)L.innerHTML=menuHtml();else L.innerHTML=''}
 function helpHtml(){return `<div class="modal" data-act="closem"><div><h2>Raccourcis clavier</h2><div class="keys">
  <kbd>N</kbd><span>Nouveau prospect</span><kbd>/</kbd><span>Rechercher</span><kbd>J</kbd> <kbd>K</kbd><span>Prospect suivant / précédent (ou suivant en session d'appels)</span>
  <kbd>Ctrl Entrée</kbd><span>Analyser la note (ou l'identification)</span><kbd>Alt 1…8</kbd><span>Issue d'appel rapide</span><kbd>Alt ⇧ 1…8</kbd><span>Changer d'onglet</span><kbd>Échap</kbd><span>Sortir du champ</span></div>
@@ -505,11 +505,13 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  return `<div class="modal" data-act="closem"><div><h2>Options</h2>
  ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b></span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
+ <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
  <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['live','Outlook.com'],['ics','Autre agenda (.ics)']].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
-  <button class="btn btn-p" data-act="xlsx">Exporter en Excel</button>
+  <button class="btn btn-p" data-act="importopen">Créer des fiches depuis des SIRET / SIREN</button>
+  <button class="btn btn-g" data-act="xlsx">Exporter en Excel</button>
   <button class="btn btn-g" data-act="export">Exporter en CSV (import Artis)</button>
   <button class="btn btn-g" data-act="backup">Télécharger une sauvegarde complète</button>
   <label class="btn btn-g" for="imp-in" style="cursor:pointer">Importer une sauvegarde</label><input type="file" id="imp-in" accept=".json,application/json" hidden>
@@ -597,6 +599,11 @@ const ACT={
  sheet:()=>{S.sheet=true;renderLayer();setTimeout(()=>$('#note-in')?.focus(),60)},
  sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
  copy:()=>copy(crText(cur()),'Compte rendu copié'),
+ findphone:()=>{const p=cur();if(p)findPhoneUI(p)},
+ usealt:()=>{const p=cur();if(!p)return;const old=p.ent.tel;p.ent.tel=p.ent.telAlt;p.ent.telAlt=old||'';touch(p);renderFiche();renderNotesOnly()},
+ importopen:()=>{S.menu=false;S.imp=S.imp&&S.imp.busy?S.imp:{};S.importing=true;renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
+ impsrc:b=>{const st=S.imp=S.imp||{};st.text=$('#imp-text')?.value||st.text;st.src=b.dataset.v;renderLayer()},
+ impgo:()=>runImport(),
  copycr:()=>copy(crText(cur()),'Compte rendu copié'),
  xlsx:()=>{S.menu=false;renderLayer();exportXlsx()},
  del:()=>{S.confirmDel=true;renderFiche()},del0:()=>{S.confirmDel=false;renderFiche()},
@@ -604,7 +611,7 @@ const ACT={
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
  calpick:b=>{S.settings.cal=b.dataset.v;saveSettings();renderLayer()},
  cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
- closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;renderLayer()},
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}S.menu=false;S.help=false;if(!(S.imp&&S.imp.busy))S.importing=false;else S.importing=false;renderLayer()},
  export:()=>exportCsv(),backup:()=>exportBackup(),logout:()=>logout(),install:async()=>{const ev=S.installEvt;if(!ev)return;ev.prompt();await ev.userChoice.catch(()=>{});S.installEvt=null;S.menu=false;renderLayer()},
  authmode:b=>{S.authMode=b.dataset.v;showAuth()},
  eitog:()=>{const a=A();a.ei=!a.ei;lsSet('radar-ei',a.ei);filterAround();renderAround()},
@@ -996,6 +1003,7 @@ function applyRe(p,r,hint={}){
   if(p.ent?.cp&&a.cp&&a.cp!==p.ent.cp&&!hint.siret&&!hint.force){for(const k of ['ent.adresse','ent.cp','ent.ville','ent.siret'])delete patch.set[k]}
   if(hint.siret)patch.set['ent.siret']=hint.siret;
   const ch=applyPatch(p,patch,true);
+  if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
   p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C'};delete p.rneCands;touch(p);markFlash(ch);
   return{r,e,ch,before}}
 async function applyRne(p,num,hint={}){const res=await reSearch(num);const r=res.find(x=>x.siren===String(num).slice(0,9))||res[0];
@@ -1028,7 +1036,8 @@ async function identify(p,raw){
 function idDone(p,{r,e,ch,before}){
   if($('#ident-in'))$('#ident-in').value='';
   setId(p,{msg:`${nameOf(r)} identifiée${p.ent?.siret?' · SIRET '+fmtSiret(p.ent.siret):''}${r.etat_administratif==='C'?' · ATTENTION : entreprise fermée':''}. ${ch.length} champ${ch.length>1?'s':''} rempli${ch.length>1?'s':''}.`});
-  renderFiche();renderList();toast(`${nameOf(r)} identifiée`,()=>{S.P.set(p.id,before);touch(before);S.id=null;renderFiche();renderList()})}
+  renderFiche();renderList();toast(`${nameOf(r)} identifiée`,()=>{S.P.set(p.id,before);touch(before);S.id=null;renderFiche();renderList()});
+  if(!p.ent?.tel)findPhoneUI(p)}
 function rankRes(res,q,cp){const city=norm(q);return res.map(r=>({...r,_s:sim(q,r.nom_complet)*2+(cp&&etabsOf(r).some(e=>e.code_postal===cp)?2:0)+(etabsOf(r).some(e=>city.includes(norm(e.libelle_commune||'').split(/[\s-]/)[0]||'§'))?1.2:0)+(/^(75|77|78|91|92|93|94|95)/.test(r.siege?.code_postal||'')?0.3:0)+(r.etat_administratif==='C'?-2:0)})).sort((a,b)=>b._s-a._s)}
 async function nameSearch(p,q,cp){
   const res=rankRes(await reSearch(q,{per_page:15}),q,cp).slice(0,8);
@@ -1109,7 +1118,9 @@ function aroundCreate(){const a=A();const items=a.res.filter(x=>a.sel.has(x.id))
     p.actions.push({id:rid(),type:'Visite',date:iso(today()),heure:'',note:'Passer sur place',fait:false,createdAt:Date.now()});
     S.P.set(p.id,p);touch(p);ids.push(p.id)}
   a.batch=ids;S.lastBatch=ids;filterAround();a.msg=`${ids.length} fiche${ids.length>1?'s':''} créée${ids.length>1?'s':''}, déjà identifiée${ids.length>1?'s':''} au registre (SIRET, adresse, dirigeants).`;
-  renderAround();toast(`${ids.length} fiches créées`)}
+  renderAround();toast(`${ids.length} fiches créées`);
+  (async()=>{try{const pool=await overpassPhones(a.pos,a.radius+120);let n=0;for(const id of ids){const p=S.P.get(id);if(p&&!p.ent?.tel){const r=await findPhone(p,{pool});if(r.status==='ok')n++}}
+    a.msg+=` ${n} numéro${n>1?'s':''} de standard trouvé${n>1?'s':''}.`;if(S.view==='around')renderAround();renderSoft(false)}catch{}})()}
 function renderAround(){
   const el=$('#around');if(!el)return;const a=A();const n=a.res.filter(x=>a.sel.has(x.id)).length;const keep=$('#pos-in')?.value;
   el.innerHTML=`<div class="hello"><div><h1>Autour de moi</h1><p>Toutes les entreprises enregistrées autour de toi, y compris les cabinets à l'étage. Coche, puis crée leurs fiches en un geste.</p></div></div>
@@ -1288,6 +1299,78 @@ function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';const i=rdvInfo(p,
   else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast('Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Outlook » du RDV.');else toast('Outlook s\u2019ouvre avec le RDV prérempli : clique Enregistrer')}
   a.cal=true;touch(p)}
 function calBtns(p,a){return `<span class="calbtns"><button class="btn btn-g btn-s" data-act="cal" data-id="${p.id}" data-a="${a.id}">📅 ${a.cal?'Outlook ✓':'Ajouter à Outlook'}</button><button class="btn btn-q btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}" title="Fichier pour tout agenda">.ics</button></span>`}
+/* ================= Numéros de téléphone (OpenStreetMap, TomTom en option) ================= */
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const normTel=t=>{let d=String(t||'').split(/[;,/]/)[0].replace(/[^\d+]/g,'');if(d.startsWith('+33'))d='0'+d.slice(3);if(d.startsWith('0033'))d='0'+d.slice(4);return /^0[1-9]\d{8}$/.test(d)?d:''};
+let ovNext=0;
+async function overpassPhones(pos,radius){
+  const q=`[out:json][timeout:20];nwr(around:${Math.round(radius)},${pos.lat.toFixed(6)},${pos.lon.toFixed(6)})["name"][~"^(phone|contact:phone|contact:mobile)$"~"."];out tags center 200;`;
+  const wait=Math.max(0,ovNext-Date.now());ovNext=Math.max(ovNext,Date.now())+1200;if(wait)await sleep(wait);
+  for(const url of OVERPASS){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});if(!r.ok)continue;const j=await r.json();
+    return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}catch{}}
+  return[]}
+async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return[];
+  try{const u=new URL(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'')}.json`);
+    u.searchParams.set('key',key);u.searchParams.set('lat',pos.lat);u.searchParams.set('lon',pos.lon);u.searchParams.set('radius','250');u.searchParams.set('limit','8');u.searchParams.set('language','fr-FR');u.searchParams.set('countrySet','FR');
+    const j=await fetch(u).then(r=>r.ok?r.json():null);return(j?.results||[]).map(x=>({name:x.poi?.name,phone:normTel(x.poi?.phone),lat:x.position?.lat,lon:x.position?.lon,src:'TomTom'})).filter(x=>x.phone)}catch{return[]}}
+async function posOf(p){if(p.geo?.lat)return p.geo;const e=p.ent||{};if(!e.adresse&&!e.ville)return null;
+  try{const g=await geocode([e.adresse,e.cp,e.ville].filter(Boolean).join(' '));if(g){p.geo={lat:g.lat,lon:g.lon};touch(p);return p.geo}}catch{}return null}
+function bestPhone(p,list,pos){const names=[p.ent?.enseigne,p.ent?.nom].filter(Boolean);let best=null,bs=0;
+  for(const x of list){const s=Math.max(...names.map(n=>Math.max(sim(n,x.name),sim(x.name,n))));const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>120?0.2:0);if(sc>bs){bs=sc;best=x}}
+  return bs>=0.5?best:null}
+async function findPhone(p,{silent=false,pool=null}={}){
+  const pos=await posOf(p);if(!pos)return{status:'noaddr'};
+  let list=pool||await overpassPhones(pos,120);let hit=bestPhone(p,list,pos);
+  if(!hit){const tt=await tomtomPhones(p,pos);hit=bestPhone(p,tt,pos)}
+  if(!hit)return{status:'none'};
+  if(!p.ent.tel||p.ent.tel===hit.phone){p.ent.tel=hit.phone;p.ent.telSource=hit.src;touch(p);markFlash(['ent.tel']);return{status:'ok',hit}}
+  if(p.ent.tel!==hit.phone){p.ent.telAlt=hit.phone;p.ent.telSource=hit.src;touch(p);return{status:'alt',hit}}}
+function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||''),v=encodeURIComponent(p.ent?.ville||p.ent?.cp||'');
+  return `<a href="https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${n}&ou=${v}" target="_blank" rel="noopener">PagesJaunes</a><a href="https://www.google.com/search?q=${n}+${v}+t%C3%A9l%C3%A9phone" target="_blank" rel="noopener">Google</a><a href="https://www.google.com/maps/search/${n}+${v}" target="_blank" rel="noopener">Maps</a>`}
+function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
+  return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<b class="mono">${esc(fmtTel(e.tel))}</b>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
+   <button class="btn btn-g btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'Recherche…':'🔎 Trouver le numéro'}</button></div>
+   ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">Autre numéro trouvé : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
+   ${st.msg?`<div class="cr-sub" style="margin:0">${esc(st.msg)}</div>`:''}
+   <div class="links"><span class="lbl" style="align-self:center">Chercher :</span>${phoneLinks(p)}</div></div>`}
+async function findPhoneUI(p){S.ph={pid:p.id,busy:true};rePhone();
+  let r;try{r=await findPhone(p)}catch{r={status:'err'}}
+  S.ph={pid:p.id,msg:r.status==='ok'?`Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':'Pas de numéro public trouvé automatiquement : essaie PagesJaunes ou Google ci-dessous, puis colle le numéro dans le champ Standard.'};
+  if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
+function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}
+
+/* ================= Import de SIRET / SIREN en lot ================= */
+function importHtml(){const st=S.imp||{};return `<div class="modal" data-act="closem"><div style="max-width:620px"><h2>Créer des fiches depuis des SIRET / SIREN</h2>
+  <p style="margin:0;color:var(--ink-2);font-size:13.5px">Colle un ou plusieurs numéros (un par ligne, ou séparés par des virgules ou des espaces). Chaque fiche est créée et remplie depuis le registre officiel, puis l'outil cherche son numéro de standard.</p>
+  <textarea class="in" id="imp-text" style="min-height:150px" placeholder="847 689 759&#10;751 972 134 00017&#10;880982301" ${st.busy?'disabled':''}>${esc(st.text||'')}</textarea>
+  <div class="ident-row"><span class="lbl">Canal</span><div class="chips">${[['tel','Téléphonique'],['terrain','Terrain']].map(([k,l])=>`<button class="chip" data-act="impsrc" data-v="${k}" aria-pressed="${(st.src||(S.mode==='terrain'?'terrain':'tel'))===k}">${l}</button>`).join('')}</div></div>
+  ${st.msg?`<div class="ai" data-s="${st.busy?'busy':''}">${st.busy?'<span class="spin"></span>':''}<span>${esc(st.msg)}</span></div>`:''}
+  ${st.log?.length?`<div class="implog">${st.log.map(l=>`<div class="${l.ok?'':'ko'}">${l.ok?'✓':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}
+  <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="impgo" ${st.busy?'disabled':''}>Créer les fiches</button></div></div></div>`}
+function parseNums(txt){const out=[];
+  for(const line of String(txt).split(/[\n,;|]+/)){const g=line.match(/\d+/g)||[];let i=0;
+    while(i<g.length){if(g[i].length===9||g[i].length===14){out.push(g[i]);i++;continue}
+      let acc='',j=i,got=false;while(j<g.length&&acc.length<14){acc+=g[j];j++;if(acc.length===14||(acc.length===9&&(j>=g.length||(acc+g[j]).length>14||g[j].length===9||g[j].length===14))){out.push(acc);got=true;break}}
+      i=got?j:i+1}}
+  return[...new Set(out)]}
+async function runImport(){const txt=$('#imp-text')?.value||'';const st=S.imp=S.imp||{};st.text=txt;
+  const nums=parseNums(txt);
+  if(!nums.length){st.msg='Aucun SIRET (14 chiffres) ni SIREN (9 chiffres) reconnu.';renderLayer();return}
+  st.busy=true;st.log=[];st.msg=`Création de ${nums.length} fiche${nums.length>1?'s':''}…`;renderLayer();const src=st.src||(S.mode==='terrain'?'terrain':'tel');const made=[];
+  for(const [i,n] of nums.entries()){
+    const dup=[...S.P.values()].find(p=>n.length===14?p.ent?.siret===n:(p.ent?.siren===n));
+    if(dup){st.log.push({ok:false,t:`${fmtSiret(n)} : déjà en fiche (${displayName(dup)})`});continue}
+    try{const res=await reSearch(n);const r=res.find(x=>x.siren===n.slice(0,9))||res[0];if(!r)throw{fr:'introuvable au registre'};
+      const p=blank(src);applyRe(p,r,n.length===14?{siret:n,force:true}:{});const e=pickEtab(r,{siret:n.length===14?n:''});if(e?.latitude)p.geo={lat:+e.latitude,lon:+e.longitude};
+      p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Créée depuis un SIRET/SIREN',texte:fmtSiret(n)});
+      S.P.set(p.id,p);touch(p);made.push(p);st.log.push({ok:true,t:`${displayName(p)} · ${fmtSiret(p.ent.siret||n)}`})}
+    catch(e){st.log.push({ok:false,t:`${fmtSiret(n)} : ${e?.fr||'introuvable au registre'}`})}
+    st.msg=`${i+1}/${nums.length} traités…`;if(S.imp===st)renderLayer()}
+  S.lastBatch=made.map(p=>p.id);renderSoft(false);
+  let ph=0;for(const [i,p] of made.entries()){st.msg=`Fiches créées. Recherche des numéros de standard ${i+1}/${made.length}…`;if(S.imp===st)renderLayer();try{const r=await findPhone(p,{silent:true});if(r.status==='ok')ph++}catch{}}
+  st.busy=false;st.text='';st.msg=`${made.length} fiche${made.length>1?'s':''} créée${made.length>1?'s':''}, ${ph} numéro${ph>1?'s':''} de standard trouvé${ph>1?'s':''}. Elles sont dans Prospects (filtre « Dernier ajout »).`;
+  if(S.imp===st)renderLayer();renderSoft(false);toast(`${made.length} fiches créées`)}
+
 /* ================= Événements ================= */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==='A'&&b.dataset.act!=='closem')return;f(b,e)}});
 document.addEventListener('input',e=>{const el=e.target;

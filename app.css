@@ -248,6 +248,9 @@ textarea.in{height:auto;min-height:80px;padding:9px 11px;resize:vertical;line-he
 .cr-ag li .cr-sub{width:100%;margin:0}
 .cr .chips .chip{cursor:default}
 .calbtns{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;width:100%}
+.phonebox{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-bottom:14px}
+.implog{max-height:180px;overflow:auto;font-size:12.5px;display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:var(--r-s);background:var(--surface-2)}
+.implog .ko{color:var(--bad)}
 /* Contacts */
 .contact{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
 .contact-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
