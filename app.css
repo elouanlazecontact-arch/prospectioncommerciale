@@ -417,3 +417,37 @@ textarea.in{height:auto;min-height:80px;padding:9px 11px;resize:vertical;line-he
 .acct{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-s);background:var(--surface-2);font-size:13px}
 a.btn{text-decoration:none}
 #app.terrain .tabbar{grid-template-columns:repeat(5,1fr)}
+
+/* Sections de champs, estimations, prestataires */
+.gsec{grid-column:1/-1;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding-top:10px;margin-top:2px;border-top:1px solid var(--line)}
+.f>label .est,.f>.lab .est{font-style:normal;font-size:10.5px;font-weight:600;color:var(--warn);background:var(--warm-soft);padding:1px 6px;border-radius:999px;margin-left:6px;letter-spacing:0;text-transform:none}
+.f:has(.est) .in{font-style:italic;color:var(--ink-2)}
+.presta-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.presta-row .in{flex:1 1 200px;min-width:0;height:34px}
+.lnk{background:none;border:0;padding:0 0 0 6px;color:var(--accent);font:inherit;font-size:11.5px;cursor:pointer;text-decoration:underline}
+
+/* Identification repliée */
+.ident-mini{flex-direction:row;align-items:center;flex-wrap:wrap;gap:10px;padding:9px 12px;margin-bottom:14px;background:var(--surface)}
+.ident-mini .sp{flex:1}
+
+/* Brief avant l'appel */
+.brief{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-bottom:14px;overflow:hidden}
+.brief-h{all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;background:linear-gradient(90deg,var(--accent-soft),transparent)}
+.brief-h b{font-family:var(--f-display);font-size:15px}
+.brief-h span{color:var(--ink-2);font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brief-h i{font-style:normal;font-size:12px;color:var(--accent)}
+.brief-h:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.brief-b{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.kpis div{background:var(--surface-2);border-radius:var(--r-s);padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:1px}
+.kpis b{font-family:var(--f-display);font-size:19px;font-variant-numeric:tabular-nums}
+.kpis span{font-size:11px;color:var(--ink-3)}
+.brief .bnote{margin:0;font-size:12px;color:var(--ink-3)}
+.brief .lbl{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.brief ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-2)}
+.sig li{display:flex;gap:8px}.sig li span{flex:none;width:18px;text-align:center}
+.ang li{padding-left:14px;position:relative}.ang li::before{content:"";position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.brief-h span{display:none}}
+.phonebox{gap:6px;padding:10px 14px}
+.phonebox .ph-links{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.phonebox .cr-sub,.phonebox .ph-msg{font-size:12.5px}

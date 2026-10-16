@@ -16,7 +16,7 @@ const FONCTIONS=['Dirigeant / gérant','DG','DAF','DSI / resp. IT','Office manag
 
 const TABS=[
  {id:'ent',l:'Entreprise',fields:[
-  {k:'ent.nom',l:'Raison sociale',t:'text',w:2},
+  {k:'ent.nom',l:'Raison sociale',t:'text',w:2,sec:'Identité'},
   {k:'ent.enseigne',l:'Enseigne / nom commercial',t:'text'},
   {k:'ent.secteur',l:'Secteur',t:'single',o:SECTEURS,w:2},
   {k:'ent.siret',l:'SIRET',t:'mono',ph:'14 chiffres'},
@@ -26,7 +26,7 @@ const TABS=[
   {k:'ent.creation',l:'Date de création',t:'text',ph:'2014'},
   {k:'ent.activite',l:'Activité',t:'text',w:2},
   {k:'ent.effectif',l:'Effectif',t:'single',o:['1–5','6–10','11–19','20–49','50–99','100–249','250 +'],w:2},
-  {k:'ent.adresse',l:'Adresse',t:'text',w:2},
+  {k:'ent.adresse',l:'Adresse',t:'text',w:2,sec:'Coordonnées'},
   {k:'ent.cp',l:'Code postal',t:'mono'},
   {k:'ent.ville',l:'Ville',t:'text'},
   {k:'ent.tel',l:'Standard',t:'tel'},
@@ -34,6 +34,15 @@ const TABS=[
   {k:'ent.site',l:'Site web',t:'text'},
   {k:'ent.sites',l:'Plusieurs sites',t:'single',o:['Non','Oui']},
   {k:'ent.groupe',l:'Décision au siège / réseau',t:'single',o:['Non','Oui'],w:2},
+  {k:'ent.categorie',l:'Catégorie',t:'single',o:['Micro-entreprise','PME','ETI','Grande entreprise'],w:2,reg:true,sec:'Registre officiel'},
+  {k:'ent.etab',l:'Cet établissement',t:'single',o:['Siège','Établissement secondaire'],reg:true},
+  {k:'ent.nbEtabs',l:'Établissements ouverts',t:'num',reg:true},
+  {k:'ent.tva',l:'TVA intracommunautaire',t:'mono',reg:true},
+  {k:'ent.installe',l:'Installé à cette adresse',t:'text',reg:true},
+  {k:'ent.ca',l:'Chiffre d’affaires',t:'text',reg:true},
+  {k:'ent.resultat',l:'Résultat net',t:'text',reg:true},
+  {k:'ent.convention',l:'Convention collective',t:'text',w:2,reg:true},
+  {k:'ent.holding',l:'Dirigeants personnes morales (holding)',t:'text',w:2,reg:true},
  ]},
  {id:'contacts',l:'Contacts',custom:true},
  {id:'besoins',l:'Besoins',fields:[
@@ -46,6 +55,8 @@ const TABS=[
   {k:'besoins.notes',l:'Détail des besoins',t:'area',w:2},
  ]},
  {id:'cyber',l:'Cyber',fields:[
+  {k:'cyber.aPresta',l:'Prestataire cybersécurité',t:'presta',tk:'cyber.prestataire',w:2},
+  {k:'cyber.prestataire',l:'Nom du prestataire',t:'text',hidden:true},
   {k:'cyber.antivirus',l:'Antivirus / EDR',t:'multi',o:['Aucun','Windows Defender','Bitdefender','ESET','Kaspersky','Sophos','SentinelOne','WithSecure','Avast / AVG','Ne sait pas'],w:2},
   {k:'cyber.firewall',l:'Pare-feu',t:'single',o:['Aucun (box opérateur)','Fortinet','Stormshield','Sophos','WatchGuard','Cisco Meraki','Ne sait pas'],w:2},
   {k:'cyber.sauvegarde',l:'Sauvegarde',t:'multi',o:['Aucune','Disque externe','NAS','Cloud','Externalisée (prestataire)','Ne sait pas'],w:2},
@@ -64,7 +75,8 @@ const TABS=[
   {k:'impr.mode',l:'Financement',t:'single',o:['Achat','Location / leasing','Coût copie seul','Ne sait pas'],w:2},
   {k:'impr.loueur',l:'Loueur',t:'single',o:['Grenke','Leasecom','BNP Paribas Leasing','Locam','Franfinance'],w:2},
   {k:'impr.finContrat',l:'Fin de contrat',t:'month'},
-  {k:'impr.prestataire',l:'Fournisseur actuel',t:'text'},
+  {k:'impr.aPresta',l:'Fournisseur / prestataire copieurs',t:'presta',tk:'impr.prestataire',w:2},
+  {k:'impr.prestataire',l:'Nom du fournisseur',t:'text',hidden:true},
   {k:'impr.volNB',l:'Volume N&B / mois',t:'num'},
   {k:'impr.volCoul',l:'Volume couleur / mois',t:'num'},
   {k:'impr.satisfaction',l:'Satisfaction',t:'single',o:SATIS,w:2},
@@ -75,7 +87,8 @@ const TABS=[
  {id:'it',l:'Informatique',fields:[
   {k:'it.postes',l:'Postes',t:'num'},
   {k:'it.utilisateurs',l:'Utilisateurs',t:'num'},
-  {k:'it.prestataire',l:'Prestataire actuel',t:'text'},
+  {k:'it.aPresta',l:'Prestataire informatique',t:'presta',tk:'it.prestataire',w:2},
+  {k:'it.prestataire',l:'Nom du prestataire',t:'text',hidden:true},
   {k:'it.contrat',l:'Type de support',t:'single',o:['Infogérance','À la demande','Interne','Personne','Ne sait pas'],w:2},
   {k:'it.satisfaction',l:'Satisfaction',t:'single',o:SATIS,w:2},
   {k:'it.age',l:'Âge du parc',t:'single',o:['< 3 ans','3–5 ans','> 5 ans','Mixte']},
@@ -87,6 +100,8 @@ const TABS=[
  ]},
  {id:'tel',l:'Télécom',fields:[
   {k:'tel.operateur',l:'Opérateur(s)',t:'multi',o:['Orange','SFR','Bouygues','Free Pro','OVH'],w:2},
+  {k:'tel.aPresta',l:'Prestataire / revendeur télécom',t:'presta',tk:'tel.prestataire',w:2},
+  {k:'tel.prestataire',l:'Nom du prestataire',t:'text',hidden:true},
   {k:'tel.lignesFixes',l:'Lignes fixes',t:'num'},
   {k:'tel.lignesMobiles',l:'Lignes mobiles',t:'num'},
   {k:'tel.standard',l:'Standard',t:'single',o:['Aucun','Standard physique (PABX)','Standard cloud (IPBX)','Teams Phone','Ne sait pas'],w:2},
@@ -159,6 +174,7 @@ const fmtTel=s=>{const d=String(s||'').replace(/\D/g,'').replace(/^33/,'0');retu
 function luhn(s){const d=String(s).replace(/\D/g,'');if(!d.length)return false;let sum=0;for(let i=0;i<d.length;i++){let n=+d[d.length-1-i];if(i%2){n*=2;if(n>9)n-=9}sum+=n}return sum%10===0}
 const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+queueMicrotask(()=>{S.briefOpen=lsGet('radar-brief','1')!=='0'});
 
 /* ================= État ================= */
 const S={P:new Map(),sel:null,view:'today',mode:'poste',modeForced:false,tab:'ent',q:'',filter:'all',store:'loading',
@@ -290,11 +306,11 @@ async function logout(){if(!SB)return;await pushQueue();if(RT){SB.removeChannel(
 function nextAction(p){return (p.actions||[]).filter(a=>!a.fait).sort((a,b)=>(a.date||'9')+(a.heure||'')<(b.date||'9')+(b.heure||'')?-1:1)[0]}
 function dueClass(a){if(!a||!a.date)return'';const t=iso(today());return a.date<t?'late':a.date===t?'is-today':''}
 function qualif(p){let tot=0,ok=0;
-  for(const t of TABS)for(const f of (t.fields||[])){if(f.t==='area'||f.k==='ent.enseigne'||f.k==='ent.creation'||f.k==='ent.naf')continue;tot++;if(filled(getP(p,f.k)))ok++}
+  for(const t of TABS)for(const f of (t.fields||[])){if(f.t==='area'||f.reg||f.hidden||f.k==='ent.enseigne'||f.k==='ent.creation'||f.k==='ent.naf')continue;if(p.est?.[f.k]){tot++;continue}tot++;if(filled(getP(p,f.k)))ok++}
   tot+=3;if(p.contacts?.length)ok++;if(p.contacts?.some(c=>c.decideur==='Oui'))ok++;if(p.contacts?.some(c=>c.tel||c.mobile||c.email))ok++;
   return Math.round(ok/tot*100)}
 function tabCount(p,t){if(t.id==='cr')return['✓',null];if(t.id==='contacts')return[p.contacts?.length||0,null];if(t.id==='suivi')return[(p.actions||[]).filter(a=>!a.fait).length,null];
-  const fs=t.fields.filter(f=>f.t!=='area');return[fs.filter(f=>filled(getP(p,f.k))).length,fs.length]}
+  const fs=t.fields.filter(f=>f.t!=='area'&&!f.reg&&!f.hidden);return[fs.filter(f=>filled(getP(p,f.k))).length,fs.length]}
 function displayName(p){return p.ent?.nom||p.ent?.enseigne||'Sans nom'}
 function excluded(p){const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.activite,p.ent?.secteur,p.ent?.naf].join(' '));
   if(/\b(banque|bnp|credit agricole|societe generale|lcl|caisse d'epargne|bred|cic|la poste)\b/.test(s))return'Banque / agence bancaire : décision IT au siège.';
@@ -422,7 +438,7 @@ function renderFiche(){
    </div>
   </div>
   ${S.mode==='terrain'?`<button class="fab" data-act="sheet"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5V17h1.5L15 7.5 13.5 6zM12.5 7l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notes & issue</button>`:''}`;
-  flashApply();setTimeout(()=>autoPhone(cur()),400);
+  flashApply();setTimeout(()=>{autoEnrich(cur());autoPhone(cur())},400);
 }
 function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal.'].filter(Boolean);
   return `${p.ent?.siret?`<span>SIRET <span class="mono">${esc(fmtSiret(p.ent.siret))}</span></span>`:p.ent?.siren?`<span>SIREN <span class="mono">${esc(fmtSiret(p.ent.siren))}</span></span>`:'<span style="color:var(--ink-3)">SIRET non renseigné</span>'}${sub.map(s=>`<span>${esc(s)}</span>`).join('')}${p.ent?.tel?`<span class="mono">${esc(fmtTel(p.ent.tel))}</span>`:''}${p.rne?.status==='ok'?'<span class="badge-dec">✓ Registre</span>':p.rne?.status==='a_verifier'?'<span class="tag">Registre à confirmer</span>':''}<span style="color:var(--ink-3)">${p.source==='terrain'?'Terrain':p.source==='linkedin'?'LinkedIn':'Téléphone'}</span>`}
@@ -431,21 +447,32 @@ function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.inn
   const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
   if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
-  return `${t.id==='ent'?identHtml(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
-function fieldHtml(f,path,v,def){
+  return `${t.id==='ent'?briefHtml(p)+identHtml(p):''}<div class="panel"><div class="grid">${gridHtml(p,t)}</div></div>`}
+function gridHtml(p,t){let sec='',shown='',out='',n=0;
+  for(const f of t.fields){if(f.sec)sec=f.sec;if(f.k==='ent.nom'||f.hidden||(f.reg&&!filled(getP(p,f.k))))continue;
+    if(sec!==shown){if(n&&sec)out+=`<div class="gsec">${esc(sec)}</div>`;shown=sec}
+    n++;out+=fieldHtml(f,f.k,getP(p,f.k),null,p)}
+  return out}
+const PRESTA_O=['Oui','Non','Ne sait pas'];
+function fieldHtml(f,path,v,def,p){
   const id='f-'+path.replace(/\./g,'-');const span=f.w===2?' span-2':'';const dk=def||f.k;
-  if(f.t==='single'||f.t==='multi')return `<div class="f${span}"><span class="lab">${esc(f.l)}</span>${chipsHtml(f,path,v,dk)}</div>`;
-  let extra='';
+  const est=p?.est?.[path]?'<em class="est" title="Estimation automatique d’après l’effectif et le secteur : à confirmer pendant l’appel">≈ estimé</em>':'';
+  if(f.t==='presta'){const nm=p?getP(p,f.tk):'';const yes=norm(v)==='oui';
+    return `<div class="f${span} presta"><span class="lab">${esc(f.l)}</span><div class="presta-row">${chipsHtml({...f,t:'single',o:PRESTA_O,noOther:true},path,v,dk)}
+      ${yes?`<input class="in" id="f-${f.tk.replace(/\./g,'-')}" data-k="${f.tk}" data-def="${f.tk}" value="${esc(nm||'')}" placeholder="Nom du prestataire" autocomplete="off">`:''}</div></div>`}
+  if(f.t==='single'||f.t==='multi')return `<div class="f${span}"><span class="lab">${esc(f.l)}${est}</span>${chipsHtml(f,path,v,dk)}</div>`;
+  let extra=est;
   if(f.k==='ent.siret'&&v){const d=String(v).replace(/\D/g,'');extra=d.length===14&&luhn(d)?'<em>✓ valide</em>':'<em class="bad">à vérifier</em>'}
   if(f.t==='area')return `<div class="f${span}"><label for="${id}">${esc(f.l)}</label><textarea class="in" id="${id}" data-k="${path}" data-def="${dk}" placeholder="${esc(f.ph||'')}">${esc(v||'')}</textarea></div>`;
   const type=f.t==='num'?'number':f.t==='month'?'month':f.t==='email'?'email':f.t==='tel'?'tel':'text';
+  if(f.k==='ent.tva'&&v)extra+=' <button class="lnk" data-act="copyv" data-v="'+esc(v)+'">copier</button>';
   const val=f.t==='tel'?fmtTel(v||''):f.t==='mono'&&/siret|siren/.test(f.k)?fmtSiret(v||''):(v??'');
   return `<div class="f${span}"><label for="${id}">${esc(f.l)}${extra}</label><input class="in${f.t==='mono'||f.t==='tel'?' mono':''}" id="${id}" type="${type}" ${f.t==='num'?'inputmode="numeric" min="0"':''} data-k="${path}" data-def="${dk}" value="${esc(val)}" placeholder="${esc(f.ph||'')}" autocomplete="off"></div>`}
 function chipsHtml(f,path,v,dk){
   const sel=f.t==='multi'?(Array.isArray(v)?v:(v?[v]:[])):(v?[v]:[]);
   const isSel=o=>sel.some(x=>norm(x)===norm(o));
   const custom=sel.filter(x=>!f.o.some(o=>norm(o)===norm(x)));
-  return `<div class="chips" data-group="${path}" data-k="${path}" data-def="${dk}" data-t="${f.t}">${f.o.map(o=>`<button class="chip" data-act="chip" data-v="${esc(o)}" aria-pressed="${isSel(o)}">${esc(o)}</button>`).join('')}${custom.map(o=>`<button class="chip custom" data-act="chip" data-v="${esc(o)}" aria-pressed="true">${esc(o)}</button>`).join('')}<button class="chip add" data-act="other">+ ${f.o.length?'Autre':'Ajouter'}</button></div>`}
+  return `<div class="chips" data-group="${path}" data-k="${path}" data-def="${dk}" data-t="${f.t}">${f.o.map(o=>`<button class="chip" data-act="chip" data-v="${esc(o)}" aria-pressed="${isSel(o)}">${esc(o)}</button>`).join('')}${custom.map(o=>`<button class="chip custom" data-act="chip" data-v="${esc(o)}" aria-pressed="true">${esc(o)}</button>`).join('')}${f.noOther?'':`<button class="chip add" data-act="other">+ ${f.o.length?'Autre':'Ajouter'}</button>`}</div>`}
 function identHtml(p){
   const qn=encodeURIComponent([p.ent?.nom,p.ent?.ville].filter(Boolean).join(' '));const has=!!(p.ent?.nom);
   const q2=encodeURIComponent(p.ent?.siren||p.ent?.siret?.slice(0,9)||[p.ent?.nom,p.ent?.ville].filter(Boolean).join(' '));
@@ -457,6 +484,8 @@ function identHtml(p){
     if(c.kind==='etab'){const x=c.x;return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(x.name)}</b><span>${esc([nafLabel(x.naf),x.forme,x.adr.rue].filter(Boolean).join(' · '))}</span><em>${Math.round(x.dist)} m</em></button>`}
     if(c.kind==='re'){const r=c.r;const e=pickEtab(r,{cp:p.ent?.cp});const a=addrOf(e||r.siege);return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(nameOf(r))}</b><span>${esc([formeFromCode(r.nature_juridique),[a.cp,a.ville].filter(Boolean).join(' '),nafLabel(nafFmt(r.activite_principale)),r.etat_administratif==='C'?'fermée':''].filter(Boolean).join(' · '))}</span><em class="mono">${esc(fmtSiret(r.siren))}</em></button>`}
     return `<button class="cand" data-act="pick" data-i="${i}"><b>${esc(c.nom||c.siren)}</b><span>${esc(c.info||'')}</span><em class="mono">${esc(fmtSiret(c.siren))}</em></button>`};
+  if(ok&&!st.busy&&!st.msg&&!cands.length&&!S.identOpen?.has(p.id))return `<div class="ident ident-mini" id="ident-box"><span class="badge-dec">✓ Registre</span><span class="cr-sub" style="margin:0">Identifiée le ${esc(fmtDate(p.rne.at).toLowerCase())} (INSEE / RNE)</span>
+     <span class="sp"></span><button class="btn btn-q btn-s" data-act="rnerefresh">Actualiser</button><button class="btn btn-q btn-s" data-act="identopen">Changer d’entreprise</button></div>`;
   return `<div class="ident" id="ident-box" style="margin-bottom:14px">
    <h3><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.6 4.2 4.4.3-3.4 2.8 1.1 4.3L8 10.7l-3.7 2.4 1.1-4.3L2 6l4.4-.3z" fill="var(--accent)"/></svg>Identification automatique ${ok?'<span class="badge-dec" style="margin-left:auto">✓ Registre</span>':''}</h3>
    <p>Tape le nom (les entreprises s'affichent pendant que tu écris), un SIRET, un SIREN, une adresse, ou colle une fiche entière : tout se remplit depuis le registre officiel.</p>
@@ -558,7 +587,9 @@ function toast(msg,undo){const t=document.createElement('div');t.className='toas
   if(undo)t.querySelector('button').onclick=()=>{undo();t.remove()};$('#toast').append(t);setTimeout(()=>t.remove(),undo?7000:3200)}
 function setField(path,v){const p=cur();if(!p)return;
   if(path==='source'){p.source={Téléphone:'tel',Terrain:'terrain',LinkedIn:'linkedin'}[v]||v;touch(p);return}
-  setP(p,path,v);touch(p);refreshMeta()}
+  if(p.est?.[path]){delete p.est[path];const l=$(`[data-k="${CSS.escape(path)}"]`)?.closest('.f')?.querySelector('.est');if(l)l.remove()}
+  setP(p,path,v);if(['ent.effectif','ent.secteur','it.utilisateurs'].includes(path)&&p.est&&Object.keys(p.est).length){if(path==='ent.effectif'&&p.rne)p.rne.tranche='';applyEstimates(p);if(S.tab==='ent'&&path!=='it.utilisateurs'){const bx=$('#tabbody .brief');if(bx)bx.outerHTML=briefHtml(p)}}
+  touch(p);refreshMeta()}
 
 const ACT={
  view:b=>{S.view=b.dataset.v;if(S.mode==='terrain'&&S.view==='list')S.sel=null;S.sheet=false;render()},
@@ -582,7 +613,7 @@ const ACT={
   const curv=getP(p,path);let nv;
   if(t==='single')nv=norm(curv)===norm(v)?'':v;
   else{let arr=Array.isArray(curv)?curv.slice():[];const i=arr.findIndex(x=>norm(x)===norm(v));if(i>=0)arr.splice(i,1);else{if(EXCL.test(v))arr=[];else arr=arr.filter(x=>!EXCL.test(x));arr.push(v)}nv=arr}
-  setField(path,nv);redrawChips(path);
+  setField(path,nv);if(FIELD[path]?.t==='presta'){$('#tabbody').innerHTML=tabBody(p);if(norm(nv)==='oui')$('#f-'+FIELD[path].tk.replace(/\./g,'-'))?.focus();return}redrawChips(path);
   if(path.startsWith('contacts.')&&path.endsWith('decideur')){$('#tabbody').innerHTML=tabBody(p)}},
  other:b=>{const g=b.closest('.chips');b.outerHTML=`<input class="chip-in" placeholder="Saisis puis Entrée" aria-label="Autre valeur">`;const i=g.querySelector('.chip-in');i.focus();
   const commit=()=>{const v=i.value.trim();if(v){const p=cur();const f=defOf(g.dataset.def);let curv=getP(p,g.dataset.k);
@@ -626,7 +657,9 @@ const ACT={
  session:()=>startSession(),snext:()=>nextInSession(),sstop:()=>{S.session=null;renderNotesOnly();toast('Session terminée')},
  sheet:()=>{S.sheet=true;renderLayer();setTimeout(()=>$('#note-in')?.focus(),60)},
  sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
- copy:()=>copy(crText(cur()),'Compte rendu copié'),
+ copy:()=>copy(crText(cur()),'Compte rendu copié'),copyv:b=>copy(b.dataset.v,'Copié'),
+ brieftg:()=>{S.briefOpen=S.briefOpen===false;lsSet('radar-brief',S.briefOpen?'1':'0');$('#tabbody').innerHTML=tabBody(cur())},
+ identopen:()=>{const p=cur();S.identOpen=S.identOpen||new Set();S.identOpen.add(p.id);$('#tabbody').innerHTML=tabBody(p);$('#ident-in')?.focus()},
  findphone:()=>{const p=cur();if(p)findPhoneUI(p)},
  phoneall:()=>phoneAll(),mergedups:()=>mergeDups(),
  dupopen:()=>{const p=cur();const d=p&&dupOf(p.ent?.siret||p.ent?.siren,p.id);if(!p||!d)return;mergeInto(d,p);removeProspect(p.id);touch(d);S.id=null;open(d.id,'ent');render();toast('Fiches fusionnées dans la fiche existante')},
@@ -689,24 +722,25 @@ function parseWhen(c,base){let d=null,h='';
   if(!d&&(m=c.match(/\b(\d{1,2})\s*(janvier|janv|jan|fevrier|fevr|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\b/))){let x=new Date(base.getFullYear(),MN[m[2]]-1,+m[1]);if(x<base)x=new Date(base.getFullYear()+1,MN[m[2]]-1,+m[1]);d=x}
   if(!d&&(m=c.match(/\b(?:le|lundi|mardi|mercredi|jeudi|vendredi)\s+(\d{1,2})\b(?!\s*(?:h|postes?|pc|pers|salari|copieurs?|lignes?|%|ans))/))){const n=+m[1];if(n>=1&&n<=31){let x=new Date(base.getFullYear(),base.getMonth(),n);if(x<base)x=new Date(base.getFullYear(),base.getMonth()+1,n);d=x}}
   if((m=c.match(/(?:^|[^\d])([01]?\d|2[0-3])\s*(?:h(?![a-z])|:)\s*([0-5]\d)?(?!\s*\/)/)))h=`${pad(+m[1])}:${m[2]||'00'}`;
-  else if(/\bmatin\b|\bmat\b/.test(c))h='09:30';else if(/\bmidi\b/.test(c))h='12:30';else if(/aprem|apres[- ]midi|\bapm\b/.test(c))h='14:00';else if(/\bsoir\b|fin de journee/.test(c))h='17:30';
+  else if(/aprem|apres[- ]midi|\bapm\b/.test(c))h='14:00';else if(/\bmatin\b|\bmat\b/.test(c))h='09:30';else if(/\bmidi\b/.test(c))h='12:30';else if(/\bsoir\b|fin de journee/.test(c))h='17:30';
   if(!d&&!h)return null;if(!d)d=base;return{date:iso(d),heure:h}}
 function parseMonth(c){let m=c.match(/(?:^|[^\d])(\d{1,2})[\/.-](\d{2,4})(?!\d)/);if(m&&+m[1]>=1&&+m[1]<=12){const y=+m[2]<100?2000+ +m[2]:+m[2];return `${y}-${pad(+m[1])}`}
   m=c.match(/\b(janvier|janv|jan|fevrier|fevr|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\b\.?\s*(\d{2,4})?\b/);if(m){let y=m[2]?(+m[2]<100?2000+ +m[2]:+m[2]):new Date().getFullYear();return `${y}-${pad(MN[m[1]])}`}
-  m=c.match(/\b(20\d{2})\b/);if(m)return `${m[1]}-01`;return''}
+  m=c.match(/\b(20\d{2})\b/);if(m)return `${m[1]}-${/debut/.test(c)?'01':'12'}`;return''}
 const TOPIC={
- impr:/(copieur|photocop|imprim|impression|mfp|multifonction|toner|canon|ricoh|konica|minolta|sharp|xerox|kyocera|toshiba|lexmark|epson|\bscan|ged\b|leasing|loueur|grenke|leasecom|locam|cout copie|coul\b|n&b|noir et blanc)/,
+ impr:/(couleur|copieur|photocop|imprim|impression|mfp|multifonction|toner|canon|ricoh|konica|minolta|sharp|xerox|kyocera|toshiba|lexmark|epson|\bscan|ged\b|leasing|loueur|grenke|leasecom|locam|cout copie|coul\b|n&b|noir et blanc)/,
  cyber:/(cyber|antivirus|anti-virus|\bav\b|pare-?feu|firewall|\bfw\b|sauvegarde|backup|\bsvg\b|\bsauv\b|mfa|2fa|double auth|phishing|hameconn|ransom|rancon|pirat|hack|virus|securite|rgpd|edr|fortinet|stormshield|bitdefender|eset|kaspersky|avast|sophos)/,
  tel:/(telephon|standard|pabx|ipbx|\btel\b|\btelep|lignes?\b|forfait|mobiles?\b|portables?\b|operateur|\bop\b|fibre|adsl|vdsl|\bbox\b|internet|\b4g|\b5g|orange|\bsfr|bouygues|bytel|\bfree\b|teams phone|3cx|engagement)/,
  it:/(informatique|\binfo\b|\bit\b|postes?\b|\bpc\b|ordis?\b|ordinateur|serveur|\bnas\b|reseau|wifi|wi-fi|switch|cablage|presta|infogerance|infogere|maintenance|office|m365|o365|microsoft|365|logiciel|cloud|onedrive|sharepoint|vpn|teletravail|parc)/};
-const INTEREST=/(besoin|interess|\bint\b|veut|voudrai|souhait|cherche|projet|a revoir|changer|renouvel|remplac|refaire|amelior|pas content|insatisf|mecontent|marre|galere|probleme|souci|lent|trop cher|cher\b|ok pour|ouvert|curieu|devis)/;
-const INSAT=/(pas content|pas satisf|insatisf|mecontent|marre|galere|nul\b|pas reactif|lent|trop cher|probleme|souci|plaint|deçu|decu)/;
+const INTEREST=/(besoin|interess|\bint\b|veut|veul|voudrai|audit|souhait|cherche|projet|a revoir|changer|renouvel|remplac|refaire|amelior|pas content|insatisf|mecontent|marre|galere|probleme|souci|lent|trop cher|cher\b|ok pour|ouvert|curieu|devis)/;
+const INSAT=/(pas content|pas satisf|insatisf|mecontent|marre|galere|nul\b|pas reactif|lent|trop cher|probleme|souci|plaint|plaign|deçu|decu|sature|rame|catastroph|horrible|pas top|bof bof)/;
 const MID=/\b(moyen|moyennement|bof|mouais|sans plus|correct)\b/;
 const SAT=/(\bsatisfait|content|ca va bien|rien a dire|tres bien|ras\b)/;
 function fonctionNear(text,i,len){const a=text.slice(i+len).split(/[,.;\n]/)[0].slice(0,45),b=text.slice(0,i).split(/[,.;\n]/).pop().slice(-30);return fonctionOf(norm(a))||fonctionOf(norm(b))}
 function fonctionOf(c){
  if(/\b(pdg|president|gerant|gerante|dirigeant|dirigeante|patron|patronne|boss|fondateur|fondatrice)\b/.test(c))return'Dirigeant / gérant';
  if(/\b(dg|directeur general|directrice generale|direction generale)\b/.test(c))return'DG';
+ if(/\b(directeur|directrice)\b(?!\s+(financier|financiere|administratif|administrative|commercial|commerciale|technique|informatique|des operations|rh|marketing))/.test(c))return'DG';
  if(/\b(daf|directeur financier|directrice financiere|raf|comptable)\b/.test(c))return'DAF';
  if(/\b(dsi|resp(?:onsable)?\.?\s*(?:it|info\w*)|informaticien|admin sys|it manager)\b/.test(c))return'DSI / resp. IT';
  if(/\b(office manager|office mgr|\bom\b)\b/.test(c))return'Office manager';
@@ -721,14 +755,57 @@ const SMALL=new Set(['sur','sous','de','du','des','la','le','les','en','et','lè
 function capName(s){return s.split(/\s+/).map((w,wi)=>w.split('-').map((x,xi)=>!x?x:(wi+xi>0&&SMALL.has(x.toLowerCase()))?x.toLowerCase():x[0].toUpperCase()+x.slice(1).toLowerCase()).join('-')).join(' ')}
 function effBucket(n){return n<=5?'1–5':n<=10?'6–10':n<=19?'11–19':n<=49?'20–49':n<=99?'50–99':n<=249?'100–249':'250 +'}
 
+
+/* ---------- Normalisation des notes : raccourcis et fautes de frappe ---------- */
+const ABBR={dem:'demain',dmn:'demain',dm1:'demain','2m1':'demain',dem1:'demain',ajd:"aujourd'hui",auj:"aujourd'hui",pr:'pour',tt:'tout',ts:'tous',tjr:'toujours',tjrs:'toujours',tjs:'toujours',qd:'quand',bcp:'beaucoup',pb:'probleme',pbm:'probleme',pblm:'probleme',pbs:'problemes',prob:'probleme',ds:'dans',avt:'avant',apr:'apres',ac:'avec',avc:'avec',c:"c'est",g:"j'ai",jsp:'ne sait pas',nsp:'ne sait pas',mtn:'maintenant',rdz:'rdv',rv:'rdv',ordi:'ordinateur',ordis:'ordinateurs',ordo:'ordinateur',ordos:'ordinateurs',pcs:'pc',imp:'imprimante',imps:'imprimantes',photocop:'photocopieur',photocopie:'photocopieur',multif:'multifonction',sauv:'sauvegarde',sauvg:'sauvegarde',svg:'sauvegarde',bkp:'sauvegarde',antivir:'antivirus',fw:'pare-feu',pf:'pare-feu',presta:'prestataire',prestas:'prestataires',prest:'prestataire',prestat:'prestataire',info:'informatique',infos:'informatique',infor:'informatique',tel:'telephone',std:'standard',stand:'standard',ope:'operateur',op:'operateur',mob:'mobiles',mobs:'mobiles',sal:'salaries',sala:'salaries',salar:'salaries',sals:'salaries',perso:'personnes',persos:'personnes',pers:'personnes',pax:'personnes',ppl:'personnes',collab:'collaborateurs',collabs:'collaborateurs',colab:'collaborateurs',colabs:'collaborateurs',empl:'employes',util:'utilisateurs',utils:'utilisateurs',users:'utilisateurs',user:'utilisateurs',ger:'gerant',dirlo:'dirigeant',dirlot:'dirigeant',dirl:'dirigeant',dir:'directeur',dirco:'directeur',boss:'dirigeant',patron:'dirigeant',patronne:'dirigeante',sec:'secretaire',secr:'secretaire',secre:'secretaire',secreta:'secretaire',assist:'assistante',assis:'assistante',compta:'comptable',resp:'responsable',int:'interesse',inter:'interesse',interes:'interesse',insat:'insatisfait',sat:'satisfait',moy:'moyen',loc:'location',locat:'location',leas:'leasing',ctr:'contrat',ctrt:'contrat',cntrt:'contrat',ctrat:'contrat',eng:'engagement',engag:'engagement',engmt:'engagement',doc:'documentation',docs:'documentation',plaq:'plaquette',relan:'relance',rapl:'rappeler',rpl:'rappeler',rapel:'rappeler',rapeler:'rappeler',rapell:'rappeler',rapeller:'rappeler',rappl:'rappeler',rappele:'rappeler',rapelle:'rappelle',rapele:'rappeler',rap:'rappeler',dispo:'disponible',abs:'absent',sem:'semaine',proch:'prochaine',aprem:'apres-midi',apm:'apres-midi',qques:'quelques',qq:'quelques',ste:'societe',soc:'societe',ent:'entreprise',cab:'cabinet',vx:'veux',veu:'veut',ya:'il y a',copi:'copieur',cop:'copieur',coul:'couleur',mfp:'multifonction',ss:'sans',w10:'windows 10',w11:'windows 11',fact:'facture',abo:'abonnement',mens:'mensuel',inf:'informatique',infogere:'infogerance',infog:'infogerance',maint:'maintenance',serv:'serveur',rx:'reseau',res:'reseau',cybr:'cyber',secu:'securite',ia:'ia',demat:'dematerialisation',renouv:'renouvellement',ech:'echeance'};
+const VOCAB=('imprimante imprimantes copieur copieurs photocopieur photocopieurs photocopieuse photocopieuses multifonction multifonctions scanner scanners toner cartouche cartouches leasing location contrat contrats engagement echeance '+
+ 'sauvegarde sauvegardes antivirus firewall messagerie securite cybersecurite phishing piratage pirate rancongiciel '+
+ 'prestataire prestataires informatique informaticien ordinateur ordinateurs portable portables postes poste serveur serveurs reseau wifi cablage maintenance infogerance logiciel logiciels microsoft office outlook onedrive sharepoint '+
+ 'telephone telephonie telephonique standard standardiste operateur operateurs forfait forfaits mobile mobiles lignes ligne fibre internet orange bouygues abonnement facture '+
+ 'salaries salarie personnes collaborateurs employes utilisateurs effectif '+
+ 'gerant gerante dirigeant dirigeante directeur directrice assistante assistant secretaire comptable associe associee responsable president presidente '+
+ 'interesse interessee interesses interessant interessante satisfait satisfaite insatisfait content contente mecontent probleme problemes souci soucis '+
+ 'rappeler rappelle rappel relance relancer devis plaquette documentation brochure presentation '+
+ 'demain semaine prochaine prochain lundi mardi mercredi jeudi vendredi samedi janvier fevrier avril juillet septembre octobre novembre decembre '+
+ 'canon ricoh konica minolta sharp xerox kyocera toshiba lexmark epson brother grenke leasecom locam defender bitdefender kaspersky sophos fortinet stormshield watchguard '+
+ 'absent absente disponible reunion conges vacances secteur societe entreprise cabinet bureau bureaux agence demenagement recrutement budget projet changer renouveler renouvellement audit couleur').split(' ');
+const VSET=new Set(VOCAB);
+const KEEP=new Set(['local','locale','locaux','locales','loyer','plainte','plaignent','plaint','direction','directe','porte','portes','poser','poste','parle','parler','passe','place','sortie','salle','sauve','pense','notre','votre','leurs','autre','autres','entre','avant','apres','encore','toute','toutes','comme','faire','sont','avec','dans','pour','mais','elles','merci','bonne','mardi','mercredi','client','clients','contre','compte','comptes','content','direct','directe','ancien','ancienne','charge','change','chaque','chose','loue','louee','achete','achetee','prete','presse','preste','reste','renouvele','signe','signer','sinon','toujours','jamais','neveu','fille','femme','matin','martin','soir','midi','mail','mails','gmail','teams','zoom','visio','chez','leur','juste','pas','tres','bien']);
+function dl(a,b,max){const m=a.length,n=b.length;if(Math.abs(m-n)>max)return max+1;let prev2=null,prev=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){const cur=[i];let best=i;for(let j=1;j<=n;j++){let v=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));if(prev2&&i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])v=Math.min(v,prev2[j-2]+1);cur.push(v);if(v<best)best=v}
+    if(best>max)return max+1;prev2=prev;prev=cur}return prev[n]}
+const FIXC=new Map();
+function fixWord(w){if(ABBR[w]!=null)return ABBR[w];if(w.length<5||VSET.has(w)||KEEP.has(w)||/\d/.test(w))return w;if(FIXC.has(w))return FIXC.get(w);
+  const max=w.length>=9?2:1;let best=w,bs=1e9;for(const v of VOCAB){if(v[0]!==w[0]||v.length<5)continue;const d=dl(w,v,max);if(d>max)continue;const sc=d*10-(w.startsWith(v)||v.startsWith(w)?3:0)+Math.abs(v.length-w.length);if(sc<bs){bs=sc;best=v}}
+  const r=best;FIXC.set(w,r);return r}
+function canon(s){const t=norm(s);return t.replace(/[a-z0-9][a-z0-9'-]*/g,(tok,i)=>{if(/(?:^|[^a-z])(?:mr|mme|m|monsieur|madame|mlle|dr|me|docteur|maitre)\.?\s+$/.test(t.slice(Math.max(0,i-12),i)))return tok;
+  return tok.split("'").map((x,k,a)=>k<a.length-1&&x.length<=2?x:x.split('-').map(fixWord).join('-')).join("'")})}
+const PN_FILL=new Set(['informatique','info','it','telecom','telecoms','telephonie','impression','copieur','copieurs','cyber','securite','actuel','actuelle','actuellement','qui','s','appelle','appel','apelle','appele','s\'appelle','c','cest','c\'est','est','nomme','societe','la','le','l','de','du','d','boite','entreprise','un','une','leur','son','sa',':','=','-','(','c\'est','se','nom','=>','->','ste']);
+const PN_NOT=new Set(['nul','nulle','top','bien','cher','chers','lent','lents','content','contents','satisfait','satisfaits','insatisfait','moyen','reactif','pas','plus','tres','trop','depuis','que','mais','et','ou','en','a','au','avec','pour','sur','toujours','jamais','bof','ok','rien','aucun','deja','depuis','mal','super','genial','cool','correct','qui','ils','elle','il','on','vient','viennent','passe','passent','fait','font','gere','s\'occupe']);
+const PN_CONT=new Set(['informatique','info','conseil','services','service','solutions','solution','systemes','systeme','bureautique','telecom','telecoms','reseaux','reseau','groupe','france','it','tech','technologies','sas','sarl','digital','numerique','office','pro','consulting','net','network','networks','&','and','et']);
+function prestaNames(text){const out=[];const toks=[...text.matchAll(/[A-Za-zÀ-ÿ0-9][\wÀ-ÿ&'’.-]*|[(:=]/g)].map(m=>({t:m[0].replace(/[.’]+$/,'').replace('’',"'"),i:m.index}));
+  for(let k=0;k<toks.length;k++){const w=fixWord(norm(toks[k].t));let trig=/^(prestataire|prestataires|fournisseur|informaticien)$/.test(w)?w:'';
+    if(!trig&&/^(infogere|infogeres|gere|geres|maintenu|maintenus)$/.test(w)&&norm(toks[k+1]?.t)==='par'){trig='par';k++}
+    if(!trig)continue;const before=norm(text.slice(Math.max(0,toks[k].i-40),toks[k].i));if(/(pas|aucun|sans)\s+(de\s+|d')?\s*$/.test(before))continue;
+    let j=k+1;const ctx=[];while(j<toks.length&&(PN_FILL.has(norm(toks[j].t))||/^(s'?)?ap+e?l+e?s?$|^nomm?ee?s?$/.test(norm(toks[j].t)))&&j-k<8){ctx.push(norm(toks[j].t));j++}
+    const seg=text.slice(toks[k].i,toks[j]?.i??text.length);if(/[,;.\n)]/.test(seg.slice(toks[k].t.length)))continue;
+    const name=[];while(j<toks.length&&name.length<4){const t=toks[j].t,nt=norm(t);const gap=name.length?text.slice(toks[j-1].i+toks[j-1].t.length,toks[j].i):'';if(name.length&&/[,;.\n()]/.test(gap))break;
+      if(!name.length){if(PN_NOT.has(nt)||(VSET.has(nt)&&!/^[A-Z]/.test(t))||nt.length<2||/^[(:=]$/.test(t))break;name.push(t);j++;continue}
+      if(/^[A-Z0-9&]/.test(t)||PN_CONT.has(nt)){name.push(t);j++}else break}
+    while(name.length&&['et','and','&'].includes(norm(name.at(-1))))name.pop();
+    if(!name.length)continue;const ctxs=norm(text.slice(Math.max(0,toks[k].i-50),toks[k].i))+' '+ctx.join(' ');
+    const dom=/copieur|impression|imprim|photocop|toner/.test(ctx.join(' '))?'impr':/telecom|telephon|standard/.test(ctx.join(' '))?'tel':/cyber|securite/.test(ctx.join(' '))?'cyber':/informatique|info|\bit\b/.test(ctx.join(' '))?'it':
+      trig==='fournisseur'?(/telephon|telecom|operateur/.test(ctxs)?'tel':'impr'):/copieur|impression|imprim|photocop/.test(ctxs)&&!/informati|\bpc\b|ordinateur/.test(ctxs)?'impr':/telephon|telecom|standard/.test(ctxs)?'tel':/cyber|securite|antivirus/.test(ctxs)?'cyber':'it';
+    const nm=name.join(' ').replace(/^\w/,c=>c.toUpperCase());if(!out.some(x=>x.dom===dom))out.push({dom,name:nm})}
+  return out}
 function parseLocal(text,p){
   const out={set:{},contacts:[],actions:[],statut:'',temperature:''};const S_=out.set;const add=(k,v)=>{if(FIELD[k].t==='multi'){S_[k]=[...(S_[k]||[]),...[].concat(v)]}else S_[k]=v};
-  const n=norm(text);const base=today();
+  const n=canon(text);const base=today();
   // Identifiants
   const siret=text.match(/(?<!\d)(\d{3}[\s.]?\d{3}[\s.]?\d{3}[\s.]?\d{5})(?!\d)/);if(siret){const d=siret[1].replace(/\D/g,'');S_['ent.siret']=d;S_['ent.siren']=d.slice(0,9)}
   else{const sr=text.match(/siren\s*:?\s*(\d{3}\s?\d{3}\s?\d{3})(?!\d)/i)||text.match(/(?<![\d+])(\d{3}\s\d{3}\s\d{3})(?![\d\s]*\d{2}\b)/);if(sr)S_['ent.siren']=sr[1].replace(/\D/g,'')}
   const naf=text.match(/\b(\d{2}\.?\d{2}[A-Z])\b/);if(naf)S_['ent.naf']=naf[1].replace(/^(\d{2})(\d{2})/,'$1.$2');
-  const emails=[...text.matchAll(/[\w.+-]+@[\w-]+\.[\w.-]+/g)].map(m=>m[0]);
+  const emails=[...text.matchAll(/[\w.+-]+@[\w-]+\.[\w.-]+/g)].map(m=>m[0].replace(/[.\-]+$/,''));
   const phones=[...text.matchAll(/(?:\+33\s?|0)[1-9](?:[\s.-]?\d{2}){4}/g)].map(m=>({raw:m[0],i:m.index,d:m[0].replace(/\D/g,'').replace(/^33/,'0')}));
   const adr=text.match(/\b(\d{1,4}(?:\s?(?:bis|ter))?,?\s+(?:rue|avenue|av\.?|bd|boulevard|place|pl\.|all[ée]e|chemin|quai|impasse|route|cours|square|villa|passage)\s+[^,\n\d]{2,60})/i);if(adr)S_['ent.adresse']=adr[1].trim();
   const cpv=text.match(/\b((?:0[1-9]|[1-8]\d|9[0-5]|2[AB])\d{3})\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ'’ -]{1,38}?)(?=$|[\n,;.]|\s{2}|\s+(?:France|tel|tél|Tél|\d))/m);if(cpv){S_['ent.cp']=cpv[1];S_['ent.ville']=capName(cpv[2].trim())}
@@ -736,21 +813,25 @@ function parseLocal(text,p){
   const forme=text.match(/\b(SASU|SAS|SARL|EURL|SELARL|SCP|SCI|SA)\b/);if(forme)S_['ent.forme']=forme[1];
   const web=text.match(/\b((?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:fr|com|net|eu|org|paris)(?:\/\S*)?)\b/i);if(web&&!web[1].includes('@')&&!emails.some(e=>e.includes(web[1])))S_['ent.site']=web[1];
   // Secteur
-  const sect=[[/notair|etude notariale|office notarial/,'Notaire / juridique'],[/avocat|cabinet d'avocat/,'Avocat'],[/expert[- ]?compta|cabinet compta|\bec\b/,'Expert-comptable'],[/medic|medecin|kine|dentist|infirmi|cabinet medical|osteo|orthophon|radiolog|labo/,'Médical / paramédical'],[/recrutement|interim|cabinet rh|conseil|consulting/,'Conseil / RH / recrutement'],[/architect/,'Architecte'],[/agence immo|immobili/,'Agence immobilière'],[/assuran|agent general|courtier/,'Assurance'],[/\bbtp\b|plomb|electricien|maconn|menuis|batiment|renovation/,'BTP / artisan'],[/association|asso\b/,'Association'],[/restaurant|hotel|brasserie/,'Restauration / hôtellerie'],[/transport|logistiq/,'Transport / logistique']];
-  for(const [re,l] of sect)if(re.test(n)){S_['ent.secteur']=l;break}
+  const sect=[[/notair|etude notariale|office notarial/,'Notaire / juridique'],[/avocat|cabinet d'avocat/,'Avocat'],[/expert[- ]?compta|cabinet compta|\bec\b/,'Expert-comptable'],[/medic|medecin|\bkine|dentist|infirmi|cabinet medical|osteo|orthophon|radiolog|\blabo\b|laboratoire/,'Médical / paramédical'],[/recrutement|interim|cabinet rh|conseil|consulting/,'Conseil / RH / recrutement'],[/architect/,'Architecte'],[/agence immo|immobili/,'Agence immobilière'],[/assuran|agent general|courtier/,'Assurance'],[/\bbtp\b|plomb|electricien|maconn|menuis|batiment|renovation/,'BTP / artisan'],[/association|asso\b/,'Association'],[/restaurant|hotel|brasserie/,'Restauration / hôtellerie'],[/transport|logistiq/,'Transport / logistique']];
+  const PN=prestaNames(text);const nS=PN.reduce((a,x)=>a.split(norm(x.name)).join(' '),n);
+  if(!p.ent?.secteur)for(const [re,l] of sect)if(re.test(nS)){S_['ent.secteur']=l;break}
+  for(const x of PN){S_[x.dom+'.aPresta']='Oui';S_[x.dom+'.prestataire']=x.name}
+  for(const [dom,re] of [['it',/(pas|aucun|sans|0)\s+(de\s+|d')?prestataires?(\s+(informatique|it))?\b|personne (ne )?(s'occupe|gere) (de )?l'informatique|c'est (son|sa|leur|le) (neveu|fils|fille|cousin|mari|femme)/],['impr',/(pas|aucun|sans)\s+(de\s+)?(fournisseur|prestataire)\s+(copieur|impression)/],['tel',/(pas|aucun|sans)\s+(de\s+)?prestataire\s+(telecom|telephonie|telephone)/],['cyber',/(pas|aucun|sans)\s+(de\s+)?prestataire\s+(cyber|securite)/]])if(re.test(n)&&!S_[dom+'.aPresta'])S_[dom+'.aPresta']='Non';
+  if(!S_['it.aPresta']&&/\b(ont|a|avec|travaille avec|deja)\s+(un|une|leur|des|deja un)\s+prestataires?\b(?!\s+(copieur|impression|telecom|telephon|cyber))/.test(n)&&!/(pas|aucun|sans)\s+(de\s+)?prestataire/.test(n))S_['it.aPresta']='Oui';
   // Effectif / postes
   let m;
-  if((m=n.match(/(\d+)\s*(?:salaries?|sal\b|personnes|pers\b|collab\w*|employes?|users?|utilisateurs?|ppl|gens)/))){const k=+m[1];S_['it.utilisateurs']=k;S_['ent.effectif']=effBucket(k)}
-  if((m=n.match(/(\d+)\s*(?:postes?|pc\b|ordis?\b|ordinateurs?|laptops?|portables? (?:pc|info))/)))S_['it.postes']=+m[1];
-  if((m=n.match(/(\d+)\s*(?:copieurs?|photocop\w*|mfp|multifonctions?)/)))S_['impr.nb']=+m[1];else if(/\b(un|1)\s+(copieur|photocop)/.test(n))S_['impr.nb']=1;
-  if((m=n.match(/(\d+)\s*imprimantes?/)))S_['impr.nbImprimantes']=+m[1];
+  if((m=n.match(/(\d+)\s*(?:salaries?|sal\b|personnes|pers\b|collab\w*|employes?|users?|utilisateurs?|ppl|gens|agents|negociateurs|avocats|notaires|medecins|associes|clercs|comptables|consultants)\b/))||(m=n.match(/\b(?:ils|elles|ils?|on)\s+(?:sont|est|etaient)\s+(?:a\s+|une?\s+equipe\s+de\s+|environ\s+|~\s*)?(\d+)\b(?!\s*(?:h\b|ans|%|€|postes?|pc|ordinateurs?|copieurs?|imprimantes?|lignes?))/))||(m=n.match(/\b(?:equipe|effectif|taille)\s*(?:de|:|=)?\s*(\d+)\b/))){const k=+m[1];if(k>0&&k<5000){S_['it.utilisateurs']=k;S_['ent.effectif']=effBucket(k)}}
+  if((m=n.match(/(\d+)\s*(?:postes?\b(?!\s*tel)|pc\b|ordis?\b|ordinateurs?|laptops?|portables? (?:pc|informatique))/)))S_['it.postes']=+m[1];
+  if((m=n.match(/(\d+)\s*(?:copieurs?|photocop\w*|mfp|multifonctions?)/)))S_['impr.nb']=+m[1];else if((/\b(un|1|le|leur|une|la)\s+(copieur|photocop|multifonction)/.test(n)||/\bcopieur\s+(canon|ricoh|konica|minolta|sharp|xerox|kyocera|toshiba|lexmark|epson|hp|brother)/.test(n))&&!/copieurs|photocopieurs/.test(n))S_['impr.nb']=1;
+  if((m=n.match(/(\d+)\s*imprimantes?/))||(m=n.match(/imprimantes?[^.,;\d]{0,25}?\(?\s*(?:env\.?|environ|~|une?)?\s*(\d+)\b(?!\s*(?:h|ans|%|€|pages?))/)))S_['impr.nbImprimantes']=+m[1];
   if((m=n.match(/(\d[\d\s]{1,6})\s*(?:pages?|copies|pp)\s*(?:\/|par)?\s*(?:mois|m\b)?\s*(?:en\s*)?(coul\w*|n&b|nb|noir)?/))){const v=+m[1].replace(/\s/g,'');if(m[2]&&/coul/.test(m[2]))S_['impr.volCoul']=v;else S_['impr.volNB']=v}
   // Par proposition
   const clauses=text.split(/\n|;|,(?!\d)|\.(?!\d)|\s[-–—]\s|\s\/\s|\s\+\s/).map(s=>s.trim()).filter(Boolean);
   const besoins=new Set(),decl=new Set();let lastTopic='';
-  for(const raw of clauses){const c=norm(raw);
+  for(const raw of clauses){const c=canon(raw);
     const topics=Object.keys(TOPIC).filter(t=>TOPIC[t].test(c));const topic=topics[0]||'';
-    const interest=INTEREST.test(c),insat=INSAT.test(c),sat=!insat&&SAT.test(c);
+    const interest=INTEREST.test(c)&&!/pas de (projet|besoin)|aucun (projet|besoin)|pas interess/.test(c),insat=INSAT.test(c),sat=!insat&&SAT.test(c);
     // Impression
     if(topics.includes('impr')){
       const brands=[['canon','Canon'],['ricoh','Ricoh'],['konica|minolta','Konica Minolta'],['sharp','Sharp'],['xerox','Xerox'],['kyocera','Kyocera'],['toshiba','Toshiba'],['\\bhp\\b','HP'],['brother','Brother'],['epson','Epson'],['lexmark','Lexmark']].filter(([r])=>new RegExp(r).test(c)).map(x=>x[1]);
@@ -763,7 +844,7 @@ function parseLocal(text,p){
       if(/signature electro|docusign|yousign/.test(c))add('impr.ged','Signature électronique');
     }
     // Fin de contrat / engagement
-    if(/fin\s*(?:de\s*|du\s*)?(?:contrat|leasing|loc\w*|engagement|ctr|ctrt|bail)|\bfin\s+(?:en\s+)?(?=\d|janv|fev|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec)|termine en|se termine|echeance|expire/.test(c)){const mo=parseMonth(c.replace(/.*?(fin|termine|echeance|expire)/,''));if(mo){if(topics.includes('tel')&&!topics.includes('impr'))S_['tel.finEngagement']=mo;else if(topics.includes('impr')||lastTopic==='impr'||!topics.length)S_['impr.finContrat']=mo;else if(topics.includes('tel'))S_['tel.finEngagement']=mo;decl.add('Fin de contrat')}}
+    if(/fin\s*(?:de\s*|du\s*|d'\s*)?(?:contrat|leasing|loc\w*|engagement|ctr|ctrt|bail)|\bfin\s+(?:en\s+|le\s+)?(?=\d|janv|fev|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec|debut)|termine en|se termine|echeance|expire|jusqu'?\s*(?:en|a|au|fin)?\s*(?=\d|janv|fev|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec)/.test(c)){const mo=parseMonth(c.replace(/.*?(fin|termine|echeance|expire|jusqu'?)/,''));if(mo){if(topics.includes('tel')&&!topics.includes('impr'))S_['tel.finEngagement']=mo;else if(topics.includes('impr')||lastTopic==='impr'||!topics.length)S_['impr.finContrat']=mo;else if(topics.includes('tel'))S_['tel.finEngagement']=mo;decl.add('Fin de contrat')}}
     // Cyber
     if(topics.includes('cyber')){
       if(/(pas|aucun|sans|0)\s*(d'?|de\s)?(antivirus|anti-virus|av\b)/.test(c))add('cyber.antivirus','Aucun');
@@ -786,10 +867,8 @@ function parseLocal(text,p){
       if(/\bnas\b/.test(c))add('it.serveur','NAS');
       if(/wifi|wi-fi/.test(c)&&/lent|rame|coupe|marche mal|probleme|nul/.test(c))add('it.reseau','Wi-Fi lent');
       if(/cablage|cable/.test(c))add('it.reseau','Câblage à revoir');if(/vpn|teletravail/.test(c))add('it.reseau','VPN télétravail');
-      if(/infogerance|infogere|contrat de maintenance/.test(c))S_['it.contrat']='Infogérance';else if(/a la demande|au besoin|quand ca plante|ponctuel/.test(c))S_['it.contrat']='À la demande';else if(/(personne|aucun presta|pas de presta|se debrouill|le fils|neveu|lui[- ]meme)/.test(c))S_['it.contrat']='Personne';else if(/en interne|informaticien interne/.test(c))S_['it.contrat']='Interne';
-      const pr=raw.match(/(?:presta(?:taire)?|infog[ée]r[ée]?\s*par|g[ée]r[ée]\s*par|maintenu par|avec la soci[ée]t[ée]|chez)\s*:?\s*([A-Z0-9][\w&'’.-]*(?:\s+[A-Z0-9][\w&'’.-]*){0,3})/);if(pr&&!/^(Le|La|Les|Un|Une)$/.test(pr[1]))S_['it.prestataire']=pr[1];
+      if(/infogerance|infogere|contrat de maintenance/.test(c))S_['it.contrat']='Infogérance';else if(/a la demande|au besoin|quand ca plante|ponctuel/.test(c))S_['it.contrat']='À la demande';else if(/(personne|aucun presta|pas de presta|se debrouill|le fils|neveu|lui[- ]meme)/.test(c))S_['it.contrat']='Personne';else if(/en interne|informaticien interne|(comptable|secretaire|assistante|salarie|associe|dirigeant|gerant)\w* (qui )?(gere|s'occupe|fait)/.test(c))S_['it.contrat']='Interne';
       if(/vieux|ancien|obsolete|windows 7|win 7|plus de 5 ans|>\s*5 ans/.test(c))S_['it.age']='> 5 ans';else if(/recent|neuf|renouvele/.test(c))S_['it.age']='< 3 ans';
-      const lg=raw.match(/\b(Genapi|iNot|Fiducial|Doctolib|Weda|Sage|Cegid|EBP|Pennylane|Secib|Diapason|Septeo|Apimo|Hektor|Netty|AC3|Archicad|Revit|AutoCAD|Silae)\b/gi);if(lg)S_['it.logiciels']=[...new Set(lg)].join(', ');
     }
     // Télécom
     if(topics.includes('tel')){
@@ -798,13 +877,15 @@ function parseLocal(text,p){
       if((m=c.match(/(\d+)\s*(?:lignes?|postes? tel\w*|numeros)(?!\s*(?:mobiles?|portables?))/)))S_['tel.lignesFixes']=+m[1];
       if(/teams phone|teams tel/.test(c))S_['tel.standard']='Teams Phone';else if(/ipbx|3cx|standard (cloud|virtuel|en ligne)|voip|toip/.test(c))S_['tel.standard']='Standard cloud (IPBX)';else if(/pabx|autocom|standard (physique|vieux|ancien)/.test(c))S_['tel.standard']='Standard physique (PABX)';else if(/(pas|aucun|sans)\s*(de\s)?standard/.test(c))S_['tel.standard']='Aucun';
       if(/fibre/.test(c))add('tel.internet','Fibre');if(/adsl|vdsl|cuivre/.test(c))add('tel.internet','ADSL / VDSL');if(/\b(4g|5g)\b/.test(c)&&/box|routeur|internet/.test(c))add('tel.internet','Box 4G / 5G');if(/lien dedie|fibre dediee|\bfto\b/.test(c))add('tel.internet','Lien dédié');
-      if((m=raw.match(/(\d[\d\s]{1,5})\s*(?:€|eur|euros)/i)))S_['tel.facture']=m[1].replace(/\s/g,'')+' €';
     }
+    if((topics.includes('tel')||/facture|abonnement|par mois|\/mois|mensuel/.test(c))&&!topics.includes('impr')&&(m=raw.match(/(\d[\d\s]{1,5})\s*(?:€|eur\b|euros)/i))&&(topics.includes('tel')||lastTopic==='tel'||/telephon|forfait|ligne|internet/.test(n)))S_['tel.facture']=m[1].replace(/\s/g,'')+' €/mois';
     // Satisfaction par domaine
     const dom=topics.find(t=>['impr','it','tel'].includes(t))||(insat||sat||MID.test(c)?lastTopic:'');
-    const mid=!insat&&MID.test(c);if(dom&&(insat||sat||mid)&&['impr','it','tel'].includes(dom)){S_[dom+'.satisfaction']=insat?'Insatisfait':mid?'Moyen':'Satisfait';if(insat)decl.add('Insatisfaction prestataire')}
+    const mid=!insat&&MID.test(c);const aboutNet=dom==='it'&&/wifi|reseau|internet|connexion|cablage/.test(c)&&!/prestataire|informaticien|maintenance|support|infogerance/.test(c);
+    if(aboutNet&&insat&&/wifi|reseau/.test(c))add('it.reseau','Wi-Fi lent');
+    if(dom&&!aboutNet&&(insat||sat||mid)&&['impr','it','tel'].includes(dom)){S_[dom+'.satisfaction']=insat?'Insatisfait':mid?'Moyen':'Satisfait';if(insat)decl.add('Insatisfaction prestataire')}
     // Besoins
-    if(interest||insat){for(const t of topics){
+    if(interest||insat){const tps=topics.length?topics:/audit/.test(c)?[TOPIC.cyber.test(n)?'cyber':'it']:lastTopic?[lastTopic]:[];for(const t of tps){
       if(t==='impr')besoins.add(/ged|demat|archiv/.test(c)?'Gestion documentaire':'Impression / copieurs');
       if(t==='cyber')besoins.add(/sauv|backup|svg/.test(c)?'Sauvegarde / PRA':'Cybersécurité');
       if(t==='tel')besoins.add(/fibre|internet|adsl|box/.test(c)?'Internet / fibre':/mobile|forfait|portable/.test(c)?'Mobiles / opérateur':'Téléphonie / standard');
@@ -818,43 +899,45 @@ function parseLocal(text,p){
     if((m=raw.match(/budget\s*:?\s*([^\s,;].{0,30})/i)))S_['besoins.budget']=m[1].trim();
     // Statut & température
     if(/\brdv\b|rendez[- ]vous|\brdz\b|rdv pris|\brv\b/.test(c)&&!/pas de (rdv|rendez)|refuse|annul/.test(c)){out.statut='rdv';out.temperature=out.temperature||'chaud';const w=parseWhen(c,base);if(w)out.actions.push({type:'RDV',...w,note:raw})}
+    else if(/barrage|filtr|bloque|refus\w* de (me )?(passer|transmettre)|veut pas (me )?(passer|transmettre)|ne passe pas/.test(c)){out.statut=out.statut||'rappel'}
     else if(/pas interess|pas int\b|\bpi\b|aucun interet|ne veut pas|pas besoin|\bko\b|refus|raccroch|non merci|pas le temps/.test(c)){out.statut=out.statut||'ko';out.temperature='froid'}
     else if(/\bnrp\b|repondeur|\brep\b|messagerie vocale|\bmsg\b|pas de rep|ne repond pas|injoignable|sonne dans le vide/.test(c)){out.statut=out.statut||'contacte';if(!out.actions.length)out.actions.push({type:'Rappel',date:iso(bizDays(base,1)),heure:'',note:'NRP'})}
     else if(/barrage|filtre|secretaire bloque|veut pas passer/.test(c)){out.statut=out.statut||'rappel'}
     if(/rappel|rapl|rapel|rappeler|recontact|relanc|rapeller|re-?appeler|rappelle|callback|\bcb\b/.test(c)&&!/\b(il|elle) (me |nous )?rappel/.test(c)){const w=parseWhen(c,base);out.statut=out.statut==='rdv'?'rdv':(out.statut||'rappel');out.actions.push({type:/relanc/.test(c)?'Relance':'Rappel',date:w?.date||iso(bizDays(base,2)),heure:w?.heure||'',note:raw})}
     else if(/\b(il|elle) (me |nous )?rappel/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Relance',date:w?.date||iso(bizDays(base,3)),heure:w?.heure||'',note:'Attend son rappel : '+raw});out.statut=out.statut||'rappel'}
     if(/(envoyer|envoie|env|transmettre|faire suivre)\s*(un\s*|une\s*|la\s*|le\s*|par\s*)?(mail|doc|plaquette|brochure|presentation|infos?)|\bmail\b.*(plaquette|doc)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Mail',date:w?.date||iso(base),heure:'',note:raw})}
-    if(/repasser|revenir|repasse|passer (le|la|un|lundi|mardi|mercredi|jeudi|vendredi|demain|la semaine)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Visite',date:w?.date||iso(bizDays(base,5)),heure:w?.heure||'',note:raw})}
-    if(/devis/.test(c)&&/(faire|envoyer|preparer|attend|veut|demande)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Devis',date:w?.date||iso(bizDays(base,3)),heure:'',note:raw})}
+    if(/repasser|revenir|repasse|passer (sur place|au cabinet|a l'agence|a l'etude|les voir|le voir|la voir|un|lundi|mardi|mercredi|jeudi|vendredi|demain|la semaine)/.test(c)&&!/passer (le|la|l') ?(dg|dirigeant|gerant|directeur|directrice|patron|responsable|ligne|appel)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Visite',date:w?.date||iso(bizDays(base,5)),heure:w?.heure||'',note:raw})}
+    if(/devis/.test(c)&&/(faire|envoyer|envoi|env\b|preparer|attend|veut|veul|demande|chiffrer)/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Devis',date:w?.date||iso(bizDays(base,3)),heure:'',note:raw})}
     if(/\bchaud\b|tres interess|motiv|emballe|partant|chaud bouillant/.test(c))out.temperature='chaud';else if(/tiede|a voir|peut[- ]etre|mitige|reflechi/.test(c)&&!out.temperature)out.temperature='tiede';else if(/\bfroid\b|ferme\b|sec\b/.test(c)&&!out.temperature)out.temperature='froid';
     else if(/interess|ouvert|curieu|ok pour/.test(c)&&!/pas interess/.test(c)&&!out.temperature)out.temperature='tiede';
     if(/concurren|deja (avec|chez)|travaille avec|en place chez/.test(c)){const cm=raw.match(/(?:concurrent|avec|chez)\s*:?\s*([A-Z][\w&'’.-]*(?:\s+[A-Z][\w&'’.-]*){0,2})/);if(cm)add('besoins.concurrents',cm[1])}
     if(topic)lastTopic=topic;
   }
+  const lg=text.match(/\b(Genapi|iNot|Fiducial|Fichorga|Doctolib|Weda|Crossway|Sage|Cegid|EBP|ACD|Inqom|Pennylane|Secib|Septeo|Kleos|Diapason|Apimo|Hektor|Netty|AC3|Vilogi|Archicad|Revit|AutoCAD|SketchUp|Silae|Batappli|Obat|Julie|Logos)\b/gi);if(lg)S_['it.logiciels']=[...new Set(lg)].join(', ');
   if(besoins.size)add('besoins.sel',[...besoins]);if(decl.size)add('besoins.declencheur',[...decl]);
   // Contacts
   const cRe=/\b(M\.|Mr\.?|Mme|Madame|Monsieur|Mlle|Me|Ma[iî]tre|Dr\.?|Docteur)\s+([A-ZÀ-Ÿ][\wÀ-ÿ'’-]+(?:\s+[A-ZÀ-Ÿ][\wÀ-ÿ'’-]+)?)/g;
   const lowRe=/\b(?:mr|mme|m\.|monsieur|madame)\s+([a-zà-ÿ][a-zà-ÿ'’-]{2,})/gi;
   const found=[];
-  for(const mm of text.matchAll(cRe))found.push({civ:/^(Mme|Madame|Mlle)/i.test(mm[1])?'Mme':'M.',full:mm[2],i:mm.index});
-  if(!found.length)for(const mm of text.matchAll(lowRe)){const w=norm(mm[1]);if(['le','la','de','du','est','absent','absente','pas'].includes(w))continue;found.push({civ:/^(mme|madame)/i.test(mm[0])?'Mme':'M.',full:capName(mm[1]),i:mm.index})}
+  for(const mm of text.matchAll(cRe))found.push({civ:/^(Mme|Madame|Mlle)/i.test(mm[1])?'Mme':/^(Me|Ma[iî]tre|Dr|Docteur)/i.test(mm[1])?'':'M.',title:/^(Me|Ma[iî]tre|Dr|Docteur)/i.test(mm[1]),len:mm[0].length,full:mm[2],i:mm.index});
+  if(!found.length)for(const mm of text.matchAll(lowRe)){const w=norm(mm[1]);if(['le','la','de','du','est','absent','absente','pas'].includes(w))continue;found.push({civ:/^(mme|madame)/i.test(mm[0])?'Mme':'M.',full:capName(mm[1]),i:mm.index,len:mm[0].length})}
   const STOP=new Set(['le','la','les','l','un','une','accueil','secretaire','standard','standardiste','assistante','assistant','personne','quelqu','gerant','gerante','dg','daf','dsi','pdg','directeur','directrice','rh','drh','lui','elle','eux','son','sa','ses','mon','ma','patron','patronne','boss','office','comptable','associe','associee','mr','mme','monsieur','madame','pas','plus','bon','ok','fils','fille','femme','mari','responsable','resp','dirigeant','dirigeante','notaire','avocat','medecin','docteur','tel','mail','client','eux','nous','tout','rien','des','du','de']);
   const pRe=/\b(?:parl[ée]+\s+(?:a|à|avec)|eu|vu|rencontr[ée]+|interlocut\w*\s*:?|contact\s*:|demander|dmd|s'appelle)\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'’-]+)(\s+[A-ZÀ-Ÿ][\wÀ-ÿ'’-]+)?/gi;
-  for(const mm of text.matchAll(pRe)){const w=norm(mm[1]);if(STOP.has(w)||w.length<3||/\d/.test(w))continue;const full=capName(mm[1])+(mm[2]&&mm[2].trim()[0]===mm[2].trim()[0].toUpperCase()?' '+mm[2].trim():'');if(!found.some(f=>norm(f.full).includes(w)))found.push({civ:'',full,i:mm.index})}
+  for(const mm of text.matchAll(pRe)){const w=norm(mm[1]);if(STOP.has(w)||w.length<3||/\d/.test(w))continue;const full=capName(mm[1])+(mm[2]&&mm[2].trim()[0]===mm[2].trim()[0].toUpperCase()?' '+mm[2].trim():'');if(!found.some(f=>norm(f.full).includes(w)))found.push({civ:'',full,i:mm.index,len:mm[0].length})}
   const fRe=/\b(dg|pdg|daf|dsi|drh|g[ée]rante?|dirigeante?|directeur|directrice|office manager|assistante?|secr[ée]taire|associ[ée]e?|comptable)\s*(?:=|:|-|est|c'est)?\s*(?:(M\.|Mr|Mme|Monsieur|Madame)\s+)?([A-ZÀ-Ÿ][a-zà-ÿ'’-]+(?:\s+[A-ZÀ-Ÿ][A-Za-zà-ÿ'’-]+)?)/gi;
-  for(const mm of text.matchAll(fRe)){const name=mm[3];if(name[0]!==name[0].toUpperCase())continue;if(found.some(f=>f.full.includes(name.split(' ')[0])))continue;found.push({civ:mm[2]?(/^(Mme|Madame)/i.test(mm[2])?'Mme':'M.'):'',full:name,i:mm.index})}
+  for(const mm of text.matchAll(fRe)){const name=mm[3].replace(/^(Me|Ma[iî]tre|Dr)\s+/,'');if(name[0]!==name[0].toUpperCase())continue;const fn=fonctionOf(norm(mm[1]));const ex=found.find(f=>f.full.includes(name.split(' ')[0]));if(ex){if(fn&&!ex.fn)ex.fn=fn;continue}found.push({civ:mm[2]?(/^(Mme|Madame)/i.test(mm[2])?'Mme':'M.'):/(gerante|dirigeante|directrice|assistante|associee)$/i.test(norm(mm[1]))?'Mme':'',full:name,i:mm.index,fn})}
   for(const f of found){
     const words=f.full.split(/\s+/);if(['Asnières','Paris','Data','Links','Canon','Ricoh','Orange','Jeudi','Lundi','Mardi','Mercredi','Vendredi'].includes(words[0]))continue;
     const ctx=norm(text.slice(0,f.i).split(/[,.;\n]/).pop()+text.slice(f.i).split(/[,.;\n]/)[0]);
-    const fn=fonctionNear(text,f.i,f.full.length+6);const c={civ:f.civ};
+    const fn=f.fn||fonctionNear(text,f.i,f.len||f.full.length+6);const c={civ:f.civ};
     if(words.length===1){if(f.civ)c.nom=words[0];else c.prenom=words[0]}else{c.prenom=words[0];c.nom=words.slice(1).join(' ')}
     if(f.civ&&words.length===2&&/^(M\.|Mme)$/.test(f.civ)){c.prenom=words[0];c.nom=words[1]}
-    if(f.civ&&words.length===1){c.nom=words[0];delete c.prenom}
+    if((f.civ||f.title)&&words.length===1){c.nom=words[0];delete c.prenom}
     if(fn)c.fonction=fn;if(DECIDE.has(fn)||/decid|decisionnaire|c'est (lui|elle) qui (signe|decide)/.test(ctx))c.decideur='Oui';else if(fn==='Assistante / accueil')c.decideur='Non';
-    const ph=phones.find(p=>Math.abs(p.i-f.i)<70);if(ph){if(/^0[67]/.test(ph.d))c.mobile=ph.d;else c.tel=ph.d;ph.used=true}
+    const ph=phones.find(p=>!p.used&&((p.i>=f.i&&p.i-f.i<70)||(p.i<f.i&&f.i-p.i<25&&!/(tel|standard|accueil|fixe)\W*$/i.test(text.slice(Math.max(0,p.i-12),p.i)))));if(ph){if(/^0[67]/.test(ph.d))c.mobile=ph.d;else c.tel=ph.d;ph.used=true}
     const em=emails.find(e=>norm(e.split('@')[0]).includes(norm(words.at(-1)).slice(0,4)));if(em){c.email=em;emails.splice(emails.indexOf(em),1)}
     out.contacts.push(c)}
-  if(!out.contacts.length){const fn=fonctionOf(n);if(fn&&/\b(parle|vu|eu|rencontre|contact|interlocut|dg|daf|gerant|dirigeant|dsi)\b/.test(n)){/* fonction sans nom : on la note */const c={fonction:fn};if(DECIDE.has(fn))c.decideur='Oui';const ph=phones.find(p=>!p.used&&/^0[67]/.test(p.d));if(ph){c.mobile=ph.d;ph.used=true}out.contacts.push(c)}}
+  if(!out.contacts.length){const fn=fonctionOf(n);if(fn&&/\b(parle|vu|eu|rencontre|contact|interlocut|dg|daf|gerante?|dirigeante?|dsi|directeur|directrice)\b/.test(n)){/* fonction sans nom : on la note */const c={fonction:fn};if(/\b(gerante|dirigeante|directrice|associee)\b/.test(n))c.civ='Mme';if(DECIDE.has(fn))c.decideur='Oui';const ph=phones.find(p=>!p.used&&/^0[67]/.test(p.d));if(ph){c.mobile=ph.d;ph.used=true}out.contacts.push(c)}}
   for(const ph of phones)if(!ph.used){if(!p.ent?.tel&&!S_['ent.tel']&&!/^0[67]/.test(ph.d))S_['ent.tel']=ph.d;else if(/^0[67]/.test(ph.d)&&out.contacts[0]&&!out.contacts[0].mobile)out.contacts[0].mobile=ph.d;else if(!S_['ent.tel']&&!p.ent?.tel)S_['ent.tel']=ph.d}
   if(emails.length){if(out.contacts[0]&&!out.contacts[0].email&&!/^(contact|info|accueil|secretariat|office|bonjour)@/i.test(emails[0]))out.contacts[0].email=emails.shift();if(emails.length)S_['ent.email']=emails[0]}
   return out}
@@ -875,7 +958,9 @@ function applyPatch(p,patch,overwrite){
     if(f.t==='multi'){let arr=Array.isArray(cv)?cv.slice():[];let ch=false;for(const x of v)if(!arr.some(a=>norm(a)===norm(x))){arr.push(x);ch=true}
       if(arr.some(x=>!EXCL.test(x)))arr=arr.filter(x=>!EXCL.test(x));if(ch){setP(p,k,arr);changed.add(k)}}
     else if(f.t==='area'){if(!String(cv||'').includes(v)){setP(p,k,cv?cv+'\n'+v:v);changed.add(k)}}
-    else if(String(cv??'')!==String(v)&&(overwrite||!filled(cv)||['single','num','month'].includes(f.t))){setP(p,k,v);changed.add(k)}}
+    else if(String(cv??'')===String(v)&&p.est?.[k]){delete p.est[k];changed.add(k)}
+    else if(String(cv??'')!==String(v)&&(overwrite||!filled(cv)||p.est?.[k]||/\.prestataire$/.test(k)||['single','num','month'].includes(f.t))){if(k==='ent.secteur'&&filled(cv)&&!overwrite)continue;setP(p,k,v);changed.add(k)}
+    if(p.est?.[k]&&changed.has(k))delete p.est[k]}
   if(p.ent?.siret&&!p.ent.siren){p.ent.siren=p.ent.siret.slice(0,9);changed.add('ent.siren')}
   // Contacts
   for(const c0 of (patch.contacts||[])){if(!c0||typeof c0!=='object')continue;const c={};for(const f of CFIELDS){if(c0[f.k]==null||c0[f.k]==='')continue;let v=c0[f.k];if(f.k==='decideur'&&typeof v==='boolean')v=v?'Oui':'Non';v=coerce(f,v);if(filled(v))c[f.k]=v}
@@ -1022,19 +1107,83 @@ function reToPatch(r,e){
     'ent.creation':frDate(r.date_creation),'ent.effectif':effLabel(e?.tranche_effectif_salarie||r.tranche_effectif_salarie),'ent.adresse':a.rue,'ent.cp':a.cp,'ent.ville':a.ville};
   const en=enseigneOf(r,e);if(en&&norm(en)!==norm(set['ent.nom']))set['ent.enseigne']=en;
   const sec=secteurFromNaf(naf,[r.nom_complet,(r.dirigeants||[]).map(d=>d.qualite).join(' ')].join(' '));if(sec)set['ent.secteur']=sec;
-  if((r.nombre_etablissements_ouverts||0)>1)set['ent.sites']='Oui';
+  if((r.nombre_etablissements_ouverts||0)>1)set['ent.sites']='Oui';else if(r.nombre_etablissements_ouverts===1)set['ent.sites']='Non';
+  if(!set['ent.enseigne']&&r.sigle&&norm(r.sigle)!==norm(set['ent.nom']))set['ent.enseigne']=r.sigle;
+  const lab=nafLabel(naf);if(lab)set['ent.activite']=lab;
+  const cat={PME:'PME',ETI:'ETI',GE:'Grande entreprise'}[r.categorie_entreprise];if(cat)set['ent.categorie']=cat;
+  if(e)set['ent.etab']=e.est_siege?'Siège':'Établissement secondaire';
+  if(r.nombre_etablissements_ouverts)set['ent.nbEtabs']=r.nombre_etablissements_ouverts;
+  set['ent.tva']=(r.tva&&r.tva[0])||tvaOf(r.siren);
+  const ec=e?.date_creation||'';if(ec){const y=ec.slice(0,4);set['ent.installe']=ec!==r.date_creation&&ec>(r.date_creation||'')?`depuis ${moisAn(ec)}`:`depuis la création (${y})`}
+  const fin=r.finances&&Object.entries(r.finances).sort((a,b)=>b[0]-a[0])[0];
+  if(fin){const [y,f]=fin;if(f.ca!=null)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
+  const idcc=(e?.liste_idcc||r.complements?.liste_idcc||[]).filter(x=>x&&x!=='9999');if(idcc.length)set['ent.convention']=idcc.map(c=>IDCC[c.replace(/^0+/,'')]?`${IDCC[c.replace(/^0+/,'')]} (IDCC ${c})`:`IDCC ${c}`).join(', ');
+  const pm=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);if(pm.length)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
   const contacts=(r.dirigeants||[]).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom).slice(0,3)
     .map(d=>({prenom:niceCase(String(d.prenoms||d.prenom||'').split(/[\s,]+/)[0]),nom:niceCase(d.nom),fonction:fonctionRne(d.qualite),decideur:'Oui',note:'Dirigeant au registre'+(d.qualite?' : '+d.qualite:'')}));
   return{set,contacts}}
+const tvaOf=s=>{s=String(s||'');if(!/^\d{9}$/.test(s))return'';return'FR'+String((12+3*(+s%97))%97).padStart(2,'0')+s};
+const eur=n=>{n=+n;const a=Math.abs(n);return (n<0?'−':'')+(a>=1e6?(a/1e6).toFixed(a>=1e7?0:1).replace('.',',')+' M€':a>=1e3?Math.round(a/1e3)+' k€':a+' €')};
+const MOISL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const moisAn=d=>{const m=String(d).match(/^(\d{4})-(\d{2})/);return m?`${MOISL[+m[2]-1]} ${m[1]}`:d};
+const IDCC={'1527':'Immobilier','2205':'Notariat','1000':'Cabinets d’avocats','787':'Cabinets d’experts-comptables','1486':'Syntec (bureaux d’études, conseil)','1147':'Cabinets médicaux','1619':'Cabinets dentaires','2332':'Architecture','2247':'Courtage d’assurances','1672':'Sociétés d’assurances','2120':'Banque','1979':'Hôtels, cafés, restaurants','1501':'Restauration rapide','3248':'Métallurgie','1596':'Bâtiment ouvriers (≤10)','1597':'Bâtiment ouvriers (>10)','2609':'Bâtiment ETAM','1517':'Commerce de détail non alimentaire','2216':'Commerce alimentaire','573':'Commerces de gros','16':'Transports routiers','1090':'Services de l’automobile','2264':'Hospitalisation privée','29':'Hospitalisation privée à but non lucratif','413':'Établissements pour personnes inadaptées','1516':'Organismes de formation','2941':'Aide à domicile','1801':'Sociétés d’assistance','2098':'Prestataires de services tertiaires','1351':'Prévention et sécurité','3043':'Entreprises de propreté','2596':'Coiffure','1996':'Pharmacie d’officine','2511':'Sport','1261':'Centres sociaux'};
+/* ---------- Estimations et brief avant l'appel ---------- */
+const TRM={'00':1,'01':2,'02':4,'03':8,'11':15,'12':35,'21':75,'22':150,'31':225,'32':375,'41':750,'42':1500,'51':3500,'52':7500,'53':10000};
+const EFFM={'1–5':3,'6–10':8,'11–19':15,'20–49':35,'50–99':75,'100–249':170,'250 +':400};
+const BUREAU=['Notaire / juridique','Avocat','Expert-comptable','Conseil / RH / recrutement','Architecte','Agence immobilière','Assurance'];
+function headcount(p){if(p.it?.utilisateurs&&!p.est?.['it.utilisateurs'])return +p.it.utilisateurs;const t=p.rne?.tranche;if(t&&TRM[t])return TRM[t];return EFFM[p.ent?.effectif]||0}
+function estimates(p){const n=headcount(p);if(!n)return null;const sec=p.ent?.secteur||'';const bur=BUREAU.includes(sec);
+  const ratio=bur?1.1:sec==='Médical / paramédical'?1.15:sec==='Commerce'?0.45:sec==='BTP / artisan'?0.35:sec==='Restauration / hôtellerie'?0.15:sec==='Industrie'?0.5:sec==='Transport / logistique'?0.4:sec==='Association'?0.7:0.8;
+  const postes=Math.max(1,Math.round((n+(n<20?1:0))*ratio));
+  const copieurs=bur||sec==='Médical / paramédical'||sec==='Association'?Math.max(1,Math.ceil(n/(n<=20?15:20))):Math.max(1,Math.ceil(n/30));
+  const indiv=['Notaire / juridique','Avocat','Médical / paramédical','Expert-comptable'].includes(sec)?0.5:bur?0.25:0.15;
+  const imprimantes=Math.max(n>=3?1:0,Math.round(postes*indiv));
+  return{n,postes,copieurs,imprimantes,lignes:bur||sec==='Médical / paramédical'?Math.max(2,Math.round(n*0.9)):Math.max(1,Math.round(n*0.4))}}
+function applyEstimates(p){const e=estimates(p);if(!e)return[];p.est=p.est||{};const ch=[];
+  const put=(k,v)=>{const cv=getP(p,k);if(filled(cv)&&!p.est[k])return;if(cv===v)return;setP(p,k,v);p.est[k]=true;ch.push(k)};
+  if(!p.est['it.utilisateurs']&&filled(p.it?.utilisateurs)){}else put('it.utilisateurs',e.n);
+  put('it.postes',e.postes);put('impr.nb',e.copieurs);put('impr.nbImprimantes',e.imprimantes);put('tel.lignesFixes',e.lignes);return ch}
+const LOGI={'Notaire / juridique':'Genapi, iNot (Fiducial), Fichorga','Avocat':'Secib, Septeo (ex-Jarvis), Kleos','Expert-comptable':'Cegid, ACD, Sage, Inqom, Pennylane','Médical / paramédical':'Doctolib, Weda, Crossway, Julie / Logos_w (dentaire)','Agence immobilière':'Apimo, Hektor, AC3, Netty, Vilogi (syndic)','Architecte':'Archicad, Revit, AutoCAD, SketchUp','Assurance':'Extranets compagnies, CRM courtage (Oggo, Courtigo)','Conseil / RH / recrutement':'Microsoft 365, CRM / ATS (Flatchr, Taleez)','BTP / artisan':'Batappli, Obat, EBP Bâtiment','Restauration / hôtellerie':'Caisse (Zelty, Lightspeed), PMS hôtelier'};
+const ANGLES={
+ 'Notaire / juridique':['Très gros volumes d’impression et de scan (actes, copies authentiques) : copieurs rapides + scan vers Genapi/iNot.','Secret professionnel et données clients : sauvegarde externalisée, EDR, messagerie sécurisée.','Signature électronique et acte authentique à distance : postes et réseau à niveau.'],
+ 'Avocat':['Secret professionnel : la cyber (messagerie, EDR, MFA) est un argument fort.','Dossiers lourds et scan : copieur + GED.','Mobilité / audiences : portables, VPN, Microsoft 365.'],
+ 'Expert-comptable':['Pics d’activité (bilans, déclarations) : une panne coûte cher, support réactif.','Données financières de centaines de clients : sauvegarde + cyber.','Facture électronique : ils conseillent leurs clients, donc sensibles au sujet.'],
+ 'Médical / paramédical':['Données de santé : obligations RGPD/HDS, sauvegarde et poste sécurisés.','Imprimantes d’ordonnances et scanners au poste, plusieurs cabinets.','Accueil téléphonique saturé : standard cloud, files d’attente, renvoi vers Doctolib.'],
+ 'Agence immobilière':['Vitrine et affiches couleur A3 : copieur couleur avec coût copie maîtrisé.','Négociateurs mobiles : forfaits mobiles, Microsoft 365, signature électronique.','Accueil téléphonique et renvoi d’appels vers les mobiles.'],
+ 'Architecte':['Gros fichiers (plans, maquettes) : NAS, réseau rapide, sauvegarde.','Traceur grand format et copieur A3 couleur.','Postes puissants (CAO) : renouvellement de parc.'],
+ 'Assurance':['Conformité (DDA, RGPD) et données clients : cyber et sauvegarde.','Souvent rattachés à une compagnie : vérifier ce qui est imposé et ce qui reste libre.','Téléphonie : standard, enregistrement, renvois.'],
+ 'Conseil / RH / recrutement':['Équipes mobiles : Microsoft 365, Teams, portables.','Données candidats / clients : RGPD, MFA.','Téléphonie cloud (Teams Phone) pour le travail hybride.'],
+ 'BTP / artisan':['Équipes sur chantier : flotte mobile et tablettes.','Devis / factures : facture électronique 2027.','Petit bureau : un seul prestataire pour tout (IT, téléphonie, copieur).'],
+ 'Commerce':['Caisse, TPE et Wi-Fi : réseau fiable.','Téléphonie et internet de secours (4G).','Vidéosurveillance / réseau.'],
+ 'Restauration / hôtellerie':['Wi-Fi clients et réseau caisse séparés.','Internet de secours : une coupure = pas de paiement.','Téléphonie / réservations.']};
+function briefData(p){const e=estimates(p);const sec=p.ent?.secteur||'';const sig=[];const now=today().getFullYear();
+  const t=p.rne?.tranche;if(t&&TRM[t])sig.push(['👥',`Effectif INSEE : ${{'00':'0','01':'1 à 2','02':'3 à 5','03':'6 à 9','11':'10 à 19','12':'20 à 49','21':'50 à 99','22':'100 à 199','31':'200 à 249','32':'250 à 499','41':'500 à 999'}[t]||p.ent?.effectif} salariés${p.rne.annee?' ('+p.rne.annee+')':''}`]);
+  else if(p.ent?.effectif)sig.push(['👥',`Effectif : ${p.ent.effectif} salariés`]);
+  const inst=p.rne?.installe;if(inst&&inst>(p.rne?.creation||'')){const y=+inst.slice(0,4);const age=now-y;sig.push(['🚚',`Installé à cette adresse en ${moisAn(inst)}${age<=6?` : contrats souvent signés à l’emménagement, donc ${age>=3?'renouvellements en cours ou proches (copieur ≈ 5 ans, télécom 2-3 ans)':'premiers renouvellements à venir'}.`:'.'}`])}
+  if(p.ent?.creation){const y=+String(p.ent.creation).slice(-4);if(y&&now-y<=3)sig.push(['🌱',`Entreprise jeune (créée en ${y}) : équipement souvent minimal, besoin de structurer.`]);else if(y)sig.push(['🏛️',`Créée en ${y} (${now-y} ans).`])}
+  if((p.ent?.nbEtabs||0)>1)sig.push(['🏢',`${p.ent.nbEtabs} établissements ouverts${p.ent.etab?' · celui-ci : '+p.ent.etab.toLowerCase():''} : interconnexion, téléphonie et parc à harmoniser.`]);
+  if(p.ent?.holding)sig.push(['🧩',`Dirigée par une société (${p.ent.holding}) : la décision peut se prendre au niveau de la holding.`]);
+  if(p.ent?.ca)sig.push(['💶',`CA ${p.ent.ca}${p.ent.resultat?' · résultat '+p.ent.resultat:''}`]);
+  if(p.ent?.categorie==='PME'||!p.ent?.categorie)sig.push(['🧾','Facture électronique : réception obligatoire depuis le 1er sept. 2026, émission obligatoire au 1er sept. 2027 pour les PME et TPE. Argument scan / GED / dématérialisation.']);
+  return{e,sig,angles:ANGLES[sec]||[],logi:LOGI[sec]||''}}
+function briefHtml(p){if(!p.ent?.nom||!(p.rne?.status==='ok'||p.ent?.effectif))return'';const b=briefData(p);if(!b.e&&!b.sig.length)return'';const open=S.briefOpen!==false;
+  return `<section class="brief${open?'':' closed'}"><button class="brief-h" data-act="brieftg"><b>Avant l’appel</b><span>${b.e?`≈ ${b.e.postes} poste${b.e.postes>1?'s':''} · ≈ ${b.e.copieurs} copieur${b.e.copieurs>1?'s':''} · ≈ ${b.e.imprimantes} imprimante${b.e.imprimantes>1?'s':''}`:''}</span><i>${open?'Masquer':'Afficher'}</i></button>
+   ${open?`<div class="brief-b">
+    ${b.e?`<div class="kpis"><div><b>≈ ${b.e.n}</b><span>personnes</span></div><div><b>≈ ${b.e.postes}</b><span>postes</span></div><div><b>≈ ${b.e.copieurs}</b><span>copieur${b.e.copieurs>1?'s':''}</span></div><div><b>≈ ${b.e.imprimantes}</b><span>imprimante${b.e.imprimantes>1?'s':''}</span></div><div><b>≈ ${b.e.lignes}</b><span>lignes tél.</span></div></div><p class="bnote">Estimations d’après l’effectif et le secteur, préremplies dans les onglets avec la mention « estimé ». Fais-les confirmer : ça ouvre la discussion.</p>`:''}
+    ${b.sig.length?`<ul class="sig">${b.sig.map(([i,t])=>`<li><span>${i}</span>${esc(t)}</li>`).join('')}</ul>`:''}
+    ${b.angles.length?`<div class="lbl">Angles d’attaque · ${esc(p.ent.secteur)}</div><ul class="ang">${b.angles.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}
+    ${b.logi?`<div class="lbl">Logiciels probables</div><p class="bnote" style="margin:0">${esc(b.logi)} : demande lequel ils utilisent.</p>`:''}
+   </div>`:''}</section>`}
 function applyRe(p,r,hint={}){
   const e=pickEtab(r,{...hint,cp:hint.cp||p.ent?.cp,adresse:hint.adresse||p.ent?.adresse});
   const before=structuredClone(p);const patch=reToPatch(r,e);
   const a=addrOf(e||r.siege);
   if(p.ent?.cp&&a.cp&&a.cp!==p.ent.cp&&!hint.siret&&!hint.force){for(const k of ['ent.adresse','ent.cp','ent.ville','ent.siret'])delete patch.set[k]}
   if(hint.siret)patch.set['ent.siret']=hint.siret;
-  const ch=applyPatch(p,patch,true);
+  const ch=applyPatch(p,patch,!hint.soft);
   if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C'};delete p.rneCands;touch(p);markFlash(ch);
+  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:2,tranche:e?.tranche_effectif_salarie||r.tranche_effectif_salarie||'',annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
+  ch.push(...applyEstimates(p));touch(p);markFlash(ch);
   return{r,e,ch,before}}
 async function applyRne(p,num,hint={}){const res=await reSearch(num);const r=res.find(x=>x.siren===String(num).slice(0,9))||res[0];
   if(!r)throw{fr:'Ce numéro n’existe pas au registre. Vérifie les chiffres.'};return applyRe(p,r,hint)}
@@ -1058,6 +1207,8 @@ async function identify(p,raw){
       if(p.ent?.nom)return nameSearch(p,[p.ent.nom,p.ent.ville].filter(Boolean).join(' '),p.ent.cp||'');
       return setId(p,{msg:'Texte analysé. Aucun SIRET ni nom d’entreprise reconnu pour interroger le registre.'})}
     const loc=parseLocal(text,p);
+    const noteish=Object.keys(loc.set).filter(k=>!/^ent\.(siret|siren|ville|cp|adresse|forme|site|email|tel)$/.test(k)).length+loc.contacts.length+loc.actions.length+(loc.statut?1:0);
+    if(!loc.set['ent.siret']&&!loc.set['ent.siren']&&noteish>=2){setId(p,{});await commitNote(p,text,null);return setId(p,{msg:'Ce texte ressemble à une note : je l’ai analysée et rangée dans la fiche (voir les champs surlignés).'})}
     if(loc.set['ent.siret'])return idDone(p,await applyRne(p,loc.set['ent.siret'],{siret:loc.set['ent.siret'],force:true}));
     if(loc.set['ent.siren'])return idDone(p,await applyRne(p,loc.set['ent.siren'],{}));
     if(ADDR_RE.test(text))return addressSearch(p,text);
@@ -1209,10 +1360,10 @@ function crData(p){
     coord:[fmtTel(c.tel||''),fmtTel(c.mobile||''),c.email].filter(Boolean).join(' · ')}));
   const b=p.besoins||{};
   const details=[
-    filled(p.impr?.nb)||filled(p.impr?.marques)||filled(p.impr?.finContrat)?['Impression',[p.impr.nb&&p.impr.nb+' copieur'+(p.impr.nb>1?'s':''),val(p.impr.marques),p.impr.mode,p.impr.loueur,p.impr.finContrat&&'fin de contrat '+fmtMonth(p.impr.finContrat),p.impr.satisfaction&&p.impr.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
-    filled(p.it?.postes)||filled(p.it?.prestataire)||filled(p.it?.contrat)?['Informatique',[p.it.postes&&p.it.postes+' postes',p.it.prestataire&&'prestataire : '+p.it.prestataire,p.it.contrat,p.it.satisfaction&&p.it.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
-    filled(p.cyber?.antivirus)||filled(p.cyber?.sauvegarde)||filled(p.cyber?.firewall)?['Cybersécurité',[p.cyber.antivirus&&'antivirus : '+val(p.cyber.antivirus),p.cyber.sauvegarde&&'sauvegarde : '+val(p.cyber.sauvegarde),p.cyber.firewall&&'pare-feu : '+p.cyber.firewall].filter(Boolean).join(' · ')]:null,
-    filled(p.tel?.operateur)||filled(p.tel?.finEngagement)||filled(p.tel?.standard)?['Télécom',[val(p.tel.operateur),p.tel.standard,p.tel.finEngagement&&'fin d’engagement '+fmtMonth(p.tel.finEngagement)].filter(Boolean).join(' · ')]:null].filter(Boolean);
+    (filled(p.impr?.nb)&&!p.est?.['impr.nb'])||filled(p.impr?.marques)||filled(p.impr?.finContrat)||filled(p.impr?.prestataire)?['Impression',[!p.est?.['impr.nb']&&p.impr.nb&&p.impr.nb+' copieur'+(p.impr.nb>1?'s':''),val(p.impr.marques),p.impr.mode,p.impr.loueur,p.impr.prestataire&&'fournisseur : '+p.impr.prestataire,p.impr.finContrat&&'fin de contrat '+fmtMonth(p.impr.finContrat),p.impr.satisfaction&&p.impr.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
+    (filled(p.it?.postes)&&!p.est?.['it.postes'])||filled(p.it?.prestataire)||filled(p.it?.aPresta)||filled(p.it?.contrat)?['Informatique',[!p.est?.['it.postes']&&p.it.postes&&p.it.postes+' postes',p.it.prestataire?'prestataire : '+p.it.prestataire:p.it.aPresta==='Non'?'pas de prestataire':'',p.it.contrat,p.it.satisfaction&&p.it.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
+    filled(p.cyber?.antivirus)||filled(p.cyber?.sauvegarde)||filled(p.cyber?.firewall)?['Cybersécurité',[p.cyber.antivirus&&'antivirus : '+val(p.cyber.antivirus),p.cyber.sauvegarde&&'sauvegarde : '+val(p.cyber.sauvegarde),p.cyber.firewall&&'pare-feu : '+p.cyber.firewall,p.cyber.prestataire&&'prestataire : '+p.cyber.prestataire].filter(Boolean).join(' · ')]:null,
+    filled(p.tel?.operateur)||filled(p.tel?.finEngagement)||filled(p.tel?.standard)?['Télécom',[val(p.tel.operateur),p.tel.prestataire&&'prestataire : '+p.tel.prestataire,p.tel.standard,p.tel.finEngagement&&'fin d’engagement '+fmtMonth(p.tel.finEngagement)].filter(Boolean).join(' · ')]:null].filter(Boolean);
   const besoins={liste:b.sel||[],echeance:b.priorite||'',declencheurs:b.declencheur||[],budget:b.budget||'',details,notes:b.notes||''};
   const t=iso(today());
   const agenda=(p.actions||[]).filter(a=>!a.fait&&['RDV','Rappel','Appel','Relance','Visite'].includes(a.type)).sort((x,y)=>((x.date||'9')+(x.heure||''))<((y.date||'9')+(y.heure||''))?-1:1)
@@ -1275,7 +1426,7 @@ async function exportXlsx(){
       contact:[c.civ,c.prenom,c.nom].filter(Boolean).join(' '),fonction:c.fonction,dec:c.decideur,telc:fmtTel(c.tel||c.mobile||''),email:c.email||p.ent?.email,
       statut:ST[p.statut]?.l,_st:p.statut,temp:TEMPS.find(x=>x.k===p.temperature)?.l||'',source:srcLabel(p),besoins:(p.besoins?.sel||[]).join(', '),echeance:p.besoins?.priorite,
       action:a?a.type:'',adate:toDate(a?.date),aheure:a?.heure,_late:a?.date&&a.date<iso(today()),rdv:toDate(rv?.date),rdvh:rv?.heure,
-      copieurs:[p.impr?.nb,(p.impr?.marques||[]).join(' ')].filter(Boolean).join(' '),finimpr:toMonth(p.impr?.finContrat),postes:p.it?.postes,presta:p.it?.prestataire,
+      copieurs:[p.impr?.nb&&(p.est?.['impr.nb']?'≈'+p.impr.nb+' (estimé)':p.impr.nb),(p.impr?.marques||[]).join(' ')].filter(Boolean).join(' '),finimpr:toMonth(p.impr?.finContrat),postes:p.est?.['it.postes']&&p.it?.postes?'≈'+p.it.postes+' (estimé)':p.it?.postes,presta:p.it?.prestataire||(p.it?.aPresta==='Non'?'Aucun':''),
       ope:(p.tel?.operateur||[]).join(', '),fintel:toMonth(p.tel?.finEngagement),qualif:qualif(p)/100,note:(p.journal||[]).slice().sort((x,y)=>x.date<y.date?1:-1)[0]?.texte,cree:p.createdAt?new Date(p.createdAt):null}};
   const COLS=[{k:'nom',h:'Entreprise',w:32,wrap:true,style:c=>{c.font={...font,bold:true}}},{k:'statut',h:'Statut',w:15,style:stStyle},{k:'temp',h:'Température',w:12,style:tpStyle},
     {k:'action',h:'Prochaine action',w:14},{k:'adate',h:'Date',w:12,fmt:'dd/mm/yyyy',style:late},{k:'aheure',h:'Heure',w:8},{k:'rdv',h:'RDV prévu le',w:13,fmt:'dd/mm/yyyy'},{k:'rdvh',h:'à',w:7},
@@ -1363,16 +1514,18 @@ function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'
   return `<a href="https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${n}&ou=${v}" target="_blank" rel="noopener">PagesJaunes</a><a href="https://www.google.com/search?q=${n}+${v}+t%C3%A9l%C3%A9phone" target="_blank" rel="noopener">Google</a><a href="https://www.google.com/maps/search/${n}+${v}" target="_blank" rel="noopener">Maps</a>`}
 function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
   return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<a class="mono ph-num" href="tel:${esc(e.tel)}">📞 ${esc(fmtTel(e.tel))}</a>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
-   <button class="btn ${e.tel?'btn-q':'btn-g'} btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'<span class="spin"></span> Recherche…':e.tel?'🔎 Revérifier':'🔎 Trouver le numéro'}</button></div>
+   <button class="btn ${e.tel?'btn-q':'btn-g'} btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'<span class="spin"></span> Recherche…':e.tel?'🔎 Revérifier':'🔎 Trouver le numéro'}</button>
+   ${e.tel?'':`<span class="links ph-links">${phoneLinks(p)}</span>`}</div>
    ${st.busy?`<div class="ph-run"><span class="spin"></span>${esc(st.step||'Recherche en cours…')} <small>(jusqu’à 30 s)</small></div>`:''}
    ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">${e.tel?'Autre numéro trouvé':'Numéro possible ('+esc(e.telSource||'')+')'} : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
-   ${!e.tel&&e.telLookup&&!st.msg&&!st.busy?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Utilise PagesJaunes ou Google ci-dessous.'}</div>`:''}
-   ${st.msg&&!st.busy?`<div class="ph-msg${st.ok?' ok':''}">${esc(st.msg)}</div>`:''}
-   <div class="links"><span class="lbl" style="align-self:center">Chercher :</span>${phoneLinks(p)}</div></div>`}
+   ${!e.tel&&e.telLookup&&!st.msg&&!st.busy?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Ouvre PagesJaunes ou Google, puis colle le numéro dans Standard (onglet Entreprise).'}</div>`:''}
+   ${st.msg&&!st.busy?`<div class="ph-msg${st.ok?' ok':''}">${esc(st.msg)}</div>`:''}</div>`}
 async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.id,busy:true,step:'Démarrage…'};rePhone();if(S.sel===p.id)renderNotesOnly();
   let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
-  S.ph={pid:p.id,ok:r.status==='ok',msg:r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google ci-dessous.':'Aucun numéro public trouvé automatiquement. Clique PagesJaunes ou Google ci-dessous, puis colle le numéro dans le champ Standard (onglet Entreprise).'};
+  S.ph={pid:p.id,ok:r.status==='ok',msg:r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).'};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
+function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===2||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
+  applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret,soft:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{})}
 function autoPhone(p){if(!p||p.ent?.tel||p.ent?.telLookup||!(p.ent?.nom||p.ent?.enseigne)||!(p.geo||p.ent?.adresse||p.ent?.ville))return;S.phAuto=S.phAuto||new Set();if(S.phAuto.has(p.id))return;S.phAuto.add(p.id);findPhoneUI(p)}
 function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}
 
