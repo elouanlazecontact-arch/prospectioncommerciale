@@ -110,7 +110,7 @@ main{flex:1;min-height:0;display:flex}
 .tdot[data-t="froid"]{background:var(--cold)} .tdot[data-t="tiede"]{background:var(--warm)} .tdot[data-t="chaud"]{background:var(--hot)}
 .due{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
 .due.late{background:var(--hot-soft);color:var(--hot)}
-.due.today{background:var(--warm-soft);color:var(--warn)}
+.due.is-today{background:var(--warm-soft);color:var(--warn)}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
 .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
 .st-nouveau{color:var(--ink-2)} .st-contacte{color:var(--cold);background:var(--cold-soft)} .st-rappel{color:var(--warn);background:var(--warm-soft)}
@@ -230,6 +230,23 @@ textarea.in{height:auto;min-height:80px;padding:9px 11px;resize:vertical;line-he
   .tabs::-webkit-scrollbar,.filters::-webkit-scrollbar{display:block;height:6px}
   .tabs::-webkit-scrollbar-thumb,.filters::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
 }
+/* Compte rendu */
+.cr{gap:0;padding:0;overflow:hidden}
+.cr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:16px 18px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.cr-head h3{margin:4px 0 8px;font-family:var(--f-display);font-size:20px;letter-spacing:-.01em}
+.cr-tags{display:flex;gap:6px;flex-wrap:wrap}
+.cr-sec{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.cr-sec:last-child{border-bottom:0}
+.cr-sec h4{margin:0;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.cr dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;margin:0;font-size:13.5px}
+.cr dt{color:var(--ink-3)}.cr dd{margin:0}
+.cr-c{font-size:13.5px}
+.cr-sub{display:block;font-size:12.5px;color:var(--ink-2);margin-top:2px}
+.cr-empty{margin:0;font-size:13px;color:var(--ink-3)}
+.cr-ag{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.cr-ag li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:13.5px}
+.cr-ag li .cr-sub{width:100%;margin:0}
+.cr .chips .chip{cursor:default}
 /* Contacts */
 .contact{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
 .contact-h{display:flex;justify-content:space-between;align-items:center;gap:10px}

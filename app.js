@@ -97,6 +97,7 @@ const TABS=[
   {k:'tel.notes',l:'Notes télécom',t:'area',w:2},
  ]},
  {id:'suivi',l:'Suivi',custom:true},
+ {id:'cr',l:'Compte rendu',custom:true},
 ];
 const CFIELDS=[
  {k:'civ',l:'Civilité',t:'single',o:['M.','Mme']},
@@ -262,12 +263,12 @@ async function logout(){if(!SB)return;await pushQueue();if(RT){SB.removeChannel(
 
 /* ================= Calculs ================= */
 function nextAction(p){return (p.actions||[]).filter(a=>!a.fait).sort((a,b)=>(a.date||'9')+(a.heure||'')<(b.date||'9')+(b.heure||'')?-1:1)[0]}
-function dueClass(a){if(!a||!a.date)return'';const t=iso(today());return a.date<t?'late':a.date===t?'today':''}
+function dueClass(a){if(!a||!a.date)return'';const t=iso(today());return a.date<t?'late':a.date===t?'is-today':''}
 function qualif(p){let tot=0,ok=0;
   for(const t of TABS)for(const f of (t.fields||[])){if(f.t==='area'||f.k==='ent.enseigne'||f.k==='ent.creation'||f.k==='ent.naf')continue;tot++;if(filled(getP(p,f.k)))ok++}
   tot+=3;if(p.contacts?.length)ok++;if(p.contacts?.some(c=>c.decideur==='Oui'))ok++;if(p.contacts?.some(c=>c.tel||c.mobile||c.email))ok++;
   return Math.round(ok/tot*100)}
-function tabCount(p,t){if(t.id==='contacts')return[p.contacts?.length||0,null];if(t.id==='suivi')return[(p.actions||[]).filter(a=>!a.fait).length,null];
+function tabCount(p,t){if(t.id==='cr')return['✓',null];if(t.id==='contacts')return[p.contacts?.length||0,null];if(t.id==='suivi')return[(p.actions||[]).filter(a=>!a.fait).length,null];
   const fs=t.fields.filter(f=>f.t!=='area');return[fs.filter(f=>filled(getP(p,f.k))).length,fs.length]}
 function displayName(p){return p.ent?.nom||p.ent?.enseigne||'Sans nom'}
 function excluded(p){const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.activite,p.ent?.secteur,p.ent?.naf].join(' '));
@@ -388,7 +389,7 @@ function renderFiche(){
    <div class="tabs" role="tablist" id="tabs">${tabsHtml(p)}</div>
    <div id="tabbody">${tabBody(p)}</div>
    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding-top:6px">
-     <button class="btn btn-g btn-s" data-act="copy">Copier le résumé (CRM)</button>
+     <button class="btn btn-g btn-s" data-act="tab" data-v="cr">Voir le compte rendu</button><button class="btn btn-g btn-s" data-act="copycr">Copier le compte rendu</button>
      ${S.confirmDel?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="del2">Confirmer la suppression</button><button class="btn btn-q btn-s" data-act="del0">Annuler</button>`:`<button class="btn btn-q btn-s" data-act="del">Supprimer la fiche</button>`}
    </div>
   </div>
@@ -401,7 +402,7 @@ function tabsHtml(p){return TABS.map((t,i)=>{const [n,tot]=tabCount(p,t);return 
 function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.innerHTML=fmetaHtml(p);const t=$('#tabs');if(t)t.innerHTML=tabsHtml(p);
   const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
-  if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);
+  if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
   return `${t.id==='ent'?identHtml(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
 function fieldHtml(f,path,v,def){
   const id='f-'+path.replace(/\./g,'-');const span=f.w===2?' span-2':'';const dk=def||f.k;
@@ -506,7 +507,8 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
-  <button class="btn btn-g" data-act="export">Exporter en CSV (Artis / Excel)</button>
+  <button class="btn btn-p" data-act="xlsx">Exporter en Excel</button>
+  <button class="btn btn-g" data-act="export">Exporter en CSV (import Artis)</button>
   <button class="btn btn-g" data-act="backup">Télécharger une sauvegarde complète</button>
   <label class="btn btn-g" for="imp-in" style="cursor:pointer">Importer une sauvegarde</label><input type="file" id="imp-in" accept=".json,application/json" hidden>
   ${S.mode==='poste'?'<button class="btn btn-g" data-act="help">Raccourcis clavier</button>':''}
@@ -591,7 +593,9 @@ const ACT={
  session:()=>startSession(),snext:()=>nextInSession(),sstop:()=>{S.session=null;renderNotesOnly();toast('Session terminée')},
  sheet:()=>{S.sheet=true;renderLayer();setTimeout(()=>$('#note-in')?.focus(),60)},
  sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
- copy:()=>copy(summary(cur()),'Résumé copié, prêt à coller dans Artis'),
+ copy:()=>copy(crText(cur()),'Compte rendu copié'),
+ copycr:()=>copy(crText(cur()),'Compte rendu copié'),
+ xlsx:()=>{S.menu=false;renderLayer();exportXlsx()},
  del:()=>{S.confirmDel=true;renderFiche()},del0:()=>{S.confirmDel=false;renderFiche()},
  del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);open(p.id)})},
  menu:()=>{S.menu=true;renderLayer()},help:()=>{S.menu=false;S.help=true;renderLayer()},
@@ -1140,6 +1144,129 @@ async function suggest(input){const p=cur();if(!p||document.activeElement!==inpu
 function sgPick(i){const r=SG.items[i];const p=cur();if(!r||!p)return;sgHide();sugCtl?.abort();if(S.tab!=='ent'){S.tab='ent';renderFiche()}idDone(p,applyRe(p,r,{}))}
 document.addEventListener('focusout',e=>{if(e.target===SG.input)setTimeout(()=>{if(document.activeElement!==SG.input)sgHide()},150)});
 window.addEventListener('scroll',e=>{if(!e.target?.closest?.('#sugg'))sgHide()},true);
+
+/* ================= Compte rendu automatique ================= */
+const canalOf=p=>p.source==='terrain'?'Terrain':'Téléphonique';
+const srcLabel=p=>({tel:'Téléphone',terrain:'Terrain',linkedin:'LinkedIn'}[p.source]||p.source||'Téléphone');
+const val=v=>Array.isArray(v)?v.join(', '):/^\d{4}-\d{2}$/.test(String(v||''))?fmtMonth(v):String(v??'');
+function crData(p){
+  const e=p.ent||{};
+  const ent={nom:displayName(p),lignes:[
+    e.enseigne&&e.enseigne!==e.nom?['Enseigne',e.enseigne]:null,
+    e.siret||e.siren?['SIRET',fmtSiret(e.siret||e.siren)]:null,
+    e.secteur||e.forme?['Activité',[e.secteur,e.forme,e.effectif&&e.effectif+' salariés'].filter(Boolean).join(' · ')]:null,
+    e.adresse||e.ville?['Adresse',[e.adresse,[e.cp,e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')]:null,
+    e.tel?['Standard',fmtTel(e.tel)]:null].filter(Boolean)};
+  const contacts=(p.contacts||[]).filter(c=>c.nom||c.prenom||c.fonction||c.tel||c.mobile||c.email).map(c=>({
+    nom:[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')||'Interlocuteur',fonction:c.fonction||'',decideur:c.decideur||'',
+    coord:[fmtTel(c.tel||''),fmtTel(c.mobile||''),c.email].filter(Boolean).join(' · ')}));
+  const b=p.besoins||{};
+  const details=[
+    filled(p.impr?.nb)||filled(p.impr?.marques)||filled(p.impr?.finContrat)?['Impression',[p.impr.nb&&p.impr.nb+' copieur'+(p.impr.nb>1?'s':''),val(p.impr.marques),p.impr.mode,p.impr.loueur,p.impr.finContrat&&'fin de contrat '+fmtMonth(p.impr.finContrat),p.impr.satisfaction&&p.impr.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
+    filled(p.it?.postes)||filled(p.it?.prestataire)||filled(p.it?.contrat)?['Informatique',[p.it.postes&&p.it.postes+' postes',p.it.prestataire&&'prestataire : '+p.it.prestataire,p.it.contrat,p.it.satisfaction&&p.it.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
+    filled(p.cyber?.antivirus)||filled(p.cyber?.sauvegarde)||filled(p.cyber?.firewall)?['Cybersécurité',[p.cyber.antivirus&&'antivirus : '+val(p.cyber.antivirus),p.cyber.sauvegarde&&'sauvegarde : '+val(p.cyber.sauvegarde),p.cyber.firewall&&'pare-feu : '+p.cyber.firewall].filter(Boolean).join(' · ')]:null,
+    filled(p.tel?.operateur)||filled(p.tel?.finEngagement)||filled(p.tel?.standard)?['Télécom',[val(p.tel.operateur),p.tel.standard,p.tel.finEngagement&&'fin d’engagement '+fmtMonth(p.tel.finEngagement)].filter(Boolean).join(' · ')]:null].filter(Boolean);
+  const besoins={liste:b.sel||[],echeance:b.priorite||'',declencheurs:b.declencheur||[],budget:b.budget||'',details,notes:b.notes||''};
+  const t=iso(today());
+  const agenda=(p.actions||[]).filter(a=>!a.fait&&['RDV','Rappel','Appel','Relance','Visite'].includes(a.type)).sort((x,y)=>((x.date||'9')+(x.heure||''))<((y.date||'9')+(y.heure||''))?-1:1)
+    .map(a=>({type:a.type,quand:(a.date?fmtDate(a.date):'Sans date')+(a.heure?' à '+a.heure:''),retard:a.date&&a.date<t,note:a.note||''}));
+  const derniere=(p.journal||[]).slice().sort((x,y)=>x.date<y.date?1:-1)[0];
+  return{ent,contacts,besoins,agenda,derniere,statut:ST[p.statut]?.l||'',temp:TEMPS.find(x=>x.k===p.temperature)?.l||'',canal:canalOf(p)}}
+function crText(p){const d=crData(p);const L=[];
+  L.push(`COMPTE RENDU — ${d.ent.nom.toUpperCase()}`);L.push(`${d.canal} · ${d.statut}${d.temp?' · '+d.temp:''} · ${fmtDate(iso(today()))}`);L.push('');
+  L.push('ENTREPRISE');d.ent.lignes.forEach(([k,v])=>L.push(`- ${k} : ${v}`));if(!d.ent.lignes.length)L.push('- À compléter');L.push('');
+  L.push('CONTACT'+(d.contacts.length>1?'S':''));d.contacts.forEach(c=>L.push(`- ${c.nom}${c.fonction?' ('+c.fonction+')':''}${c.decideur==='Oui'?' — décideur':''}${c.coord?' — '+c.coord:''}`));if(!d.contacts.length)L.push('- Aucun interlocuteur identifié');L.push('');
+  L.push('BESOINS');if(d.besoins.liste.length)L.push(`- ${d.besoins.liste.join(', ')}`);if(d.besoins.echeance)L.push(`- Échéance : ${d.besoins.echeance}`);if(d.besoins.declencheurs.length)L.push(`- Déclencheurs : ${d.besoins.declencheurs.join(', ')}`);
+  d.besoins.details.forEach(([k,v])=>L.push(`- ${k} : ${v}`));if(d.besoins.budget)L.push(`- Budget : ${d.besoins.budget}`);if(d.besoins.notes)L.push(`- ${d.besoins.notes}`);
+  if(!d.besoins.liste.length&&!d.besoins.details.length)L.push('- Aucun besoin identifié pour l’instant');L.push('');
+  L.push('RAPPELS ET RDV');d.agenda.forEach(a=>L.push(`- ${a.type} : ${a.quand}${a.retard?' (en retard)':''}${a.note?' — '+a.note:''}`));if(!d.agenda.length)L.push('- Rien de planifié');
+  return L.join('\n')}
+function crHtml(p){const d=crData(p);
+  const sec=(t,body)=>`<section class="cr-sec"><h4>${t}</h4>${body}</section>`;
+  return `<div class="panel cr"><div class="cr-head"><div><div class="lbl">Compte rendu · rempli automatiquement</div><h3>${esc(d.ent.nom)}</h3>
+    <div class="cr-tags"><span class="pill ${p.source==='terrain'?'st-rappel':'st-contacte'}">${d.canal}</span><span class="pill st-${p.statut}">${esc(d.statut)}</span>${d.temp?`<span class="pill">${esc(d.temp)}</span>`:''}</div></div>
+    <button class="btn btn-p btn-s" data-act="copycr">Copier le compte rendu</button></div>
+   ${sec('Entreprise',d.ent.lignes.length?`<dl>${d.ent.lignes.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`:'<p class="cr-empty">À compléter dans l’onglet Entreprise.</p>')}
+   ${sec('Contact'+(d.contacts.length>1?'s':''),d.contacts.length?d.contacts.map(c=>`<div class="cr-c"><b>${esc(c.nom)}</b>${c.fonction?` · ${esc(c.fonction)}`:''}${c.decideur==='Oui'?' <span class="badge-dec">Décideur</span>':''}${c.coord?`<div class="mono cr-sub">${esc(c.coord)}</div>`:''}</div>`).join(''):'<p class="cr-empty">Aucun interlocuteur identifié.</p>')}
+   ${sec('Besoins',(d.besoins.liste.length?`<div class="chips">${d.besoins.liste.map(x=>`<span class="chip" aria-pressed="true">${esc(x)}</span>`).join('')}</div>`:'')+
+      `<dl>${d.besoins.echeance?`<dt>Échéance</dt><dd>${esc(d.besoins.echeance)}</dd>`:''}${d.besoins.declencheurs.length?`<dt>Déclencheurs</dt><dd>${esc(d.besoins.declencheurs.join(', '))}</dd>`:''}${d.besoins.details.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}${d.besoins.budget?`<dt>Budget</dt><dd>${esc(d.besoins.budget)}</dd>`:''}</dl>`+
+      (d.besoins.notes?`<p class="cr-sub">${esc(d.besoins.notes)}</p>`:'')+(!d.besoins.liste.length&&!d.besoins.details.length?'<p class="cr-empty">Aucun besoin identifié pour l’instant : écris-les dans tes notes, ils se rangent ici.</p>':''))}
+   ${sec('Rappels et RDV',d.agenda.length?`<ul class="cr-ag">${d.agenda.map(a=>`<li${a.retard?' class="late"':''}><span class="atype">${esc(a.type)}</span><b>${esc(a.quand)}</b>${a.retard?' <span class="due late">en retard</span>':''}${a.note?`<span class="cr-sub">${esc(a.note)}</span>`:''}</li>`).join('')}</ul>`:'<p class="cr-empty">Rien de planifié.</p>')}
+  </div>`}
+
+/* ================= Export Excel ================= */
+let xlsxLib=null;
+function loadExcel(){if(window.ExcelJS)return Promise.resolve(window.ExcelJS);if(xlsxLib)return xlsxLib;
+  xlsxLib=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';s.onload=()=>res(window.ExcelJS);s.onerror=()=>{xlsxLib=null;rej(new Error('load'))};document.head.append(s)});return xlsxLib}
+async function exportXlsx(){
+  toast('Préparation du fichier Excel…');
+  let X;try{X=await loadExcel()}catch{toast('Impossible de préparer Excel sans connexion internet. Réessaie avec du réseau.');return}
+  const wb=new X.Workbook();wb.creator='Radar — Data Links';wb.created=new Date();
+  const C={teal:'FF0B6B6A',tealSoft:'FFD9EFED',ink:'FF101823',grey:'FF4B5868',line:'FFD7DEE6',zebra:'FFF5F7F9',red:'FFCF4434',redSoft:'FFF9E1DD',amber:'FFC9821F',amberSoft:'FFF8EDDB',blue:'FF2F78BE',blueSoft:'FFE1EDF8',green:'FF2E8A4F',greenSoft:'FFDDF0E3',white:'FFFFFFFF',terrain:'FFCF4434'};
+  const STC={nouveau:[C.grey,'FFEEF1F4'],contacte:[C.blue,C.blueSoft],rappel:[C.amber,C.amberSoft],rdv:[C.teal,C.tealSoft],rdv_fait:[C.teal,C.tealSoft],devis:['FF7B61C9','FFECE7F8'],gagne:[C.green,C.greenSoft],perdu:[C.red,C.redSoft],ko:[C.red,C.redSoft]};
+  const font={name:'Calibri',size:11,color:{argb:C.ink}};
+  const border={bottom:{style:'thin',color:{argb:C.line}}};
+  const P=[...S.P.values()].sort((a,b)=>displayName(a).localeCompare(displayName(b),'fr'));
+  const toDate=s=>{if(!s)return null;const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3])):null};
+  const toMonth=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})$/);return m?new Date(Date.UTC(+m[1],+m[2]-1,1)):null};
+  const nextRdv=p=>(p.actions||[]).filter(a=>!a.fait&&a.type==='RDV').sort((a,b)=>(a.date||'')<(b.date||'')?-1:1)[0];
+  function titleBlock(ws,title,sub,ncol,color){ws.mergeCells(1,1,1,ncol);ws.mergeCells(2,1,2,ncol);
+    const t=ws.getCell(1,1);t.value=title;t.font={name:'Calibri',size:16,bold:true,color:{argb:C.white}};t.fill={type:'pattern',pattern:'solid',fgColor:{argb:color}};t.alignment={vertical:'middle',indent:1};ws.getRow(1).height=30;
+    const s2=ws.getCell(2,1);s2.value=sub;s2.font={...font,italic:true,color:{argb:C.grey}};s2.alignment={indent:1};ws.getRow(2).height=18}
+  function table(ws,cols,rows,color,startRow=4){
+    ws.columns=cols.map(c=>({key:c.k,width:c.w}));
+    const hr=ws.getRow(startRow);cols.forEach((c,i)=>{const cell=hr.getCell(i+1);cell.value=c.h;cell.font={name:'Calibri',size:11,bold:true,color:{argb:C.white}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:color}};cell.alignment={vertical:'middle',wrapText:true};cell.border={bottom:{style:'medium',color:{argb:color}}}});hr.height=32;
+    rows.forEach((r,ri)=>{const row=ws.getRow(startRow+1+ri);cols.forEach((c,i)=>{const cell=row.getCell(i+1);const v=r[c.k];cell.value=v===''||v==null?null:v;cell.font=font;cell.border=border;cell.alignment={vertical:'top',wrapText:!!c.wrap};
+        if(c.fmt)cell.numFmt=c.fmt;if(ri%2)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:C.zebra}};if(c.style)c.style(cell,r)})});
+    ws.views=[{state:'frozen',xSplit:1,ySplit:startRow,showGridLines:false}];
+    if(rows.length)ws.autoFilter={from:{row:startRow,column:1},to:{row:startRow+rows.length,column:cols.length}}}
+  const stStyle=(cell,r)=>{const c=STC[r._st];if(c){cell.font={...font,bold:true,color:{argb:c[0]}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:c[1]}}}};
+  const tpStyle=(cell,r)=>{const m={Chaud:C.red,Tiède:C.amber,Froid:C.blue}[r.temp];if(m)cell.font={...font,bold:true,color:{argb:m}}};
+  const late=(cell,r)=>{if(r._late)cell.font={...font,bold:true,color:{argb:C.red}}};
+  const rowOf=p=>{const c=p.contacts?.find(x=>x.decideur==='Oui')||p.contacts?.[0]||{};const a=nextAction(p);const rv=nextRdv(p);
+    return{nom:displayName(p),siret:fmtSiret(p.ent?.siret||p.ent?.siren||''),secteur:p.ent?.secteur,eff:p.ent?.effectif,adresse:p.ent?.adresse,cp:p.ent?.cp,ville:p.ent?.ville,standard:fmtTel(p.ent?.tel||''),
+      contact:[c.civ,c.prenom,c.nom].filter(Boolean).join(' '),fonction:c.fonction,dec:c.decideur,telc:fmtTel(c.tel||c.mobile||''),email:c.email||p.ent?.email,
+      statut:ST[p.statut]?.l,_st:p.statut,temp:TEMPS.find(x=>x.k===p.temperature)?.l||'',source:srcLabel(p),besoins:(p.besoins?.sel||[]).join(', '),echeance:p.besoins?.priorite,
+      action:a?a.type:'',adate:toDate(a?.date),aheure:a?.heure,_late:a?.date&&a.date<iso(today()),rdv:toDate(rv?.date),rdvh:rv?.heure,
+      copieurs:[p.impr?.nb,(p.impr?.marques||[]).join(' ')].filter(Boolean).join(' '),finimpr:toMonth(p.impr?.finContrat),postes:p.it?.postes,presta:p.it?.prestataire,
+      ope:(p.tel?.operateur||[]).join(', '),fintel:toMonth(p.tel?.finEngagement),qualif:qualif(p)/100,note:(p.journal||[]).slice().sort((x,y)=>x.date<y.date?1:-1)[0]?.texte,cree:p.createdAt?new Date(p.createdAt):null}};
+  const COLS=[{k:'nom',h:'Entreprise',w:32,wrap:true,style:c=>{c.font={...font,bold:true}}},{k:'statut',h:'Statut',w:15,style:stStyle},{k:'temp',h:'Température',w:12,style:tpStyle},
+    {k:'action',h:'Prochaine action',w:14},{k:'adate',h:'Date',w:12,fmt:'dd/mm/yyyy',style:late},{k:'aheure',h:'Heure',w:8},{k:'rdv',h:'RDV prévu le',w:13,fmt:'dd/mm/yyyy'},{k:'rdvh',h:'à',w:7},
+    {k:'contact',h:'Contact',w:22},{k:'fonction',h:'Fonction',w:18},{k:'dec',h:'Décideur',w:10},{k:'telc',h:'Tél. contact',w:15},{k:'email',h:'Email',w:28},
+    {k:'besoins',h:'Besoins identifiés',w:34,wrap:true},{k:'echeance',h:'Échéance projet',w:14},
+    {k:'secteur',h:'Secteur',w:22},{k:'eff',h:'Effectif',w:10},{k:'siret',h:'SIRET',w:20},{k:'adresse',h:'Adresse',w:28,wrap:true},{k:'cp',h:'CP',w:8},{k:'ville',h:'Ville',w:18},{k:'standard',h:'Standard',w:15},
+    {k:'copieurs',h:'Copieurs',w:16},{k:'finimpr',h:'Fin contrat impression',w:14,fmt:'mmm yyyy'},{k:'postes',h:'Postes',w:8},{k:'presta',h:'Prestataire IT',w:18},{k:'ope',h:'Opérateur(s)',w:16},{k:'fintel',h:'Fin engagement télécom',w:14,fmt:'mmm yyyy'},
+    {k:'qualif',h:'Qualification',w:12,fmt:'0%'},{k:'source',h:'Source',w:12},{k:'note',h:'Dernière note',w:45,wrap:true},{k:'cree',h:'Fiche créée le',w:13,fmt:'dd/mm/yyyy'}];
+  const tel=P.filter(p=>canalOf(p)==='Téléphonique'),ter=P.filter(p=>canalOf(p)==='Terrain');
+  // Synthèse
+  const ws0=wb.addWorksheet('Synthèse',{properties:{tabColor:{argb:C.ink}}});
+  titleBlock(ws0,'Radar — Prospection Data Links',`Export du ${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}${USER?.email?' · '+USER.email:''}`,4,C.ink);
+  ws0.columns=[{width:28},{width:16},{width:16},{width:14}];
+  const hdr=ws0.getRow(4);['Statut','Téléphonique','Terrain','Total'].forEach((h,i)=>{const c=hdr.getCell(i+1);c.value=h;c.font={name:'Calibri',size:11,bold:true,color:{argb:C.white}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:i===2?C.terrain:i===1?C.teal:C.grey}};c.alignment={horizontal:i?'center':'left',vertical:'middle'}});hdr.height=26;
+  STATUTS.forEach((s,i)=>{const r=ws0.getRow(5+i);const a=tel.filter(p=>p.statut===s.k).length,b=ter.filter(p=>p.statut===s.k).length;[s.l,a,b,a+b].forEach((v,j)=>{const c=r.getCell(j+1);c.value=v;c.font={...font,bold:j===0||j===3};c.border=border;c.alignment={horizontal:j?'center':'left'};if(j===0){const cc=STC[s.k];c.font={...font,bold:true,color:{argb:cc[0]}}}})});
+  const tr=ws0.getRow(5+STATUTS.length);['Total',tel.length,ter.length,P.length].forEach((v,j)=>{const c=tr.getCell(j+1);c.value=v;c.font={...font,bold:true};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:C.tealSoft}};c.alignment={horizontal:j?'center':'left'};c.border={top:{style:'medium',color:{argb:C.teal}}}});
+  const kr=7+STATUTS.length;const kpi=[['RDV pris ce mois',monthRdv()],['Objectif RDV du mois',S.settings.objectif||20],['Actions en retard',allActions().filter(x=>!x.a.fait&&x.a.date&&x.a.date<iso(today())).length],['Qualification moyenne',P.length?P.reduce((s,p)=>s+qualif(p),0)/P.length/100:0]];
+  kpi.forEach(([k,v],i)=>{const r=ws0.getRow(kr+i);r.getCell(1).value=k;r.getCell(1).font={...font,color:{argb:C.grey}};const c=r.getCell(2);c.value=v;c.font={name:'Calibri',size:13,bold:true,color:{argb:C.teal}};if(i===3)c.numFmt='0%'});
+  ws0.views=[{showGridLines:false}];
+  // Feuilles par canal
+  for(const [name,list,color] of [['Téléphonique',tel,C.teal],['Terrain',ter,C.terrain]]){
+    const ws=wb.addWorksheet(name,{properties:{tabColor:{argb:color}}});
+    titleBlock(ws,`Prospection ${name.toLowerCase()} — ${list.length} fiche${list.length>1?'s':''}`,'Trié par entreprise · filtres actifs sur chaque colonne',COLS.length,color);
+    table(ws,COLS,list.map(rowOf),color);
+    const qi=COLS.findIndex(c=>c.k==='qualif')+1;const ql=ws.getColumn(qi).letter;if(list.length)ws.addConditionalFormatting({ref:`${ql}5:${ql}${4+list.length}`,rules:[{type:'dataBar',cfvo:[{type:'num',value:0},{type:'num',value:1}],color:{argb:'FF3DB5AC'},gradient:false}]})}
+  // Actions à venir
+  const acts=allActions().filter(x=>!x.a.fait).sort((x,y)=>((x.a.date||'9')+(x.a.heure||''))<((y.a.date||'9')+(y.a.heure||''))?-1:1);
+  const wsA=wb.addWorksheet('Rappels & RDV',{properties:{tabColor:{argb:C.amber}}});
+  const AC=[{k:'date',h:'Date',w:12,fmt:'dd/mm/yyyy',style:late},{k:'heure',h:'Heure',w:8},{k:'type',h:'Type',w:10,style:(c,r)=>{if(r.type==='RDV')c.font={...font,bold:true,color:{argb:C.teal}}}},{k:'nom',h:'Entreprise',w:32,wrap:true,style:c=>{c.font={...font,bold:true}}},{k:'canal',h:'Canal',w:14,style:(c,r)=>{c.font={...font,color:{argb:r.canal==='Terrain'?C.terrain:C.teal}}}},{k:'contact',h:'Contact',w:22},{k:'tel',h:'Téléphone',w:15},{k:'note',h:'Note',w:45,wrap:true}];
+  titleBlock(wsA,`Rappels & RDV à venir — ${acts.length}`,'En rouge : en retard',AC.length,C.amber);
+  table(wsA,AC,acts.map(({p,a})=>{const c=p.contacts?.[0]||{};return{date:toDate(a.date),heure:a.heure,type:a.type,nom:displayName(p),canal:canalOf(p),contact:[c.prenom,c.nom].filter(Boolean).join(' '),tel:fmtTel(c.tel||c.mobile||p.ent?.tel||''),note:a.note,_late:a.date&&a.date<iso(today())}}),C.amber);
+  // Comptes rendus
+  const wsC=wb.addWorksheet('Comptes rendus',{properties:{tabColor:{argb:C.grey}}});
+  const CC=[{k:'nom',h:'Entreprise',w:30,wrap:true,style:c=>{c.font={...font,bold:true}}},{k:'canal',h:'Canal',w:14},{k:'statut',h:'Statut',w:15,style:stStyle},{k:'cr',h:'Compte rendu',w:100,wrap:true}];
+  titleBlock(wsC,'Comptes rendus','Entreprise, contacts, besoins, rappels et RDV',CC.length,C.grey);
+  table(wsC,CC,P.map(p=>({nom:displayName(p),canal:canalOf(p),statut:ST[p.statut]?.l,_st:p.statut,cr:crText(p).split('\n').slice(3).join('\n')})),C.grey);
+  const buf=await wb.xlsx.writeBuffer();
+  downloadFile(`Prospection-DataLinks-${iso(new Date())}.xlsx`,buf,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');toast('Fichier Excel téléchargé')}
 
 /* ================= Événements ================= */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==='A'&&b.dataset.act!=='closem')return;f(b,e)}});
