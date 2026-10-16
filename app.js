@@ -386,6 +386,7 @@ function renderFiche(){
     <div class="fbar"><div class="stsel">${STATUTS.map(s=>`<button data-act="statut" data-v="${s.k}" aria-pressed="${p.statut===s.k}" ${p.statut===s.k?`class="st-${s.k}"`:''}>${esc(s.l)}</button>`).join('')}</div>
      <div class="temp" role="group" aria-label="Température">${TEMPS.map(t=>`<button data-act="temp" data-v="${t.k}" aria-pressed="${p.temperature===t.k}">${t.l}</button>`).join('')}</div></div>
     ${ex?`<div class="warnbox"><b>Hors cible ?</b><span>${esc(ex)}</span></div>`:''}
+    ${phoneBox(p)}
    </div>
    <div class="tabs" role="tablist" id="tabs">${tabsHtml(p)}</div>
    <div id="tabbody">${tabBody(p)}</div>
@@ -395,7 +396,7 @@ function renderFiche(){
    </div>
   </div>
   ${S.mode==='terrain'?`<button class="fab" data-act="sheet"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5V17h1.5L15 7.5 13.5 6zM12.5 7l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notes & issue</button>`:''}`;
-  flashApply();
+  flashApply();setTimeout(()=>autoPhone(cur()),400);
 }
 function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal.'].filter(Boolean);
   return `${p.ent?.siret?`<span>SIRET <span class="mono">${esc(fmtSiret(p.ent.siret))}</span></span>`:p.ent?.siren?`<span>SIREN <span class="mono">${esc(fmtSiret(p.ent.siren))}</span></span>`:'<span style="color:var(--ink-3)">SIRET non renseigné</span>'}${sub.map(s=>`<span>${esc(s)}</span>`).join('')}${p.ent?.tel?`<span class="mono">${esc(fmtTel(p.ent.tel))}</span>`:''}${p.rne?.status==='ok'?'<span class="badge-dec">✓ Registre</span>':p.rne?.status==='a_verifier'?'<span class="tag">Registre à confirmer</span>':''}<span style="color:var(--ink-3)">${p.source==='terrain'?'Terrain':p.source==='linkedin'?'LinkedIn':'Téléphone'}</span>`}
@@ -404,7 +405,7 @@ function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.inn
   const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
   if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
-  return `${t.id==='ent'?identHtml(p)+phoneBox(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
+  return `${t.id==='ent'?identHtml(p):''}<div class="panel"><div class="grid">${t.fields.filter(f=>f.k!=='ent.nom').map(f=>fieldHtml(f,f.k,getP(p,f.k))).join('')}</div></div>`}
 function fieldHtml(f,path,v,def){
   const id='f-'+path.replace(/\./g,'-');const span=f.w===2?' span-2':'';const dk=def||f.k;
   if(f.t==='single'||f.t==='multi')return `<div class="f${span}"><span class="lab">${esc(f.l)}</span>${chipsHtml(f,path,v,dk)}</div>`;
@@ -479,7 +480,7 @@ function notesHtml(p){
   return `<div class="np">
    ${ses?`<div class="sess"><span>Session d'appels · <b>${ses.i+1}/${ses.q.length}</b></span><span style="display:flex;gap:6px"><button class="btn btn-s" data-act="snext">Suivant <kbd style="background:transparent;border-color:currentColor;color:inherit">J</kbd></button><button class="btn btn-q btn-s" style="color:inherit" data-act="sstop">Arrêter</button></span></div>`:''}
    <div class="np-h"><h2>${m==='poste'?'Appel en cours':'Visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
-   ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:`<span class="who">Pas encore de numéro.</span><button class="btn btn-g btn-s" data-act="findphone">🔎 Trouver le numéro</button><span class="links" style="width:100%">${phoneLinks(p)}</span>`}
+   ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:`<span class="who">Pas encore de numéro.</span>${S.ph?.busy&&S.ph.pid===p.id?`<span class="ph-run" style="padding:4px 8px"><span class="spin"></span>Recherche…</span>`:`<button class="btn btn-g btn-s" data-act="findphone">🔎 Trouver le numéro</button>`}<span class="links" style="width:100%">${phoneLinks(p)}</span>`}
      ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
    <textarea class="in note" id="note-in" placeholder="${m==='poste'?'Tape comme tu parles : « dg mr martin, 12 postes, canon en leasing fin 06/27 pas content, av avast, pas de svg, rapl jeudi 14h »':'ex. « vu accueil, gerante mme lopez absente, 8 pers, copieur ricoh, repasser mardi matin »'}">${esc(draft)}</textarea>
    <div class="hint"><span>Abréviations et fautes comprises.</span>${m==='poste'?'<span><kbd>Ctrl</kbd>+<kbd>Entrée</kbd> analyser</span>':''}</div>
@@ -1310,7 +1311,7 @@ async function overpassPhones(pos,radius){
   const wait=Math.max(0,ovNext-Date.now());ovNext=Math.max(ovNext,Date.now())+1200;if(wait)await sleep(wait);
   for(const url of [...OVERPASS,OVERPASS[0]]){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:AbortSignal.timeout(15000)});if(!r.ok){await sleep(1500);continue}const j=await r.json();
     return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}catch{await sleep(800)}}
-  return[]}
+  return null}
 async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return[];
   try{const u=new URL(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'')}.json`);
     u.searchParams.set('key',key);u.searchParams.set('lat',pos.lat);u.searchParams.set('lon',pos.lon);u.searchParams.set('radius','250');u.searchParams.set('limit','8');u.searchParams.set('language','fr-FR');u.searchParams.set('countrySet','FR');
@@ -1320,10 +1321,11 @@ async function posOf(p){if(p.geo?.lat)return p.geo;const e=p.ent||{};if(!e.adres
 function bestPhone(p,list,pos){const names=[p.ent?.enseigne,p.ent?.nom].filter(Boolean);let best=null,bs=0;
   for(const x of list){const s=Math.max(...names.map(n=>Math.max(sim(n,x.name),sim(x.name,n))));const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>120?0.2:0);if(sc>bs){bs=sc;best=x}}
   return bs>=0.5?best:null}
-async function findPhone(p,{silent=false,pool=null}={}){
-  const pos=await posOf(p);if(!pos)return{status:'noaddr'};
-  let list=pool||await overpassPhones(pos,120);let hit=bestPhone(p,list,pos);
-  if(!hit){const tt=await tomtomPhones(p,pos);hit=bestPhone(p,tt,pos)}
+async function findPhone(p,{silent=false,pool=null,step=()=>{}}={}){
+  step('Localisation de l’adresse…');const pos=await posOf(p);if(!pos)return{status:'noaddr'};
+  step('Recherche dans OpenStreetMap…');let list=pool||await overpassPhones(pos,120);const down=list===null;list=list||[];let hit=bestPhone(p,list,pos);
+  if(!hit&&S.settings.tomtomKey){step('Recherche dans TomTom…');const tt=await tomtomPhones(p,pos);hit=bestPhone(p,tt,pos)}
+  if(!hit&&down)return{status:'down'};
   if(!hit){const near=list.filter(x=>pos&&x.lat&&haversine(pos,{lat:x.lat,lon:x.lon})<=20);p.ent.telLookup={at:iso(today()),status:'none'};
     if(near.length===1&&!p.ent.tel){p.ent.telAlt=near[0].phone;p.ent.telSource=`même adresse : « ${near[0].name} » (${near[0].src})`;p.ent.telLookup.status='possible'}touch(p);return{status:p.ent.telLookup.status==='possible'?'possible':'none'}}
   p.ent.telLookup={at:iso(today()),status:'ok'};
@@ -1332,16 +1334,18 @@ async function findPhone(p,{silent=false,pool=null}={}){
 function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||''),v=encodeURIComponent(p.ent?.ville||p.ent?.cp||'');
   return `<a href="https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${n}&ou=${v}" target="_blank" rel="noopener">PagesJaunes</a><a href="https://www.google.com/search?q=${n}+${v}+t%C3%A9l%C3%A9phone" target="_blank" rel="noopener">Google</a><a href="https://www.google.com/maps/search/${n}+${v}" target="_blank" rel="noopener">Maps</a>`}
 function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
-  return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<b class="mono">${esc(fmtTel(e.tel))}</b>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
-   <button class="btn btn-g btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'Recherche…':'🔎 Trouver le numéro'}</button></div>
+  return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<a class="mono ph-num" href="tel:${esc(e.tel)}">📞 ${esc(fmtTel(e.tel))}</a>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
+   <button class="btn ${e.tel?'btn-q':'btn-g'} btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'<span class="spin"></span> Recherche…':e.tel?'🔎 Revérifier':'🔎 Trouver le numéro'}</button></div>
+   ${st.busy?`<div class="ph-run"><span class="spin"></span>${esc(st.step||'Recherche en cours…')} <small>(jusqu’à 30 s)</small></div>`:''}
    ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">${e.tel?'Autre numéro trouvé':'Numéro possible ('+esc(e.telSource||'')+')'} : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
-   ${!e.tel&&e.telLookup&&!st.msg?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Utilise PagesJaunes ou Google ci-dessous.'}</div>`:''}
-   ${st.msg?`<div class="cr-sub" style="margin:0">${esc(st.msg)}</div>`:''}
+   ${!e.tel&&e.telLookup&&!st.msg&&!st.busy?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Utilise PagesJaunes ou Google ci-dessous.'}</div>`:''}
+   ${st.msg&&!st.busy?`<div class="ph-msg${st.ok?' ok':''}">${esc(st.msg)}</div>`:''}
    <div class="links"><span class="lbl" style="align-self:center">Chercher :</span>${phoneLinks(p)}</div></div>`}
-async function findPhoneUI(p){S.ph={pid:p.id,busy:true};rePhone();
-  let r;try{r=await findPhone(p)}catch{r={status:'err'}}
-  S.ph={pid:p.id,msg:r.status==='ok'?`Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':'Pas de numéro public trouvé automatiquement : essaie PagesJaunes ou Google ci-dessous, puis colle le numéro dans le champ Standard.'};
+async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.id,busy:true,step:'Démarrage…'};rePhone();if(S.sel===p.id)renderNotesOnly();
+  let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
+  S.ph={pid:p.id,ok:r.status==='ok',msg:r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google ci-dessous.':'Aucun numéro public trouvé automatiquement. Clique PagesJaunes ou Google ci-dessous, puis colle le numéro dans le champ Standard (onglet Entreprise).'};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
+function autoPhone(p){if(!p||p.ent?.tel||p.ent?.telLookup||!(p.ent?.nom||p.ent?.enseigne)||!(p.geo||p.ent?.adresse||p.ent?.ville))return;S.phAuto=S.phAuto||new Set();if(S.phAuto.has(p.id))return;S.phAuto.add(p.id);findPhoneUI(p)}
 function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=phoneBox(p)}
 
 async function overpassBbox(b){const q=`[out:json][timeout:25];nwr(${b.s.toFixed(5)},${b.w.toFixed(5)},${b.n.toFixed(5)},${b.e.toFixed(5)})["name"][~"^(phone|contact:phone|contact:mobile)$"~"."];out tags center 3000;`;

@@ -248,7 +248,12 @@ textarea.in{height:auto;min-height:80px;padding:9px 11px;resize:vertical;line-he
 .cr-ag li .cr-sub{width:100%;margin:0}
 .cr .chips .chip{cursor:default}
 .calbtns{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;width:100%}
-.phonebox{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-bottom:14px}
+.phonebox{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin:12px 0 0}
+.phonebox .ph-num{font-weight:600;font-size:15px;color:var(--accent);text-decoration:none}
+.ph-run{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--accent);background:var(--accent-soft);padding:8px 10px;border-radius:8px}
+.ph-run small{color:var(--ink-3)}
+.ph-msg{font-size:13px;color:var(--ink-2);background:var(--surface-2,rgba(0,0,0,.04));padding:8px 10px;border-radius:8px}
+.ph-msg.ok{color:var(--good,#1a7f4b);font-weight:500}
 .implog{max-height:180px;overflow:auto;font-size:12.5px;display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:var(--r-s);background:var(--surface-2)}
 .implog .ko{color:var(--bad)}
 /* Contacts */
