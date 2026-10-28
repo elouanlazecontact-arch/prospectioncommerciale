@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=26;
+const APP_V=27;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -35,6 +35,7 @@ const TABS=[
   {k:'ent.site',l:'Site web',t:'text'},
   {k:'ent.sites',l:'Plusieurs sites',t:'single',o:['Non','Oui']},
   {k:'ent.groupe',l:'Décision au siège / réseau',t:'single',o:['Non','Oui'],w:2},
+  {k:'ent.notes',l:'Notes entreprise (infos qui ne rentrent dans aucune case)',t:'area',w:2,sec:'Notes'},
   {k:'ent.categorie',l:'Catégorie',t:'single',o:['Micro-entreprise','PME','ETI','Grande entreprise'],w:2,reg:true,sec:'Registre officiel'},
   {k:'ent.etab',l:'Cet établissement',t:'single',o:['Siège','Établissement secondaire'],reg:true},
   {k:'ent.tva',l:'TVA intracommunautaire',t:'mono',reg:true},
@@ -576,7 +577,7 @@ function suiviHtml(p){
   const na=S.newAct||{type:'Rappel',date:iso(bizDays(today(),1)),heure:'',note:''};
   return `<div style="display:flex;flex-direction:column;gap:14px">
    <div class="panel"><h3 class="sec-t">Actions à venir <span class="lbl">${acts.filter(a=>!a.fait).length} ouverte(s)</span></h3>
-    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}${a.type==='RDV'&&!a.fait&&a.date?calBtns(p,a):''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
+    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}${CAL_TYPES.includes(a.type)&&!a.fait&&a.date?calBtns(p,a):''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
     <div class="addact"><div class="chips">${ATYPES.map(t=>`<button class="chip" data-act="natype" data-v="${t}" aria-pressed="${na.type===t}">${t}</button>`).join('')}</div>
      <div class="f"><label for="na-date">Date</label><input class="in" type="date" id="na-date" value="${esc(na.date)}"></div>
      <div class="f"><label for="na-heure">Heure</label><input class="in" type="time" id="na-heure" value="${esc(na.heure)}"></div>
@@ -586,7 +587,7 @@ function suiviHtml(p){
    </div>
    <div class="panel"><h3 class="sec-t">Source</h3>${chipsHtml({t:'single',o:['Téléphone','Terrain','LinkedIn','Recommandation','Salon']},'source',{tel:'Téléphone',terrain:'Terrain',linkedin:'LinkedIn'}[p.source]||p.source,'source')}</div>
    <div class="panel"><h3 class="sec-t">Historique <span class="lbl">${j.length} entrée(s)</span></h3>
-    ${j.length?`<div class="tl">${j.map(e=>`<div class="tl-i" data-c="${e.canal}"><div class="tl-h"><b>${esc(e.issue||(e.canal==='note'?'Note':e.canal==='tel'?'Appel':'Visite'))}</b><span>${esc(fmtDate(e.date.slice(0,10)))} ${esc(e.date.slice(11,16))}</span>${e.duree?`<span class="mono">${esc(e.duree)}</span>`:''}${e.canal==='tel'?'<span>📞</span>':e.canal==='terrain'?'<span>📍</span>':''}</div>${e.texte?`<div class="tl-x">${esc(e.texte)}</div>`:''}</div>`).join('')}</div>`:`<span style="color:var(--ink-3);font-size:13px">Les notes et issues d'appel ou de visite s'ajoutent ici automatiquement.</span>`}
+    ${j.length?`<div class="tl">${j.map(e=>`<div class="tl-i" data-c="${e.canal}"><div class="tl-h"><b>${esc(e.issue||(e.canal==='note'?'Note':e.canal==='tel'?'Appel':'Visite'))}</b><span>${esc(fmtDate(e.date.slice(0,10)))} ${esc(e.date.slice(11,16))}</span>${e.duree?`<span class="mono">${esc(e.duree)}</span>`:''}${e.canal==='tel'?'<span>📞</span>':e.canal==='terrain'?'<span>📍</span>':''}</div>${e.texte?(()=>{const L=jLines(e);return `${L.length?`<ul class="tl-clean">${L.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}<details class="tl-raw"><summary>Note brute</summary><div class="tl-x">${esc(e.texte)}</div></details>`})():''}</div>`).join('')}</div>`:`<span style="color:var(--ink-3);font-size:13px">Les notes et issues d'appel ou de visite s'ajoutent ici automatiquement.</span>`}
    </div></div>`}
 
 /* ================= Panneau notes / appel ================= */
@@ -597,7 +598,9 @@ function notesHtml(p){
   return `<div class="np">
    ${ses?`<div class="sess"><span>Session d'appels · <b>${ses.i+1}/${ses.q.length}</b></span><span style="display:flex;gap:6px"><button class="btn btn-s" data-act="snext">Suivant <kbd style="background:transparent;border-color:currentColor;color:inherit">J</kbd></button><button class="btn btn-q btn-s" style="color:inherit" data-act="sstop">Arrêter</button></span></div>`:''}
    ${p.ent?.tel?`<div class="std-hero"><span class="lbl">Standard${p.ent.enseigne?' · '+esc(p.ent.enseigne):''}</span><a class="std-num mono" href="tel:${esc(p.ent.tel)}">${esc(fmtTel(p.ent.tel))}</a><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(p.ent.tel)}">Copier</button>${p.ent.telSource?`<small>${esc(p.ent.telSource)}</small>`:''}</div>`:`<div class="std-hero none"><span class="lbl">Standard</span><span class="std-none">pas de numéro</span>${S.ph?.busy&&S.ph.pid===p.id?`<span class="ph-run" style="padding:4px 8px"><span class="spin"></span>Recherche…</span>`:`<button class="btn btn-g btn-s" data-act="findphone">🔎 Trouver</button>`}</div>`}
-   ${(()=>{const cm=S.calMsg;const a=cm&&cm.pid===p.id&&p.actions?.find(x=>x.id===cm.aid);if(!a)return'';return `<div class="calmsg"><b>📅 RDV ${esc(fmtDate(a.date))}${a.heure?' à '+esc(a.heure.replace(':','h')):''} enregistré</b><span>Si Outlook ne s’est pas ouvert ou que le RDV n’y apparaît pas :</span><div><button class="btn btn-p btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}">Ouvrir avec Outlook (application)</button><button class="btn btn-g btn-s" data-act="cal" data-v="m365" data-id="${p.id}" data-a="${a.id}">Outlook web</button><button class="btn btn-q btn-s" data-act="calx">OK</button></div></div>`})()}
+   ${(()=>{const cm=S.calMsg;if(!cm||cm.pid!==p.id)return'';const ids=cm.aids||(cm.aid?[cm.aid]:[]);const L=ids.map(id=>p.actions?.find(x=>x.id===id)).filter(a=>a&&!a.fait);if(!L.length)return'';
+     const lab=a=>`${a.type} ${fmtDate(a.date)}${a.heure?' à '+a.heure.replace(':','h'):''}`;const all=L.every(a=>a.cal);
+     return `<div class="calmsg"><b>📅 ${L.length>1?L.length+' actions à inscrire dans l’agenda':esc(lab(L[0]))+(all?' envoyé vers Outlook':' à inscrire dans l’agenda')}</b><span>${all?'Si Outlook ne s’est pas ouvert ou que l’événement n’y apparaît pas :':'Un clic par action :'}</span>${L.map(a=>`<div>${L.length>1?`<span class="cal-l">${esc(lab(a))}${a.cal?' ✓':''}</span>`:''}<button class="btn btn-p btn-s" data-act="cal" data-v="m365" data-id="${p.id}" data-a="${a.id}">Outlook web</button><button class="btn btn-g btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}">Outlook (application)</button></div>`).join('')}<div><button class="btn btn-q btn-s" data-act="calx">OK</button></div></div>`})()}
    <div class="np-h"><h2>${m==='poste'?'Appel en cours':'Visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
    ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:(p.ent?.tel?'':`<span class="links" style="width:100%">${phoneLinks(p)}</span>`)}
      ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
@@ -631,8 +634,8 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
  <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
  <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
- <div class="f"><span class="lab">Agenda pour les RDV</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['ics','Outlook (application Windows, fichier)'],...(proMail()?[]:[['live','Outlook.com perso']])].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
-  <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label></div>
+ <div class="f"><span class="lab">Agenda (RDV et rappels)</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['ics','Outlook (application Windows, fichier)'],...(proMail()?[]:[['live','Outlook.com perso']])].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-rappel" ${S.settings.calRappel!==false?'checked':''}> Inscrire aussi chaque rappel et relance dans l'agenda</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
   <button class="btn btn-p" data-act="fimpopen">Importer un fichier (Excel, CSV, PDF)</button>
@@ -727,6 +730,7 @@ const ACT={
  askno:()=>{S.ask=null;renderNotesOnly()},
  askslot:b=>{S.ask.heure=b.dataset.v;$('#ask-heure').value=b.dataset.v;$$('[data-act="askslot"]').forEach(x=>{const on=x===b;x.setAttribute('aria-pressed',String(on));x.classList.toggle('on',on)})},
  copyph:b=>copy(String(b.dataset.v).replace(/\s/g,''),'Numéro copié'),
+ copyv:b=>copy(String(b.dataset.v),'Copié : '+b.dataset.v),
  callstart:()=>{S.call={id:S.sel,t0:Date.now()};renderNotesOnly();tick()},
  callstop:()=>{S.call=null;renderNotesOnly()},
  session:()=>startSession(),snext:()=>nextInSession(),sstop:()=>{S.session=null;renderNotesOnly();toast('Session terminée')},
@@ -756,7 +760,7 @@ const ACT={
   const {data}=await SB.from('admins').select('user_id,role');S.admins=data||[];toast(adm?'Droits admin retirés':'Droits admin donnés');renderLayer()},
  calx:()=>{S.calMsg=null;renderNotesOnly()},
  cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
- closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}if(S.menu&&$('#wh-0a')){const h=[0,1].map(i=>[$('#wh-'+i+'a')?.value,$('#wh-'+i+'b')?.value]).filter(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]));if(h.length&&JSON.stringify(h)!==JSON.stringify(workHours())){S.settings.hours=h;saveSettings()}}
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const cr2=$('#cal-rappel');if(cr2&&S.menu&&cr2.checked!==(S.settings.calRappel!==false)){S.settings.calRappel=cr2.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}if(S.menu&&$('#wh-0a')){const h=[0,1].map(i=>[$('#wh-'+i+'a')?.value,$('#wh-'+i+'b')?.value]).filter(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]));if(h.length&&JSON.stringify(h)!==JSON.stringify(workHours())){S.settings.hours=h;saveSettings()}}
   S.menu=false;S.help=false;S.importing=false;S.fimpOpen=false;renderLayer()},
  fimpopen:()=>{S.menu=false;S.importing=false;S.fimpOpen=true;if(S.fimp?.run?.end)S.fimp=null;renderLayer()},
  fimpsrc:b=>{S.fimp.src=b.dataset.v;renderLayer()},
@@ -1057,7 +1061,7 @@ function applyPatch(p,patch,overwrite){
   for(const [k,v0] of Object.entries(patch.set||{})){const f=FIELD[k];if(!f)continue;const v=coerce(f,v0);if(!filled(v))continue;const cv=getP(p,k);
     if(f.t==='multi'){let arr=Array.isArray(cv)?cv.slice():[];let ch=false;for(const x of v)if(!arr.some(a=>norm(a)===norm(x))){arr.push(x);ch=true}
       if(arr.some(x=>!EXCL.test(x)))arr=arr.filter(x=>!EXCL.test(x));if(ch){setP(p,k,arr);changed.add(k)}}
-    else if(f.t==='area'){if(!String(cv||'').includes(v)){setP(p,k,cv?cv+'\n'+v:v);changed.add(k)}}
+    else if(f.t==='area'){const have=new Set(String(cv||'').split('\n').map(nkey));const add=String(v).split('\n').filter(x=>{const k2=nkey(x);if(!k2||have.has(k2))return false;have.add(k2);return true});if(add.length){setP(p,k,cv?cv+'\n'+add.join('\n'):add.join('\n'));changed.add(k)}}
     else if(String(cv??'')===String(v)&&p.est?.[k]){delete p.est[k];changed.add(k)}
     else if(String(cv??'')!==String(v)&&(overwrite||!filled(cv)||p.est?.[k]||/\.prestataire$/.test(k)||['single','num','month'].includes(f.t))){if(k==='ent.secteur'&&filled(cv)&&!overwrite)continue;setP(p,k,v);changed.add(k)}
     if(p.est?.[k]&&changed.has(k))delete p.est[k]}
@@ -1084,7 +1088,7 @@ function describe(changed){const fields=changed.filter(k=>k!=='actions'&&k!=='st
 /* ================= Analyse des notes ================= */
 async function analyze(p,text,{kind='note',journal=null}={}){
   if(!p)return;const before=structuredClone(p);let changed=[];
-  if(text){const loc=parseLocal(text,p);changed=applyPatch(p,loc,kind==='ident')}
+  if(text){const loc=parseLocal(text,p);if(kind==='note'){const lo=leftovers(text);if(lo.length){loc.set=loc.set||{};loc.set['ent.notes']=lo.join('\n')}}changed=applyPatch(p,loc,kind==='ident')}
   if(journal){p.journal=p.journal||[];p.journal.push(journal)}
   touch(p);markFlash(changed);
   S.aiMsg=changed.length?`Rempli : ${describe(changed)}.`:'Aucune info à ranger détectée : la note est gardée dans l’historique.';
@@ -1095,17 +1099,26 @@ async function analyze(p,text,{kind='note',journal=null}={}){
 async function commitNote(p,text,o,ask){
   if(!p)return;const canal=o?(S.mode==='poste'?'tel':'terrain'):'note';
   const j={id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal,issue:o?.l||'',texte:text};
+  if(text)j.propre=cleanNote(text);const had=new Set((p.actions||[]).map(a=>a.id));let defAct=null;
   if(S.call&&S.call.id===p.id&&o){const s=Math.floor((Date.now()-S.call.t0)/1000);j.duree=`${pad(Math.floor(s/60))}:${pad(s%60)}`;S.call=null}
   if(o){if(o.statut)setStatut(p,(RANK[o.statut]>=RANK[p.statut]||['ko','perdu'].includes(o.statut)||p.statut==='nouveau')?o.statut:p.statut);if(o.temp)p.temperature=o.temp;
-    if(o.a){const date=ask?.date||iso(bizDays(today(),o.a.in));const note=[o.k==='rdv'&&ask?.lieu,o.k==='doc'?'Envoyer la documentation':'',o.l].filter(Boolean)[0];addAction(p,{type:o.a.type,date,heure:ask?.heure||'',note:o.k==='rdv'?`RDV ${ask?.lieu||''}`.trim():note})}
+    if(o.a){const n0=(p.actions||[]).length;const date=ask?.date||iso(bizDays(today(),o.a.in));const note=[o.k==='rdv'&&ask?.lieu,o.k==='doc'?'Envoyer la documentation':'',o.l].filter(Boolean)[0];addAction(p,{type:o.a.type,date,heure:ask?.heure||'',note:o.k==='rdv'?`RDV ${ask?.lieu||''}`.trim():note});if(!ask&&(p.actions||[]).length>n0)defAct=p.actions.at(-1)}
     if(o.k==='rdv'&&ask){j.issue=`RDV pris · ${fmtDate(ask.date)}${ask.heure?' '+ask.heure:''}${ask.lieu?' · '+ask.lieu:''}`}}
   lsSet('radar-draft-'+p.id,null);if($('#note-in'))$('#note-in').value='';
   S.ask=null;
   if(text)await analyze(p,text,{kind:'note',journal:j});
   else{p.journal=p.journal||[];p.journal.push(j);touch(p);renderFiche();renderNotesOnly();renderList();toast(`${displayName(p)} : ${j.issue}`)}
+  if(defAct){const fromNote=(p.actions||[]).find(a=>a!==defAct&&!had.has(a.id)&&!a.fait&&a.date&&['Rappel','RDV','Appel','Relance'].includes(a.type));
+    if(fromNote){p.actions=p.actions.filter(a=>a!==defAct);fromNote.note=cleanClause(fromNote.note||'')||defAct.note;touch(p);if(S.sel===p.id){renderFiche();renderNotesOnly()}}}
+  calNew(p,had,o);
   if(o&&S.session&&S.session.q[S.session.i]===p.id)setTimeout(nextInSession,700);
   if(o&&S.mode==='terrain'){S.sheet=false;renderLayer()}}
 
+/* Chaque rappel / relance / RDV créé part dans l'agenda Outlook */
+function calNew(p,had,o){const news=(p.actions||[]).filter(a=>!had.has(a.id)&&!a.fait&&a.date&&CAL_TYPES.includes(a.type)&&!(o?.k==='rdv'&&a.type==='RDV'));if(!news.length)return;
+  const auto=news.filter(a=>a.type==='RDV'?S.settings.calAuto!==false:S.settings.calRappel!==false);
+  if(auto.length===1&&news.length===1){addToCal(p,auto[0]);return}
+  S.calMsg={pid:p.id,aids:news.map(a=>a.id)};if(S.sel===p.id)renderNotesOnly()}
 /* ================= Résumé, export, exemples ================= */
 function summary(p){const L=[];const e=p.ent||{};
   L.push(`${displayName(p).toUpperCase()}${e.forme?' ('+e.forme+')':''}`);
@@ -1454,50 +1467,175 @@ window.addEventListener('scroll',e=>{if(!e.target?.closest?.('#sugg'))sgHide()},
 const canalOf=p=>p.source==='terrain'?'Terrain':'Téléphonique';
 const srcLabel=p=>({tel:'Téléphone',terrain:'Terrain',linkedin:'LinkedIn'}[p.source]||p.source||'Téléphone');
 const val=v=>Array.isArray(v)?v.join(', '):/^\d{4}-\d{2}$/.test(String(v||''))?fmtMonth(v):String(v??'');
-function crData(p){
-  const e=p.ent||{};
-  const ent={nom:displayName(p),lignes:[
-    e.enseigne&&e.enseigne!==e.nom?['Enseigne',e.enseigne]:null,
-    e.siret||e.siren?['SIRET',fmtSiret(e.siret||e.siren)]:null,
-    e.secteur||e.forme?['Activité',[e.secteur,e.forme,e.effectif&&e.effectif+' salariés'].filter(Boolean).join(' · ')]:null,
-    e.adresse||e.ville?['Adresse',[e.adresse,[e.cp,e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')]:null,
-    e.tel?['Standard',fmtTel(e.tel)]:null].filter(Boolean)};
-  const contacts=(p.contacts||[]).filter(c=>c.nom||c.prenom||c.fonction||c.tel||c.mobile||c.email).map(c=>({
-    nom:[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')||'Interlocuteur',fonction:c.fonction||'',decideur:c.decideur||'',
-    coord:[fmtTel(c.tel||''),fmtTel(c.mobile||''),c.email].filter(Boolean).join(' · ')}));
-  const b=p.besoins||{};
-  const details=[
-    (filled(p.impr?.nb)&&!p.est?.['impr.nb'])||filled(p.impr?.marques)||filled(p.impr?.finContrat)||filled(p.impr?.prestataire)?['Impression',[!p.est?.['impr.nb']&&p.impr.nb&&p.impr.nb+' copieur'+(p.impr.nb>1?'s':''),val(p.impr.marques),p.impr.mode,p.impr.loueur,p.impr.prestataire&&'fournisseur : '+p.impr.prestataire,p.impr.finContrat&&'fin de contrat '+fmtMonth(p.impr.finContrat),p.impr.satisfaction&&p.impr.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
-    (filled(p.it?.postes)&&!p.est?.['it.postes'])||filled(p.it?.prestataire)||filled(p.it?.aPresta)||filled(p.it?.contrat)?['Informatique',[!p.est?.['it.postes']&&p.it.postes&&p.it.postes+' postes',p.it.prestataire?'prestataire : '+p.it.prestataire:p.it.aPresta==='Non'?'pas de prestataire':'',p.it.contrat,p.it.satisfaction&&p.it.satisfaction.toLowerCase()].filter(Boolean).join(' · ')]:null,
-    filled(p.cyber?.antivirus)||filled(p.cyber?.sauvegarde)||filled(p.cyber?.firewall)?['Cybersécurité',[p.cyber.antivirus&&'antivirus : '+val(p.cyber.antivirus),p.cyber.sauvegarde&&'sauvegarde : '+val(p.cyber.sauvegarde),p.cyber.firewall&&'pare-feu : '+p.cyber.firewall,p.cyber.prestataire&&'prestataire : '+p.cyber.prestataire].filter(Boolean).join(' · ')]:null,
-    filled(p.tel?.operateur)||filled(p.tel?.finEngagement)||filled(p.tel?.standard)?['Télécom',[val(p.tel.operateur),p.tel.prestataire&&'prestataire : '+p.tel.prestataire,p.tel.standard,p.tel.finEngagement&&'fin d’engagement '+fmtMonth(p.tel.finEngagement)].filter(Boolean).join(' · ')]:null].filter(Boolean);
-  const besoins={liste:b.sel||[],echeance:b.priorite||'',declencheurs:b.declencheur||[],budget:b.budget||'',details,notes:b.notes||''};
+const CAL_TYPES=['RDV','Rappel','Appel','Relance','Visite'];
+/* ================= Notes corrigées (lisibles) ================= */
+/* Abréviations → forme écrite (avec accents) */
+const DISP={rdv:'RDV',rdz:'RDV',rv:'RDV',dg:'DG',daf:'DAF',dsi:'DSI',drh:'DRH',pdg:'PDG',rh:'RH',rgpd:'RGPD',nrp:'pas de réponse',pi:'pas intéressé',mme:'Mme',mlle:'Mlle',
+ ajd:"aujourd'hui",auj:"aujourd'hui",dem:'demain',dmn:'demain',dm1:'demain',dem1:'demain','2m1':'demain',apdem:'après-demain',pr:'pour',tt:'tout',ts:'tous',tjr:'toujours',tjrs:'toujours',tjs:'toujours',qd:'quand',bcp:'beaucoup',
+ pb:'problème',pbm:'problème',pblm:'problème',prob:'problème',pbs:'problèmes',msg:'message',msgs:'messages',rep:'répondeur',ds:'dans',avt:'avant',apr:'après',ac:'avec',avc:'avec',jsp:'ne sait pas',nsp:'ne sait pas',mtn:'maintenant',
+ ordi:'ordinateur',ordis:'ordinateurs',ordo:'ordinateur',ordos:'ordinateurs',imp:'imprimante',imps:'imprimantes',photocop:'photocopieur',multif:'multifonction',
+ sauv:'sauvegarde',sauvg:'sauvegarde',svg:'sauvegarde',bkp:'sauvegarde',antivir:'antivirus',fw:'pare-feu',presta:'prestataire',prestas:'prestataires',prest:'prestataire',
+ info:'informatique',infor:'informatique',inf:'informatique',std:'standard',stand:'standard',ope:'opérateur',op:'opérateur',mob:'mobiles',mobs:'mobiles',
+ sal:'salariés',sala:'salariés',salar:'salariés',sals:'salariés',perso:'personnes',persos:'personnes',pers:'personnes',pax:'personnes',ppl:'personnes',collab:'collaborateurs',collabs:'collaborateurs',colab:'collaborateurs',colabs:'collaborateurs',
+ empl:'employés',util:'utilisateurs',utils:'utilisateurs',ger:'gérant',dirlo:'dirigeant',dirl:'dirigeant',dir:'directeur',dirco:'directeur',sec:'secrétaire',secr:'secrétaire',secre:'secrétaire',secreta:'secrétaire',
+ assist:'assistante',assis:'assistante',compta:'comptable',resp:'responsable',inter:'intéressé',interes:'intéressé',insat:'insatisfait',sat:'satisfait',moy:'moyen',
+ loc:'location',locat:'location',leas:'leasing',ctr:'contrat',ctrt:'contrat',cntrt:'contrat',ctrat:'contrat',eng:'engagement',engag:'engagement',engmt:'engagement',doc:'documentation',docs:'documentation',plaq:'plaquette',
+ relan:'relance',rapl:'rappeler',rpl:'rappeler',rapel:'rappeler',rapeler:'rappeler',rapell:'rappeler',rapeller:'rappeler',rappl:'rappeler',rappele:'rappeler',rapele:'rappeler',rap:'rappeler',
+ dispo:'disponible',abs:'absent',sem:'semaine',proch:'prochaine',aprem:'après-midi',apm:'après-midi',qques:'quelques',qq:'quelques',ste:'société',soc:'société',cab:'cabinet',ya:'il y a',
+ copi:'copieur',cop:'copieur',coul:'couleur',ss:'sans',w10:'Windows 10',w11:'Windows 11',w7:'Windows 7',fact:'facture',abo:'abonnement',mens:'mensuel',maint:'maintenance',serv:'serveur',
+ secu:'sécurité',cybr:'cyber',demat:'dématérialisation',renouv:'renouvellement',ech:'échéance',mr:'M.',m365:'Microsoft 365',o365:'Microsoft 365',ms365:'Microsoft 365',tel:'tél.',tél:'tél.',env:'envoyer',
+ infogere:'infogérance',infog:'infogérance',rx:'réseau',vx:'veux',veu:'veut',stp:"s'il te plaît",dc:'donc',pcq:'parce que',psk:'parce que',bjr:'bonjour',slt:'salut',mm:'même',
+};
+/* Mots corrigés sans accent → forme accentuée */
+const ACC={batiment:'bâtiment',batiments:'bâtiments',interphone:'interphone',hopital:'hôpital',chateau:'château',etablissement:'établissement',etablissements:'établissements',maniere:'manière',frere:'frère',pere:'père',mere:'mère',fete:'fête',vehicule:'véhicule',vehicules:'véhicules',probleme:'problème',problemes:'problèmes',securite:'sécurité',cybersecurite:'cybersécurité',telephone:'téléphone',telephones:'téléphones',telephonie:'téléphonie',telephonique:'téléphonique',
+ operateur:'opérateur',operateurs:'opérateurs',salaries:'salariés',salarie:'salarié',employes:'employés',employe:'employé',interesse:'intéressé',interessee:'intéressée',interesses:'intéressés',interessant:'intéressant',interessante:'intéressante',
+ gerant:'gérant',gerante:'gérante',secretaire:'secrétaire',associe:'associé',associee:'associée',president:'président',presidente:'présidente',echeance:'échéance',reseau:'réseau',reseaux:'réseaux',societe:'société',
+ demenagement:'déménagement',demenage:'déménage',deja:'déjà',tres:'très',apres:'après',mecontent:'mécontent',mecontente:'mécontente',prevu:'prévu',prevue:'prévue',repondeur:'répondeur',reunion:'réunion',conges:'congés',
+ decembre:'décembre',fevrier:'février',aout:'août',decide:'décide',decideur:'décideur',decision:'décision',etude:'étude',telecom:'télécom',telecoms:'télécoms',dematerialisation:'dématérialisation',numerique:'numérique',
+ materiel:'matériel',reactif:'réactif',reactive:'réactive',reponse:'réponse',repond:'répond',deplace:'déplacé',interet:'intérêt',equipe:'équipe',equipes:'équipes',equipement:'équipement',equipements:'équipements',
+ ecran:'écran',ecrans:'écrans',ete:'été',debut:'début',deuxieme:'deuxième',premiere:'première',derniere:'dernière',dernier:'dernier',prefere:'préfère',preference:'préférence',general:'général',generale:'générale',
+ eleve:'élevé',elevee:'élevée',recent:'récent',recente:'récente',renouvele:'renouvelé',a_voir:'à voir',beneficie:'bénéficie',besoin:'besoin',televiseur:'téléviseur',cle:'clé',delai:'délai',delais:'délais',
+ depuis:'depuis',deja_vu:'déjà vu',controle:'contrôle',systeme:'système',systemes:'systèmes',logiciel:'logiciel',acces:'accès',succes:'succès',precis:'précis',presentation:'présentation',evenement:'événement',
+ rappele:'rappelé',appele:'appelé',envoye:'envoyé',signe:'signé',passe:'passé',pret:'prêt',prete:'prête',bientot:'bientôt',meme:'même',theorie:'théorie',etage:'étage',zero:'zéro',fenetre:'fenêtre',
+ telephoner:'téléphoner',rappeler:'rappeler',reflechir:'réfléchir',reflechit:'réfléchit',reflexion:'réflexion',mitige:'mitigé',mitigee:'mitigée',defaut:'défaut',probablement:'probablement',deplacement:'déplacement',
+ resilier:'résilier',resiliation:'résiliation',penalite:'pénalité',penalites:'pénalités',tresorerie:'trésorerie',ecole:'école',cafe:'café',entree:'entrée',televerse:'téléversé',numero:'numéro',numeros:'numéros',
+ tiede:'tiède',hesite:'hésite',hesitant:'hésitant',hesitante:'hésitante',agree:'agréé',dedie:'dédié',dediee:'dédiée',expire:'expire',termine:'terminé',terminee:'terminée',plutot:'plutôt',apres_midi:'après-midi'};
+const BRAND={canon:'Canon',ricoh:'Ricoh',konica:'Konica',minolta:'Minolta',xerox:'Xerox',kyocera:'Kyocera',sharp:'Sharp',toshiba:'Toshiba',hp:'HP',epson:'Epson',lexmark:'Lexmark',
+ avast:'Avast',avg:'AVG',eset:'ESET',kaspersky:'Kaspersky',bitdefender:'Bitdefender',sophos:'Sophos',norton:'Norton',mcafee:'McAfee',defender:'Defender',sentinelone:'SentinelOne',
+ fortinet:'Fortinet',fortigate:'FortiGate',stormshield:'Stormshield',watchguard:'WatchGuard',meraki:'Meraki',orange:'Orange',sfr:'SFR',bouygues:'Bouygues',ovh:'OVH',nordnet:'Nordnet',
+ grenke:'Grenke',leasecom:'Leasecom',locam:'Locam',franfinance:'Franfinance',microsoft:'Microsoft',teams:'Teams',outlook:'Outlook',windows:'Windows',google:'Google',gmail:'Gmail',onedrive:'OneDrive',sharepoint:'SharePoint',dropbox:'Dropbox',
+ '3cx':'3CX',nas:'NAS',adsl:'ADSL',vdsl:'VDSL','4g':'4G','5g':'5G',pc:'PC',pcs:'PC',wifi:'Wi-Fi',vpn:'VPN',ipbx:'IPBX',pabx:'PABX',voip:'VoIP',mfa:'MFA','2fa':'2FA',edr:'EDR',ged:'GED',ia:'IA',
+ genapi:'Genapi',inot:'iNot',doctolib:'Doctolib',sage:'Sage',cegid:'Cegid',ebp:'EBP',pennylane:'Pennylane',silae:'Silae',septeo:'Septeo',
+ lundi:'lundi',mardi:'mardi',mercredi:'mercredi',jeudi:'jeudi',vendredi:'vendredi','wi-fi':'Wi-Fi'};
+const CIV_RE=/^(m\.|mr\.?|mme|mlle|me|dr\.?|monsieur|madame|maitre|maître|docteur)$/i;
+function cleanToken(tok,prev){
+  if(/^\d/.test(tok)||/@|\//.test(tok))return tok; /* chiffres, heures, e-mails, dates : tels quels */
+  const low=tok.toLowerCase(),n=norm(tok);
+  if(prev&&CIV_RE.test(prev))return tok[0].toUpperCase()+tok.slice(1); /* nom après M. / Mme */
+  if(BRAND[n])return BRAND[n];
+  const cap=tok!==low&&tok.slice(1)===low.slice(1); /* « Pb », « Rdv » en début de note */
+  if(tok===low||cap){if(DISP[n]!=null)return DISP[n];if(ACC[n])return ACC[n]}
+  if(tok!==low)return tok; /* nom propre ou sigle : on garde */
+  if(/-/.test(tok))return tok.split('-').map(x=>x?cleanToken(x,''):x).join('-');
+  if(/[à-ÿ]/i.test(tok)&&tok!==n)return tok; /* déjà accentué */
+  const fx=fixWord(n);if(fx===n)return tok;return fx.split(' ').map(w=>ACC[w]||w).join(' ')}
+function cleanClause(raw){
+  let s=String(raw||'').replace(/\s+/g,' ').trim().replace(/^[•›\-–—*·]+\s*/,'').replace(/\bav\s+(?=(avast|avg|eset|kaspersky|bitdefender|norton|mcafee|sophos|defender|windows defender)\b)/i,'antivirus ');if(!s)return'';
+  let prev='';s=s.replace(/[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9'’.@\/-]*/g,(m,off,str)=>{
+    const core=m.replace(/[.]+$/,''),tail=m.slice(core.length);let out;
+    const lc=core.toLowerCase();
+    if((lc==='m'||lc==='mr')&&!/\d/.test(prev)&&(tail||/^\s+[A-Za-zÀ-ÿ]{2,}/.test(str.slice(off+m.length)))){prev='m.';return 'M.'}
+    if(lc==='dr'&&tail){prev='dr.';return 'Dr'}
+    const ap=core.match(/^((?:[ldjmnstc]|qu|jusqu|lorsqu|puisqu)['’])(.+)$/i);
+    if(ap)out=ap[1]+cleanToken(ap[2],prev);else if(/['’]/.test(core))out=core;else out=cleanToken(core,prev);
+    prev=core;return out+tail});
+  s=s.replace(/\s+([,;:!?])/g,'$1').replace(/\s{2,}/g,' ').trim();
+  return s.charAt(0).toUpperCase()+s.slice(1)}
+const SPLIT_RE=/\n|;|(?<!\d),(?!\d)|(?<!\b(?:M|m|Mr|mr|Dr|dr|Me|St|st|av|bd|tél|tel|cf|etc|ex|env|n°|No|no))\.(?!\d)(?=\s|$)|\s[-–—]\s|\s\/\s|\s\+\s/;
+/* Note brute → liste de phrases propres, sans doublon */
+function cleanNote(text){
+  const out=[],seen=new Set();
+  for(const raw of String(text||'').split(SPLIT_RE)){
+    const c=cleanClause(raw);if(!c||c.length<2)continue;const k=norm(c).replace(/[^a-z0-9]/g,'');if(!k||seen.has(k))continue;seen.add(k);out.push(c)}
+  return out}
+const nkey=s=>norm(s).replace(/[^a-z0-9]/g,'');
+/* Ajoute des lignes en évitant les doublons (même phrase, ou phrase incluse dans une autre déjà dite) */
+function dedupPush(arr,lines,seen){for(const l of lines){const k=nkey(l);if(!k||k.length<3)continue;if([...seen].some(x=>x===k||(k.length>=8&&x.includes(k))))continue;seen.add(k);arr.push(l)}return arr}
+
+/* Ce qui, dans une note, ne rentre dans aucune case de la fiche → « Notes entreprise » */
+const USED_RE=/\b(rdv|rendez|rappel|relanc|nrp|repondeur|barrage|filtr|interess|pas le temps|devis|mail|plaquette|documentation|repasser|revenir|chaud|tiede|froid|budget|decid|siege|urgen|projet|demenag|recrut|concurren|travaill|salarie|personne|poste|collaborat|effectif|equipe|gerant|dirigeant|directeur|directrice|assistant|secretaire|associe|comptab|office manager|accueil|standard|absent|siret|siren|monsieur|madame|parle|rencontr|interlocut|prestataire|fournisseur|informati|notaire|avocat|medic|medecin|kine|architect|immobil|assuran|association|restaurant|transport|copieur|imprim|impression|toner|leasing|location|loue|sauvegard|antivir|pare-feu|firewall|serveur|reseau|wifi|fibre|adsl|internet|telephon|mobile|ligne|operateur|orange|sfr|bouygues|ovh|microsoft|logiciel|cloud|cyber|securite|satisf|content|probleme|souci|panne|lent|cher|contrat|engagement|abonnement|factur|janvier|fevrier|mars|avril|juin|juillet|aout|septembre|octobre|novembre|decembre|demain|lundi|mardi|mercredi|jeudi|vendredi|semaine|mois|annee|ordinateur|ecran|materiel|messagerie|outlook|teams)|\b(dg|daf|dsi|pdg|drh|rh|ko|ok|fin|mai|btp|pc|nas|free|rue|avenue|boulevard|av|bd)\b/;
+function leftovers(text){
+  const out=[];
+  for(const raw of String(text||'').split(SPLIT_RE)){
+    const r=raw.trim();if(r.split(/\s+/).length<2||/\b\d{1,2}\s?h(\d{2})?\b|\b\d{1,2}[\/.-]\d{1,2}\b|\b\d+\s?(j|jours?|sem|mois|ans?)\b|\b\d+\s?(k|€|eur)/i.test(r))continue;const c=canon(r);
+    if(Object.values(TOPIC).some(re=>re.test(c))||INTEREST.test(c)||INSAT.test(c)||SAT.test(c)||MID.test(c)||USED_RE.test(c))continue;
+    if(/(?:\+33|0)[1-9](?:[\s.-]?\d{2}){4}|@|\b\d{5}\b|\b(M\.|Mme|Mr)\s/.test(r))continue;
+    const cl=cleanClause(r);if(cl)out.push(cl)}
+  return out}
+
+/* ================= Compte rendu (lisible, daté, sans doublon) ================= */
+function jDate(s){const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);return m?new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0)):null}
+function longDate(d,withTime=true){if(!d)return'';return `${JOURS[d.getDay()]} ${d.getDate()} ${MOISL[d.getMonth()]} ${d.getFullYear()}`+(withTime&&(d.getHours()||d.getMinutes())?` à ${d.getHours()}h${pad(d.getMinutes())}`:'')}
+const jLines=j=>Array.isArray(j?.propre)&&j.propre.length?j.propre:cleanNote(j?.texte||'');
+function crModel(p){
+  const e=p.ent||{},b=p.besoins||{};const seen=new Set();
+  const J=(p.journal||[]).slice().sort((x,y)=>x.date<y.date?1:-1);
+  const last=J.find(j=>j.canal==='tel'||j.canal==='terrain')||J[0]||null;const ld=jDate(last?.date);
+  const quoi=last?.canal==='terrain'||(!last&&p.source==='terrain')?'Visite':'Appel';
+  const head=last?`${quoi} du ${longDate(ld)}${last.issue?' · '+last.issue:''}${last.duree?' · durée '+last.duree:''}`:`Fiche créée le ${longDate(new Date(p.createdAt||Date.now()),false)} · aucun appel enregistré`;
+  const etat=[ST[p.statut]?.l,TEMPS.find(x=>x.k===p.temperature)?.l].filter(Boolean).join(' · ');
+  const S_=[];
+  /* Entreprise : l'essentiel seulement */
+  const ent=[[e.secteur,e.effectif&&e.effectif+' salariés sur le site',[e.cp,e.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+    e.tel&&'Standard : '+fmtTel(e.tel),e.email&&'E-mail : '+e.email,e.site&&'Site : '+e.site].filter(Boolean);
+  if(ent.length)S_.push({h:'Entreprise',items:ent.map(t=>({t}))});
+  /* Ce qui s'est dit : dernier échange, puis les précédents */
+  const said=[];if(last)dedupPush(said,jLines(last),seen);
+  if(said.length)S_.push({h:`Ce qui s'est dit${ld?' le '+ld.getDate()+' '+MOISL[ld.getMonth()]:''}`,items:said.map(t=>({t}))});
+  const prev=J.filter(j=>j!==last&&(j.texte||j.issue)).slice(0,4);
+  const prevItems=prev.map(j=>{const L=dedupPush([],jLines(j),seen);const d=jDate(j.date);const ld2=d?longDate(d):'';return{t:`${ld2.charAt(0).toUpperCase()+ld2.slice(1)}${j.issue?' — '+j.issue:''}`,sub:L.join(' · ')}}).filter(x=>x.t||x.sub);
+  if(prevItems.length)S_.push({h:'Autres échanges',items:prevItems});
+  /* Interlocuteurs, avec leurs notes corrigées et sans redite */
+  const cs=(p.contacts||[]).filter(c=>c.nom||c.prenom||c.fonction||c.tel||c.mobile||c.email||c.note);
+  if(cs.length)S_.push({h:'Interlocuteur'+(cs.length>1?'s':''),items:cs.map(c=>{const nm=[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')||'Interlocuteur';
+    const notes=dedupPush([],cleanNote(c.note||''),seen);
+    return{t:`${nm}${c.fonction?' ('+c.fonction+')':''}${c.decideur==='Oui'?' — décideur':c.decideur==='Influenceur'?' — influenceur':''}`,
+      sub:[[fmtTel(c.tel||''),fmtTel(c.mobile||''),c.email].filter(Boolean).join(' · '),notes.length?'Note : '+notes.join(' ; '):''].filter(Boolean).join('\n')}})});
+  /* Besoins et situation */
+  const det=crDetails(p);const bes=[];
+  if((b.sel||[]).length)bes.push({t:'Besoins : '+b.sel.join(', ')});if(b.priorite)bes.push({t:'Échéance : '+b.priorite});if((b.declencheur||[]).length)bes.push({t:'Déclencheurs : '+b.declencheur.join(', ')});
+  if(b.decision)bes.push({t:'Décision : '+b.decision});if(b.budget)bes.push({t:'Budget : '+b.budget});if((b.concurrents||[]).length)bes.push({t:'En place / consultés : '+b.concurrents.join(', ')});
+  det.forEach(([k,v])=>bes.push({t:`${k} : ${v}`}));
+  if(bes.length)S_.push({h:'Besoins et situation',items:bes});
+  /* À noter : notes de la fiche (entreprise, besoins, domaines), corrigées, sans doublon */
+  const misc=[];for(const [l,v] of [['',e.notes],['',b.notes],['Informatique',p.it?.notes],['Impression',p.impr?.notes],['Télécom',p.tel?.notes],['Cyber',p.cyber?.notes]]){
+    const L=dedupPush([],cleanNote(v||''),seen);L.forEach(x=>misc.push({t:(l?l+' : ':'')+x}))}
+  if(misc.length)S_.push({h:'À noter',items:misc});
+  /* Prochaines étapes */
   const t=iso(today());
-  const agenda=(p.actions||[]).filter(a=>!a.fait&&['RDV','Rappel','Appel','Relance','Visite'].includes(a.type)).sort((x,y)=>((x.date||'9')+(x.heure||''))<((y.date||'9')+(y.heure||''))?-1:1)
-    .map(a=>({id:a.id,date:a.date,type:a.type,quand:(a.date?fmtDate(a.date):'Sans date')+(a.heure?' à '+a.heure:''),retard:a.date&&a.date<t,note:a.note||''}));
-  const derniere=(p.journal||[]).slice().sort((x,y)=>x.date<y.date?1:-1)[0];
-  return{ent,contacts,besoins,agenda,derniere,statut:ST[p.statut]?.l||'',temp:TEMPS.find(x=>x.k===p.temperature)?.l||'',canal:canalOf(p)}}
-function crText(p){const d=crData(p);const L=[];
-  L.push(`COMPTE RENDU — ${d.ent.nom.toUpperCase()}`);L.push(`${d.canal} · ${d.statut}${d.temp?' · '+d.temp:''} · ${fmtDate(iso(today()))}`);L.push('');
-  L.push('ENTREPRISE');d.ent.lignes.forEach(([k,v])=>L.push(`- ${k} : ${v}`));if(!d.ent.lignes.length)L.push('- À compléter');L.push('');
-  L.push('CONTACT'+(d.contacts.length>1?'S':''));d.contacts.forEach(c=>L.push(`- ${c.nom}${c.fonction?' ('+c.fonction+')':''}${c.decideur==='Oui'?' — décideur':''}${c.coord?' — '+c.coord:''}`));if(!d.contacts.length)L.push('- Aucun interlocuteur identifié');L.push('');
-  L.push('BESOINS');if(d.besoins.liste.length)L.push(`- ${d.besoins.liste.join(', ')}`);if(d.besoins.echeance)L.push(`- Échéance : ${d.besoins.echeance}`);if(d.besoins.declencheurs.length)L.push(`- Déclencheurs : ${d.besoins.declencheurs.join(', ')}`);
-  d.besoins.details.forEach(([k,v])=>L.push(`- ${k} : ${v}`));if(d.besoins.budget)L.push(`- Budget : ${d.besoins.budget}`);if(d.besoins.notes)L.push(`- ${d.besoins.notes}`);
-  if(!d.besoins.liste.length&&!d.besoins.details.length)L.push('- Aucun besoin identifié pour l’instant');L.push('');
-  L.push('RAPPELS ET RDV');d.agenda.forEach(a=>L.push(`- ${a.type} : ${a.quand}${a.retard?' (en retard)':''}${a.note?' — '+a.note:''}`));if(!d.agenda.length)L.push('- Rien de planifié');
-  return L.join('\n')}
-function crHtml(p){const d=crData(p);
-  const sec=(t,body)=>`<section class="cr-sec"><h4>${t}</h4>${body}</section>`;
-  return `<div class="panel cr"><div class="cr-head"><div><div class="lbl">Compte rendu · rempli automatiquement</div><h3>${esc(d.ent.nom)}</h3>
-    <div class="cr-tags"><span class="pill ${p.source==='terrain'?'st-rappel':'st-contacte'}">${d.canal}</span><span class="pill st-${p.statut}">${esc(d.statut)}</span>${d.temp?`<span class="pill">${esc(d.temp)}</span>`:''}</div></div>
+  const ag=(p.actions||[]).filter(a=>!a.fait&&ATYPES.includes(a.type)).sort((x,y)=>((x.date||'9')+(x.heure||''))<((y.date||'9')+(y.heure||''))?-1:1)
+    .map(a=>({a,t:`${a.type} : ${a.date?longDate(jDate(a.date),false):'sans date'}${a.heure?' à '+a.heure.replace(':00','h').replace(':','h'):''}${a.date&&a.date<t?' (en retard)':''}`,sub:a.note?(/^RDV\b/.test(a.note)?a.note:dedupPush([],[cleanClause(a.note)],seen)[0]||''):''}));
+  S_.push({h:'Prochaines étapes',items:ag.length?ag:[{t:'Rien de planifié'}]});
+  return{titre:`COMPTE RENDU — ${displayName(p).toUpperCase()}`,head,etat,canal:canalOf(p),sections:S_}}
+function crDetails(p){const est=k=>p.est?.[k];const out=[];
+  const imp=[!est('impr.nb')&&p.impr?.nb&&p.impr.nb+' copieur'+(p.impr.nb>1?'s':''),p.impr?.nbImprimantes&&!est('impr.nbImprimantes')&&p.impr.nbImprimantes+' imprimante'+(p.impr.nbImprimantes>1?'s':''),val(p.impr?.marques||''),p.impr?.mode,p.impr?.loueur,p.impr?.prestataire&&'fournisseur : '+p.impr.prestataire,p.impr?.finContrat&&'fin de contrat '+fmtMonth(p.impr.finContrat),p.impr?.satisfaction&&p.impr.satisfaction.toLowerCase(),filled(p.impr?.irritants)&&'irritants : '+val(p.impr.irritants).toLowerCase()].filter(Boolean);
+  if(imp.length)out.push(['Impression',imp.join(' · ')]);
+  const it=[!est('it.postes')&&p.it?.postes&&p.it.postes+' postes',p.it?.prestataire?'prestataire : '+p.it.prestataire:p.it?.aPresta==='Non'?'pas de prestataire':'',p.it?.contrat,p.it?.satisfaction&&p.it.satisfaction.toLowerCase(),filled(p.it?.serveur)&&'serveur : '+val(p.it.serveur),filled(p.it?.cloud)&&val(p.it.cloud),filled(p.it?.reseau)&&val(p.it.reseau),p.it?.logiciels&&'logiciels : '+p.it.logiciels].filter(Boolean);
+  if(it.length)out.push(['Informatique',it.join(' · ')]);
+  const cy=[filled(p.cyber?.antivirus)&&'antivirus : '+val(p.cyber.antivirus),filled(p.cyber?.sauvegarde)&&'sauvegarde : '+val(p.cyber.sauvegarde),p.cyber?.firewall&&'pare-feu : '+p.cyber.firewall,p.cyber?.mfa&&'double authentification : '+p.cyber.mfa.toLowerCase(),filled(p.cyber?.incident)&&'incident : '+val(p.cyber.incident),p.cyber?.prestataire&&'prestataire : '+p.cyber.prestataire].filter(Boolean);
+  if(cy.length)out.push(['Cybersécurité',cy.join(' · ')]);
+  const te=[filled(p.tel?.operateur)&&val(p.tel.operateur),p.tel?.prestataire&&'prestataire : '+p.tel.prestataire,p.tel?.lignesFixes&&p.tel.lignesFixes+' lignes fixes',p.tel?.lignesMobiles&&p.tel.lignesMobiles+' mobiles',p.tel?.standard,filled(p.tel?.internet)&&val(p.tel.internet),p.tel?.finEngagement&&'fin d’engagement '+fmtMonth(p.tel.finEngagement),p.tel?.facture&&'facture '+p.tel.facture,p.tel?.satisfaction&&p.tel.satisfaction.toLowerCase()].filter(Boolean);
+  if(te.length)out.push(['Télécom',te.join(' · ')]);
+  return out}
+function crText(p){const m=crModel(p);const L=[m.titre,m.head+(m.etat?' · '+m.etat:''),''];
+  for(const s of m.sections){L.push(s.h.toUpperCase());for(const it of s.items){L.push('- '+it.t);if(it.sub)it.sub.split('\n').forEach(x=>x&&L.push('   '+x))}L.push('')}
+  while(L.length&&!L.at(-1))L.pop();return L.join('\n')}
+function crHtml(p){const m=crModel(p);
+  return `<div class="panel cr"><div class="cr-head"><div><div class="lbl">Compte rendu · rempli et corrigé automatiquement</div><h3>${esc(displayName(p))}</h3>
+    <div class="cr-when">${esc(m.head)}</div>
+    <div class="cr-tags"><span class="pill ${p.source==='terrain'?'st-rappel':'st-contacte'}">${esc(m.canal)}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>${p.temperature?`<span class="pill">${esc(TEMPS.find(x=>x.k===p.temperature)?.l||'')}</span>`:''}</div></div>
     <button class="btn btn-p btn-s" data-act="copycr">Copier le compte rendu</button></div>
-   ${sec('Entreprise',d.ent.lignes.length?`<dl>${d.ent.lignes.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`:'<p class="cr-empty">À compléter dans l’onglet Entreprise.</p>')}
-   ${sec('Contact'+(d.contacts.length>1?'s':''),d.contacts.length?d.contacts.map(c=>`<div class="cr-c"><b>${esc(c.nom)}</b>${c.fonction?` · ${esc(c.fonction)}`:''}${c.decideur==='Oui'?' <span class="badge-dec">Décideur</span>':''}${c.coord?`<div class="mono cr-sub">${esc(c.coord)}</div>`:''}</div>`).join(''):'<p class="cr-empty">Aucun interlocuteur identifié.</p>')}
-   ${sec('Besoins',(d.besoins.liste.length?`<div class="chips">${d.besoins.liste.map(x=>`<span class="chip" aria-pressed="true">${esc(x)}</span>`).join('')}</div>`:'')+
-      `<dl>${d.besoins.echeance?`<dt>Échéance</dt><dd>${esc(d.besoins.echeance)}</dd>`:''}${d.besoins.declencheurs.length?`<dt>Déclencheurs</dt><dd>${esc(d.besoins.declencheurs.join(', '))}</dd>`:''}${d.besoins.details.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}${d.besoins.budget?`<dt>Budget</dt><dd>${esc(d.besoins.budget)}</dd>`:''}</dl>`+
-      (d.besoins.notes?`<p class="cr-sub">${esc(d.besoins.notes)}</p>`:'')+(!d.besoins.liste.length&&!d.besoins.details.length?'<p class="cr-empty">Aucun besoin identifié pour l’instant : écris-les dans tes notes, ils se rangent ici.</p>':''))}
-   ${sec('Rappels et RDV',d.agenda.length?`<ul class="cr-ag">${d.agenda.map(a=>`<li${a.retard?' class="late"':''}><span class="atype">${esc(a.type)}</span><b>${esc(a.quand)}</b>${a.retard?' <span class="due late">en retard</span>':''}${a.note?`<span class="cr-sub">${esc(a.note)}</span>`:''}${a.type==='RDV'&&a.date?calBtns(p,a):''}</li>`).join('')}</ul>`:'<p class="cr-empty">Rien de planifié.</p>')}
+   ${m.sections.map(s=>`<section class="cr-sec"><h4>${esc(s.h)}</h4><ul class="cr-list">${s.items.map(it=>`<li${it.a&&it.a.date&&it.a.date<iso(today())?' class="late"':''}><span>${esc(it.t)}</span>${it.sub?`<span class="cr-sub">${esc(it.sub).replace(/\n/g,'<br>')}</span>`:''}${it.a&&it.a.date&&CAL_TYPES.includes(it.a.type)?calBtns(p,it.a):''}</li>`).join('')}</ul></section>`).join('')}
+   <p class="cr-foot">Notes d’origine conservées telles quelles dans Suivi → Historique.</p>
   </div>`}
+
+/* ================= Coordonnées : site, e-mail, pistes d'e-mail direct ================= */
+const FREEMAIL=/@(gmail|hotmail|outlook|live|yahoo|orange|wanadoo|free|sfr|laposte|neuf|bbox|icloud|aol|msn)\./i;
+function domainOf(p){const s=String(p.ent?.site||'').toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split(/[\/?#]/)[0];if(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(s))return s;
+  const em=[p.ent?.email,...(p.contacts||[]).map(c=>c.email)].find(x=>x&&!FREEMAIL.test(x));return em?em.split('@')[1].toLowerCase():''}
+const slug=s=>norm(s).replace(/[^a-z\s-]/g,'').trim().replace(/\s+/g,'-');
+function mailGuesses(c,dom){if(!dom||!c?.nom)return[];const n=slug(c.nom).replace(/-/g,''),pr=slug(c.prenom||'').replace(/-/g,'');
+  return [...new Set([pr&&`${pr}.${n}@${dom}`,pr&&`${pr[0]}.${n}@${dom}`,pr&&`${pr[0]}${n}@${dom}`,`${n}@${dom}`,pr&&`${pr}@${dom}`].filter(Boolean))]}
+function contactBox(p){const e=p.ent||{};const dom=domainOf(p);const nm=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'');
+  const decs=(p.contacts||[]).filter(c=>c.nom&&!c.email).sort((x,y)=>(y.decideur==='Oui')-(x.decideur==='Oui'));
+  const rows=[];
+  if(e.site)rows.push(`<span><span class="lbl">Site</span> <a href="${esc(/^https?:/.test(e.site)?e.site:'https://'+e.site)}" target="_blank" rel="noopener">${esc(e.site.replace(/^https?:\/\//,''))}</a>${e.siteSource?` <small>(${esc(e.siteSource)})</small>`:''}</span>`);
+  if(e.email)rows.push(`<span><span class="lbl">E-mail</span> <button class="lnk mono" data-act="copyv" data-v="${esc(e.email)}">${esc(e.email)}</button>${e.emailSource?` <small>(${esc(e.emailSource)})</small>`:''}</span>`);
+  else if(dom)rows.push(`<span><span class="lbl">E-mail générique</span> <button class="lnk mono" data-act="copyv" data-v="contact@${esc(dom)}">contact@${esc(dom)}</button> <small>(à vérifier)</small></span>`);
+  const guesses=decs.slice(0,2).map(c=>{const g=mailGuesses(c,dom);return g.length?`<div class="mg"><span class="lbl">E-mail direct possible · ${esc([c.prenom,c.nom].filter(Boolean).join(' '))}</span><span class="chips">${g.map(x=>`<button class="chip" data-act="copyv" data-v="${esc(x)}" title="Copier">${esc(x)}</button>`).join('')}</span><small>Formats les plus courants, à vérifier (aucun annuaire public ne donne les e-mails directs).</small></div>`:''}).join('');
+  const links=`<a href="https://www.google.com/search?q=${encodeURIComponent((dom?'"@'+dom+'" ':'')+(p.ent?.enseigne||p.ent?.nom||''))}+email" target="_blank" rel="noopener">Chercher l’e-mail</a>${decs[0]?`<a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([decs[0].prenom,decs[0].nom,p.ent?.enseigne||p.ent?.nom].filter(Boolean).join(' '))}" target="_blank" rel="noopener">${esc(decs[0].nom)} sur LinkedIn</a>`:''}<a href="https://www.118712.fr/recherche/auto/${encodeURIComponent(p.ent?.ville||'')}/${nm}" target="_blank" rel="noopener">118 712</a>`;
+  if(!rows.length&&!guesses&&!(p.ent?.nom||p.ent?.enseigne))return'';
+  return `<div class="cbox">${rows.length?`<div class="cbox-r">${rows.join('')}</div>`:''}${guesses}<div class="links">${links}</div></div>`}
 
 /* ================= Export Excel ================= */
 let xlsxLib=null;
@@ -1574,53 +1712,67 @@ async function exportXlsx(){
   downloadFile(`Prospection-DataLinks-${iso(new Date())}.xlsx`,buf,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');toast('Fichier Excel téléchargé')}
 
 /* ================= Agenda Outlook ================= */
-function rdvInfo(p,a){const c=(p.contacts||[]).find(x=>x.decideur==='Oui')||p.contacts?.[0]||{};const lieuTxt=/visio/i.test(a.note||'')?'Visio (Teams)':/t[ée]l[ée]phone/i.test(a.note||'')?'Téléphone : '+fmtTel(c.tel||c.mobile||p.ent?.tel||''):[p.ent?.adresse,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-  const h=fitSlot(a.heure||'10:00',60);const [H,M]=h.split(':').map(Number);const end=endWithin(h,60);
-  const who=[c.civ,c.prenom,c.nom].filter(Boolean).join(' ');
-  return{title:`RDV ${displayName(p)}${who?' — '+who:''}`,start:`${a.date}T${pad(H)}:${pad(M)}:00`,end:`${a.date}T${end}:00`,lieu:lieuTxt,body:crText(p)+'\n\n— Créé depuis Radar (prospection Data Links)'}}
+function rdvInfo(p,a){const c=(p.contacts||[]).find(x=>x.decideur==='Oui')||p.contacts?.[0]||{};const tel=fmtTel(c.tel||c.mobile||p.ent?.tel||'');
+  const who=[c.civ,c.prenom,c.nom].filter(Boolean).join(' ');const nm=displayName(p);const adr=[p.ent?.adresse,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const isRdv=a.type==='RDV',isVis=a.type==='Visite';const dur=isRdv?60:isVis?30:15;
+  const lieuTxt=isRdv?(/visio/i.test(a.note||'')?'Visio (Teams)':/t[ée]l[ée]phone/i.test(a.note||'')?'Téléphone : '+tel:adr):isVis?adr:(tel?'Tél. '+tel:'');
+  const title=isRdv?`RDV ${nm}${who?' — '+who:''}`:isVis?`Visite ${nm}`:a.type==='Relance'?`Relancer ${nm}${who?' — '+who:''}`:`📞 Rappeler ${nm}${who?' — '+who:''}`;
+  const head=[a.note&&!/^RDV\b/.test(a.note)?'À faire : '+a.note:'',!isRdv&&tel?'Numéro : '+tel+(who?' ('+who+')':''):''].filter(Boolean).join('\n');
+  const body=(head?head+'\n\n':'')+crText(p)+'\n\n— Créé depuis Radar (prospection Data Links)';
+  if(!a.heure&&!isRdv){const d=new Date(a.date+'T12:00');d.setDate(d.getDate()+1);return{title,allday:true,start:a.date,end:iso(d),lieu:lieuTxt,body}}
+  const h=fitSlot(a.heure||'10:00',dur);const [H,M]=h.split(':').map(Number);const end=endWithin(h,dur);
+  return{title,start:`${a.date}T${pad(H)}:${pad(M)}:00`,end:`${a.date}T${end}:00`,lieu:lieuTxt,body}}
 const withOff=s=>{const d=new Date(s);const o=-d.getTimezoneOffset();return s.slice(0,19)+(o>=0?'+':'-')+pad(Math.floor(Math.abs(o)/60))+':'+pad(Math.abs(o)%60)};
 function outlookUrl(i,host){const u=new URL(`https://${host}/calendar/action/compose`);u.searchParams.set('rru','addevent');
-  u.searchParams.set('subject',i.title);u.searchParams.set('startdt',withOff(i.start));u.searchParams.set('enddt',withOff(i.end));u.searchParams.set('allday','false');if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.body.slice(0,1200));return u.toString()}
+  u.searchParams.set('subject',i.title);if(i.allday){u.searchParams.set('startdt',i.start);u.searchParams.set('enddt',i.end);u.searchParams.set('allday','true')}else{u.searchParams.set('startdt',withOff(i.start));u.searchParams.set('enddt',withOff(i.end));u.searchParams.set('allday','false')}if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.body.slice(0,1200));return u.toString()}
 const VTZ=['BEGIN:VTIMEZONE','TZID:Europe/Paris','BEGIN:DAYLIGHT','TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU','END:DAYLIGHT','BEGIN:STANDARD','TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU','END:STANDARD','END:VTIMEZONE'];
 const fold=l=>{const out=[];let s=l;while(new TextEncoder().encode(s).length>73){let n=73;while(new TextEncoder().encode(s.slice(0,n)).length>73)n--;out.push(s.slice(0,n));s=' '+s.slice(n)}out.push(s);return out.join('\r\n')};
 function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/([,;])/g,'\\$1');
   return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH',...VTZ,'BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
-    `DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`,`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
+    ...(i.allday?[`DTSTART;VALUE=DATE:${i.start.replace(/-/g,'')}`,`DTEND;VALUE=DATE:${i.end.replace(/-/g,'')}`,'TRANSP:TRANSPARENT']:[`DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`]),`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM',i.allday?'TRIGGER:PT9H':i.title.startsWith('RDV')?'TRIGGER:-PT30M':'TRIGGER:-PT5M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
 const proMail=()=>!!USER?.email&&!/@(outlook|hotmail|live|msn)\./i.test(USER.email);
 function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';if(mode==='live'&&proMail())mode='m365';const i=rdvInfo(p,a);
-  if(mode==='ics'){downloadFile(`RDV-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast('Fichier RDV téléchargé : ouvre-le, Outlook affiche le RDV, clique « Enregistrer et fermer »');}
-  else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast('Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Outlook » du RDV.');else toast('Outlook s\u2019ouvre avec le RDV prérempli : clique Enregistrer')}
-  a.cal=true;S.calMsg={pid:p.id,aid:a.id};touch(p);if(S.sel===p.id)renderNotesOnly()}
+  const what=a.type==='RDV'?'le RDV':a.type==='Visite'?'la visite':a.type==='Relance'?'la relance':'le rappel';
+  if(mode==='ics'){downloadFile(`${a.type}-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast(`Fichier agenda téléchargé : ouvre-le, Outlook affiche ${what}, clique « Enregistrer et fermer »`);}
+  else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast(`Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Ajouter à Outlook » de ${what}.`);else toast(`Outlook s\u2019ouvre avec ${what} prérempli : clique Enregistrer`)}
+  a.cal=true;S.calMsg={pid:p.id,aids:[a.id]};touch(p);if(S.sel===p.id)renderNotesOnly()}
 function calBtns(p,a){return `<span class="calbtns"><button class="btn btn-g btn-s" data-act="cal" data-id="${p.id}" data-a="${a.id}">📅 ${a.cal?'Outlook ✓':'Ajouter à Outlook'}</button><button class="btn btn-q btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}" title="Fichier pour tout agenda">.ics</button></span>`}
 /* ================= Numéros de téléphone (OpenStreetMap, TomTom en option) ================= */
 const OVERPASS=['https://overpass-api.de/api/interpreter'];
 const normTel=t=>{let d=String(t||'').split(/[;,/]/)[0].replace(/[^\d+]/g,'');if(d.startsWith('+33'))d='0'+d.slice(3);if(d.startsWith('0033'))d='0'+d.slice(4);return /^0[1-9]\d{8}$/.test(d)?d:''};
 let ovNext=0;
+const cleanMail=m=>{const x=String(m||'').split(/[;,\s]/)[0].replace(/^mailto:/i,'').trim().toLowerCase();return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(x)?x:''};
+const cleanSite=u=>{const x=String(u||'').split(/[;\s]/)[0].trim();return /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(x)?x.replace(/\/$/,''):''};
+const osmItem=e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),email:cleanMail(e.tags.email||e.tags['contact:email']),site:cleanSite(e.tags.website||e.tags['contact:website']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'});
 async function overpassPhones(pos,radius){
-  const q=`[out:json][timeout:20];nwr(around:${Math.round(radius)},${pos.lat.toFixed(6)},${pos.lon.toFixed(6)})["name"][~"^(phone|contact:phone|contact:mobile)$"~"."];out tags center 200;`;
+  const q=`[out:json][timeout:20];nwr(around:${Math.round(radius)},${pos.lat.toFixed(6)},${pos.lon.toFixed(6)})["name"][~"^(phone|contact:phone|contact:mobile|email|contact:email|website|contact:website)$"~"."];out tags center 300;`;
   const wait=Math.max(0,ovNext-Date.now());ovNext=Math.max(ovNext,Date.now())+1200;if(wait)await sleep(wait);
   for(const url of [...OVERPASS,OVERPASS[0]]){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:AbortSignal.timeout(15000)});if(!r.ok){await sleep(1500);continue}const j=await r.json();
-    return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}catch{await sleep(800)}}
+    return(j.elements||[]).map(osmItem).filter(x=>x.phone||x.email||x.site)}catch{await sleep(800)}}
   return null}
 async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return[];
   try{const u=new URL(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'')}.json`);
     u.searchParams.set('key',key);u.searchParams.set('lat',pos.lat);u.searchParams.set('lon',pos.lon);u.searchParams.set('radius','250');u.searchParams.set('limit','8');u.searchParams.set('language','fr-FR');u.searchParams.set('countrySet','FR');
-    const j=await fetch(u,{signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null);return(j?.results||[]).map(x=>({name:x.poi?.name,phone:normTel(x.poi?.phone),lat:x.position?.lat,lon:x.position?.lon,src:'TomTom'})).filter(x=>x.phone)}catch{return[]}}
+    const j=await fetch(u,{signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null);return(j?.results||[]).map(x=>({name:x.poi?.name,phone:normTel(x.poi?.phone),site:cleanSite(x.poi?.url),email:'',lat:x.position?.lat,lon:x.position?.lon,src:'TomTom'})).filter(x=>x.phone||x.site)}catch{return[]}}
 async function posOf(p){if(p.geo?.lat)return p.geo;const e=p.ent||{};if(!e.adresse&&!e.ville)return null;
   try{const g=await geocode([e.adresse,e.cp,e.ville].filter(Boolean).join(' '));if(g){p.geo={lat:g.lat,lon:g.lon};touch(p);return p.geo}}catch{}return null}
-function bestPhone(p,list,pos){const names=[p.ent?.enseigne,p.ent?.nom].filter(Boolean);let best=null,bs=0;
+function bestPhone(p,list,pos,min=0.5){const names=[p.ent?.enseigne,p.ent?.nom].filter(Boolean);let best=null,bs=0;
   for(const x of list){const s=Math.max(...names.map(n=>Math.max(sim(n,x.name),sim(x.name,n))));const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>120?0.2:0);if(sc>bs){bs=sc;best=x}}
-  return bs>=0.5?best:null}
+  return bs>=min?best:null}
 async function findPhone(p,{silent=false,pool=null,step=()=>{}}={}){
   step('Localisation de l’adresse…');const pos=await posOf(p);if(!pos)return{status:'noaddr'};
-  step('Recherche dans OpenStreetMap…');let list=pool||await overpassPhones(pos,120);const down=list===null;list=list||[];let hit=bestPhone(p,list,pos);
-  if(!hit&&S.settings.tomtomKey){step('Recherche dans TomTom…');const tt=await tomtomPhones(p,pos);hit=bestPhone(p,tt,pos)}
+  step('Recherche dans OpenStreetMap…');let list=pool||await overpassPhones(pos,120);const down=list===null;list=list||[];
+  let hit=bestPhone(p,list.filter(x=>x.phone),pos),web=bestPhone(p,list.filter(x=>x.email||x.site),pos);
+  if(!hit&&!pool&&!down){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide){hit=bestPhone(p,wide.filter(x=>x.phone),pos,0.75);web=web||bestPhone(p,wide.filter(x=>x.email||x.site),pos,0.75)}}
+  if((!hit||!web)&&S.settings.tomtomKey){step('Recherche dans TomTom…');const tt=await tomtomPhones(p,pos);hit=hit||bestPhone(p,tt.filter(x=>x.phone),pos);web=web||bestPhone(p,tt.filter(x=>x.site),pos)}
+  const gotWeb=fillWeb(p,hit)|fillWeb(p,web);
   if(!hit&&down)return{status:'down'};
   if(!hit){const near=list.filter(x=>pos&&x.lat&&haversine(pos,{lat:x.lat,lon:x.lon})<=20);p.ent.telLookup={at:iso(today()),status:'none'};
-    if(near.length===1&&!p.ent.tel){p.ent.telAlt=near[0].phone;p.ent.telSource=`même adresse : « ${near[0].name} » (${near[0].src})`;p.ent.telLookup.status='possible'}touch(p);return{status:p.ent.telLookup.status==='possible'?'possible':'none'}}
+    if(near.length===1&&!p.ent.tel){p.ent.telAlt=near[0].phone;p.ent.telSource=`même adresse : « ${near[0].name} » (${near[0].src})`;p.ent.telLookup.status='possible'}touch(p);return{status:p.ent.telLookup.status==='possible'?'possible':'none',web:!!gotWeb}}
   p.ent.telLookup={at:iso(today()),status:'ok'};
-  if(!p.ent.tel||p.ent.tel===hit.phone){p.ent.tel=hit.phone;p.ent.telSource=hit.src;touch(p);markFlash(['ent.tel']);return{status:'ok',hit}}
-  if(p.ent.tel!==hit.phone){p.ent.telAlt=hit.phone;p.ent.telSource=hit.src;touch(p);return{status:'alt',hit}}}
+  if(!p.ent.tel||p.ent.tel===hit.phone){p.ent.tel=hit.phone;p.ent.telSource=hit.src;touch(p);markFlash(['ent.tel']);return{status:'ok',hit,web:!!gotWeb}}
+  if(p.ent.tel!==hit.phone){p.ent.telAlt=hit.phone;p.ent.telSource=hit.src;touch(p);return{status:'alt',hit,web:!!gotWeb}}}
+function fillWeb(p,x){if(!x)return 0;let n=0;p.ent=p.ent||{};if(x.email&&!p.ent.email){p.ent.email=x.email;p.ent.emailSource=x.src;n++}if(x.site&&!p.ent.site){p.ent.site=x.site;p.ent.siteSource=x.src;n++}if(n){touch(p);markFlash(['ent.email','ent.site'])}return n}
 function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||''),v=encodeURIComponent(p.ent?.ville||p.ent?.cp||'');
   return `<a href="https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${n}&ou=${v}" target="_blank" rel="noopener">PagesJaunes</a><a href="https://www.google.com/search?q=${n}+${v}+t%C3%A9l%C3%A9phone" target="_blank" rel="noopener">Google</a><a href="https://www.google.com/maps/search/${n}+${v}" target="_blank" rel="noopener">Maps</a>`}
 function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
@@ -1630,10 +1782,10 @@ function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
    ${st.busy?`<div class="ph-run"><span class="spin"></span>${esc(st.step||'Recherche en cours…')} <small>(jusqu’à 30 s)</small></div>`:''}
    ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">${e.tel?'Autre numéro trouvé':'Numéro possible ('+esc(e.telSource||'')+')'} : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
    ${!e.tel&&e.telLookup&&!st.msg&&!st.busy?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Ouvre PagesJaunes ou Google, puis colle le numéro dans Standard (onglet Entreprise).'}</div>`:''}
-   ${st.msg&&!st.busy?`<div class="ph-msg${st.ok?' ok':''}">${esc(st.msg)}</div>`:''}</div>`}
+   ${st.msg&&!st.busy?`<div class="ph-msg${st.ok?' ok':''}">${esc(st.msg)}</div>`:''}${contactBox(p)}</div>`}
 async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.id,busy:true,step:'Démarrage…'};rePhone();if(S.sel===p.id)renderNotesOnly();
   let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
-  S.ph={pid:p.id,ok:r.status==='ok',msg:r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).'};
+  S.ph={pid:p.id,ok:r.status==='ok'||r.web,msg:(r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).')+(r.web?' Site / e-mail de l’entreprise trouvés aussi (ci-dessous).':'')};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
 function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===4||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
   applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret,soft:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{})}
@@ -1642,7 +1794,7 @@ function rePhone(){const b=$('#phone-box');const p=cur();if(b&&p)b.outerHTML=pho
 
 async function overpassBbox(b){const q=`[out:json][timeout:25];nwr(${b.s.toFixed(5)},${b.w.toFixed(5)},${b.n.toFixed(5)},${b.e.toFixed(5)})["name"][~"^(phone|contact:phone|contact:mobile)$"~"."];out tags center 3000;`;
   for(let k=0;k<2;k++){try{const r=await fetch(OVERPASS[0],{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:AbortSignal.timeout(15000)});
-      if(r.ok){const j=await r.json();return(j.elements||[]).map(e=>({name:e.tags.name,phone:normTel(e.tags.phone||e.tags['contact:phone']||e.tags['contact:mobile']),lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,src:'OpenStreetMap'})).filter(x=>x.phone)}}catch{}
+      if(r.ok){const j=await r.json();return(j.elements||[]).map(osmItem).filter(x=>x.phone)}}catch{}
     if(k<1)await sleep(3000)}
   return null}
 async function phoneAll(){const list=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));if(!list.length)return;
