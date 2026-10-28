@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=29;
+const APP_V=30;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -635,7 +635,7 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
  <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
  <div class="f"><span class="lab">Agenda (RDV et rappels)</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['ics','Outlook (application Windows, fichier)'],...(proMail()?[]:[['live','Outlook.com perso']])].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
-  <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-rappel" ${S.settings.calRappel!==false?'checked':''}> Ouvrir Outlook aussi pour les rappels et relances demandés</label></div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-rappel" ${S.settings.calRappel!==false?'checked':''}> Ouvrir l'agenda automatiquement quand on me demande de rappeler</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
   <button class="btn btn-p" data-act="fimpopen">Importer un fichier (Excel, CSV, PDF)</button>
@@ -1117,12 +1117,11 @@ async function commitNote(p,text,o,ask){
   if(o&&S.session&&S.session.q[S.session.i]===p.id)setTimeout(nextInSession,700);
   if(o&&S.mode==='terrain'){S.sheet=false;renderLayer()}}
 
-/* Outlook seulement pour un rappel / une relance / un RDV demandé (issue « Rappel demandé », RDV, ou date écrite dans la note) ;
-   pas pour les actions automatiques des issues NRP, barrage, doc, échange sans suite */
-function calNew(p,had,o,skip){const news=(p.actions||[]).filter(a=>a!==skip&&(p.actions||[]).includes(a)&&!had.has(a.id)&&!a.fait&&a.date&&CAL_TYPES.includes(a.type)&&!(o?.k==='rdv'&&a.type==='RDV'));if(!news.length)return;
-  const auto=news.filter(a=>a.type==='RDV'?S.settings.calAuto!==false:S.settings.calRappel!==false);
-  if(auto.length===1&&news.length===1){addToCal(p,auto[0]);return}
-  S.calMsg={pid:p.id,aids:news.map(a=>a.id)};if(S.sel===p.id)renderNotesOnly()}
+/* Outlook s'ouvre UNIQUEMENT pour les issues « Rappel demandé » (ici) et « RDV pris » (géré dans askok).
+   Toutes les autres issues (NRP, barrage, doc, pas intéressé, échange sans suite…) : rien ne s'ouvre. */
+function calNew(p,had,o){if(o?.k!=='rappel')return;
+  const a=(p.actions||[]).filter(x=>!had.has(x.id)&&!x.fait&&x.date&&x.type==='Rappel').at(-1);if(!a)return;
+  if(S.settings.calRappel!==false)addToCal(p,a);else{S.calMsg={pid:p.id,aids:[a.id]};if(S.sel===p.id)renderNotesOnly()}}
 /* ================= Résumé, export, exemples ================= */
 function summary(p){const L=[];const e=p.ent||{};
   L.push(`${displayName(p).toUpperCase()}${e.forme?' ('+e.forme+')':''}`);
