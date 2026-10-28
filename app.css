@@ -564,3 +564,13 @@ a.btn{text-decoration:none}
 .cbox .links{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px}
 .calmsg .cal-l{font-weight:600;color:var(--ink);font-size:12.5px;align-self:center;min-width:150px}
 #cal-auto,#cal-rappel{width:auto;flex:none;margin:0}
+/* v31 : angles d'attaque variés */
+.ang-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.ang-h small{opacity:.7;margin-left:4px}
+.ang2{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.ang2 li{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm,8px);background:var(--surface);font-size:13px;line-height:1.4}
+.ang2 li.dyn{border-color:var(--accent);background:var(--accent-soft,var(--surface-2))}
+.ang2 li b{font-size:13.5px}
+.ang2 .tag{align-self:flex-start;font-size:10.5px}
+.ang2 .ang-d{color:var(--ink-2)}
+.ang2 .ang-q{font-style:italic;color:var(--ink)}

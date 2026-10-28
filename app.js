@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=30;
+const APP_V=31;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -737,6 +737,7 @@ const ACT={
  sheet:()=>{S.sheet=true;renderLayer();setTimeout(()=>$('#note-in')?.focus(),60)},
  sheetx:e=>{S.sheet=false;S.ask=null;renderLayer()},
  copy:()=>copy(crText(cur()),'Compte rendu copié'),copyv:b=>copy(b.dataset.v,'Copié'),
+ angnext:b=>{S.angOff=S.angOff||{};S.angOff[b.dataset.id]=(S.angOff[b.dataset.id]||0)+1;$('#tabbody').innerHTML=tabBody(cur())},
  brieftg:()=>{S.briefOpen=S.briefOpen===false;lsSet('radar-brief',S.briefOpen?'1':'0');$('#tabbody').innerHTML=tabBody(cur())},
  identopen:()=>{const p=cur();S.identOpen=S.identOpen||new Set();S.identOpen.add(p.id);$('#tabbody').innerHTML=tabBody(p);$('#ident-in')?.focus()},
  findphone:()=>{const p=cur();if(p)findPhoneUI(p)},
@@ -1274,6 +1275,115 @@ const ANGLES={
  'BTP / artisan':['Équipes sur chantier : flotte mobile et tablettes.','Devis / factures : facture électronique 2027.','Petit bureau : un seul prestataire pour tout (IT, téléphonie, copieur).'],
  'Commerce':['Caisse, TPE et Wi-Fi : réseau fiable.','Téléphonie et internet de secours (4G).','Vidéosurveillance / réseau.'],
  'Restauration / hôtellerie':['Wi-Fi clients et réseau caisse séparés.','Internet de secours : une coupure = pas de paiement.','Téléphonie / réservations.']};
+/* ---------- Angles d'attaque : personnalisés d'après la fiche + rotation dans une grande réserve ---------- */
+/* Chaque angle : t = l'idée, d = pourquoi ça parle au prospect, q = la question à poser */
+const ANG_SEC={
+ 'Notaire / juridique':[
+  {t:'Volumes de scan et d’impression',d:'Actes, copies authentiques, pièces : le copieur tourne toute la journée et le scan alimente le logiciel de l’étude.',q:'Vous scannez directement vers Genapi / iNot, ou il faut repasser par un poste ?'},
+  {t:'Secret professionnel et données clients',d:'Une fuite ou un rançongiciel bloque l’étude et engage la responsabilité du notaire.',q:'Si un poste est piraté demain, qu’est-ce qui protège les dossiers clients ?'},
+  {t:'Actes à distance',d:'Signature électronique et comparution à distance demandent des postes, des écrans et un réseau à niveau.',q:'Vous faites des signatures à distance ? Ça se passe bien techniquement ?'},
+  {t:'Arrivée d’un nouveau collaborateur',d:'Préparer un poste complet (logiciel métier, droits, messagerie) prend souvent des jours.',q:'Quand un clerc arrive, combien de temps pour qu’il ait un poste prêt ?'},
+  {t:'Accueil téléphonique',d:'Les clients appellent beaucoup pour suivre leur dossier : appels perdus = clients mécontents.',q:'Aux heures de pointe, il arrive que des appels ne soient pas pris ?'}],
+ 'Avocat':[
+  {t:'Secret professionnel',d:'Messagerie, pièces, échanges clients : la cybersécurité est un argument déontologique, pas seulement technique.',q:'Vous avez une double authentification sur la messagerie du cabinet ?'},
+  {t:'Mobilité et audiences',d:'Travailler du palais, de chez soi ou en déplacement : portable, VPN et accès sécurisé aux dossiers.',q:'Quand vous êtes au tribunal, vous accédez facilement à vos dossiers ?'},
+  {t:'Dossiers lourds',d:'Pièces volumineuses à scanner, numéroter, envoyer : copieur rapide + scan vers le logiciel du cabinet.',q:'Qui scanne les pièces chez vous, et ça prend combien de temps ?'},
+  {t:'RPVA et postes',d:'Accès RPVA, logiciel métier, mises à jour : un poste qui flanche bloque une échéance.',q:'Qui vous dépanne quand le RPVA ou le logiciel du cabinet ne répond plus ?'},
+  {t:'Joignabilité',d:'Un client qui n’arrive pas à joindre son avocat le fait vite savoir.',q:'Les appels arrivent sur le standard ou directement sur vos mobiles ?'}],
+ 'Expert-comptable':[
+  {t:'Périodes fiscales',d:'Pendant les bilans et déclarations, une panne coûte des heures facturables.',q:'Pendant la période fiscale, si un poste tombe, en combien de temps vous êtes dépannés ?'},
+  {t:'Données financières clients',d:'Des centaines de dossiers clients : sauvegarde et cyber sont critiques.',q:'Votre sauvegarde est testée ? Vous savez en combien de temps vous repartiriez ?'},
+  {t:'Facture électronique',d:'Le cabinet conseille ses clients sur la réforme : il doit lui-même être bien équipé (scan, flux, GED).',q:'Côté cabinet, vous êtes prêts pour la réception des factures électroniques ?'},
+  {t:'Télétravail des collaborateurs',d:'Accès aux logiciels de production à distance, en sécurité.',q:'Vos collaborateurs travaillent de chez eux ? Comment ils accèdent aux dossiers ?'},
+  {t:'Pièces clients papier',d:'Encore beaucoup de documents papier à numériser à l’arrivée.',q:'Les pièces papier des clients, vous les numérisez comment aujourd’hui ?'}],
+ 'Médical / paramédical':[
+  {t:'Données de santé',d:'Obligations RGPD renforcées : postes, sauvegarde et hébergement doivent être sécurisés.',q:'Vos dossiers patients sont sauvegardés où, et qui s’en occupe ?'},
+  {t:'Accueil téléphonique saturé',d:'Secrétariat débordé, patients qui raccrochent : files d’attente, messages, renvoi vers la prise de RDV en ligne.',q:'Le matin, combien d’appels vous estimez manquer ?'},
+  {t:'Postes en consultation',d:'Lecteur de carte Vitale, logiciel métier, imprimante d’ordonnances : tout doit marcher dès le premier patient.',q:'Quand un poste ou un lecteur de carte plante en consultation, vous faites comment ?'},
+  {t:'Plusieurs praticiens, un seul cabinet',d:'Agendas, impressions et téléphones partagés entre praticiens : un seul prestataire simplifie.',q:'Chaque praticien gère son matériel, ou c’est mutualisé ?'},
+  {t:'Rançongiciels dans la santé',d:'Les structures de santé sont des cibles fréquentes : un poste infecté arrête les consultations.',q:'Si un poste était bloqué par un virus demain, vous pourriez continuer à recevoir ?'}],
+ 'Agence immobilière':[
+  {t:'Vitrine et affichage couleur',d:'Affiches A3 couleur renouvelées souvent : le coût par page couleur pèse.',q:'Vous savez combien vous coûte une affiche couleur aujourd’hui ?'},
+  {t:'Négociateurs sur le terrain',d:'Mobiles, accès aux mandats et signature électronique en visite.',q:'Vos négociateurs ont tout sur leur mobile en visite, ou ils repassent à l’agence ?'},
+  {t:'Appels d’acquéreurs perdus',d:'Un appel non pris = un acquéreur qui appelle l’agence d’à côté.',q:'Quand l’agence est fermée ou que tout le monde est en visite, les appels vont où ?'},
+  {t:'Mandats et pièces',d:'Diagnostics, titres, pièces d’identité : beaucoup de scan et de données personnelles.',q:'Les pièces des vendeurs, vous les stockez où ?'},
+  {t:'Indépendance',d:'Agence indépendante : un prestataire local et réactif plutôt qu’une hotline.',q:'Aujourd’hui, quand quelque chose ne marche pas, vous appelez qui ?'}],
+ 'Architecte':[
+  {t:'Fichiers lourds',d:'Plans, maquettes BIM, rendus : NAS, réseau rapide et sauvegarde adaptés.',q:'Vos fichiers de projets sont stockés où, et ça va vite à ouvrir ?'},
+  {t:'Postes de CAO',d:'Les logiciels de dessin demandent des postes puissants : un poste lent, c’est des heures perdues.',q:'Vos postes tiennent bien la charge sur les gros projets ?'},
+  {t:'Impression grand format',d:'Traceur et copieur A3 couleur : coût et fiabilité.',q:'Les plans grand format, vous les imprimez au cabinet ou chez un reprographe ?'},
+  {t:'Échanges avec les partenaires',d:'Bureaux d’études, maîtres d’ouvrage : partage de gros fichiers en sécurité.',q:'Vous envoyez vos plans comment à vos partenaires ?'},
+  {t:'Perte de projet',d:'Un disque qui lâche = des mois de travail perdus si la sauvegarde n’est pas testée.',q:'Vous avez déjà perdu des fichiers de projet ?'}],
+ 'Assurance':[
+  {t:'Ce qui est imposé ou libre',d:'Agent général : la compagnie impose certains outils, le reste (postes, téléphonie, impression) est souvent libre.',q:'Qu’est-ce qui vous est imposé par la compagnie, et qu’est-ce que vous choisissez vous-même ?'},
+  {t:'Données clients et conformité',d:'Données personnelles et de santé (prévoyance) : cyber et sauvegarde.',q:'Qui gère la sécurité de vos postes : vous ou la compagnie ?'},
+  {t:'Joignabilité des clients',d:'Sinistre = client stressé qui veut joindre l’agence tout de suite.',q:'En cas de sinistre, vos clients vous joignent facilement, même entre midi et deux ?'},
+  {t:'Équipe commerciale mobile',d:'Rendez-vous chez les clients : mobiles et accès sécurisé.',q:'Vos collaborateurs travaillent souvent à l’extérieur ?'}],
+ 'Conseil / RH / recrutement':[
+  {t:'Travail hybride',d:'Microsoft 365, Teams et téléphonie dans Teams pour être joignable partout.',q:'Vos consultants sont souvent en télétravail ou chez les clients ?'},
+  {t:'Données candidats',d:'CV et données personnelles : RGPD, double authentification, partages maîtrisés.',q:'Les CV et dossiers candidats sont stockés où ?'},
+  {t:'Croissance de l’équipe',d:'Recrutements réguliers : préparer vite les postes et comptes.',q:'Vous avez des arrivées prévues dans les prochains mois ?'},
+  {t:'Image auprès des clients',d:'Visio qui coupe, son mauvais : ça se voit en rendez-vous client.',q:'Vos visios clients se passent bien côté son et connexion ?'}],
+ 'BTP / artisan':[
+  {t:'Facture électronique',d:'Devis et factures en flux électronique : émission obligatoire au 1er sept. 2027 pour les PME et TPE.',q:'Vos factures, vous les faites avec quel logiciel aujourd’hui ?'},
+  {t:'Équipes sur chantier',d:'Mobiles, tablettes, photos de chantier et devis sur place.',q:'Vos chefs de chantier envoient comment les infos au bureau ?'},
+  {t:'Un seul prestataire',d:'Petit bureau, pas d’informaticien : un interlocuteur unique pour l’IT, la téléphonie et le copieur.',q:'Aujourd’hui, combien de fournisseurs différents pour l’informatique, le téléphone et l’impression ?'},
+  {t:'Plans et dossiers',d:'Impressions de plans, DOE, dossiers d’appels d’offres.',q:'Vous imprimez beaucoup pour les chantiers et les appels d’offres ?'}],
+ 'Commerce':[
+  {t:'Internet de secours',d:'Une coupure internet = plus de commandes ni d’encaissement en ligne.',q:'La dernière coupure internet, ça a duré combien de temps ?'},
+  {t:'Wi-Fi et réseau',d:'Réseau du magasin, Wi-Fi clients et bureau séparés et fiables.',q:'Votre Wi-Fi tient bien dans tout le magasin ?'},
+  {t:'Téléphonie',d:'Ne pas rater les appels clients quand l’équipe est en rayon.',q:'Quand tout le monde est occupé, les appels basculent où ?'}],
+ 'Industrie':[
+  {t:'Arrêt de production',d:'Un rançongiciel ou une panne réseau peut arrêter l’atelier : sauvegarde et cyber sont un sujet de continuité.',q:'Si le réseau tombe une journée, la production s’arrête ?'},
+  {t:'Atelier et bureaux',d:'Réseau et Wi-Fi qui couvrent l’atelier, postes partagés, étiquettes et documents de production.',q:'Le réseau couvre bien l’atelier et l’entrepôt ?'},
+  {t:'Logiciel de gestion',d:'ERP, serveur local vieillissant : sujet de renouvellement ou de passage au cloud.',q:'Votre logiciel de gestion tourne sur un serveur chez vous ?'},
+  {t:'Volumes d’impression',d:'Bons, étiquettes, plans : un mix copieur / imprimantes à rationaliser.',q:'Vous avez une idée du nombre d’imprimantes sur le site ?'}],
+ 'Transport / logistique':[
+  {t:'Flotte mobile',d:'Chauffeurs et équipes terrain : forfaits, terminaux et gestion de la flotte.',q:'Vous gérez combien de lignes mobiles pour vos équipes ?'},
+  {t:'Wi-Fi d’entrepôt',d:'Scanners et terminaux qui décrochent = préparation ralentie.',q:'Vos terminaux perdent parfois le réseau dans l’entrepôt ?'},
+  {t:'Documents de transport',d:'Bons, lettres de voiture, étiquettes : impression et dématérialisation.',q:'Vos documents de livraison sont encore papier ?'}],
+ 'Association':[
+  {t:'Budget maîtrisé',d:'Peu de moyens : regrouper IT, téléphonie et impression chez un seul prestataire pour y voir clair.',q:'Vos coûts informatiques et téléphoniques sont regroupés ou éparpillés ?'},
+  {t:'Bénévoles et salariés',d:'Comptes partagés, départs et arrivées fréquents : accès à sécuriser.',q:'Quand un bénévole part, ses accès sont coupés ?'},
+  {t:'Données des adhérents',d:'Fichiers d’adhérents et de bénéficiaires : RGPD et sauvegarde.',q:'Vos fichiers d’adhérents sont sauvegardés où ?'}],
+ 'Restauration / hôtellerie':[
+  {t:'Internet de secours',d:'Une coupure = plus de réservations en ligne ni de paiement.',q:'Vous avez une solution si internet coupe en plein service ?'},
+  {t:'Wi-Fi clients',d:'Wi-Fi clients séparé du réseau de l’établissement, pour la sécurité.',q:'Le Wi-Fi clients est séparé de votre réseau interne ?'},
+  {t:'Réservations par téléphone',d:'Appels manqués pendant le service = tables vides.',q:'Pendant le service, qui répond au téléphone ?'}]};
+const ANG_GEN=[
+ {t:'Un seul interlocuteur',d:'Informatique, téléphonie, impression et cyber chez un seul prestataire : un numéro à appeler, une facture.',q:'Aujourd’hui, vous avez combien de prestataires différents pour tout ça ?'},
+ {t:'Temps de dépannage',d:'Ce qui agace le plus, c’est d’attendre quand ça ne marche pas : intervention rapide, sur place si besoin.',q:'La dernière panne, vous avez attendu combien de temps avant d’être dépannés ?'},
+ {t:'Sauvegarde testée',d:'Beaucoup d’entreprises ont une sauvegarde, peu l’ont déjà testée.',q:'Si votre serveur ou un poste tombe demain, vous récupérez quoi, et en combien de temps ?'},
+ {t:'Coût de l’impression',d:'Contrat copieur, coût par page, cartouches des imprimantes : souvent personne n’a la vision globale.',q:'Vous savez combien vous coûte l’impression par mois, tout compris ?'},
+ {t:'Appels manqués',d:'Standard qui sonne dans le vide, pas de renvoi sur mobile : des clients perdus sans le savoir.',q:'Quand vous êtes absents ou occupés, vos appels arrivent où ?'},
+ {t:'Mails piégés',d:'L’hameçonnage reste la première porte d’entrée des pirates : double authentification et filtrage.',q:'Vous avez déjà reçu un faux mail qui a failli passer ?'},
+ {t:'Facture électronique',d:'Réception obligatoire depuis le 1er sept. 2026, émission au 1er sept. 2027 pour les PME et TPE : scan, flux et archivage à organiser.',q:'Vous recevez déjà vos factures fournisseurs en électronique ?'},
+ {t:'Parc vieillissant',d:'Des postes de plus de 5 ans ralentissent tout le monde et posent des soucis de sécurité.',q:'Vos postes ont quel âge en moyenne ?'},
+ {t:'Arrivées et départs',d:'Créer et couper les accès proprement, préparer un poste en avance.',q:'Quand quelqu’un arrive, son poste est prêt le premier jour ?'}];
+/* Angles tirés de ce qu'on sait déjà de CE prospect (priorité absolue) */
+function dynAngles(p){const A=[];const all=norm(JSON.stringify([p.it,p.impr,p.tel,p.cyber,p.besoins,(p.journal||[]).map(j=>j.texte),(p.contacts||[]).map(c=>c.note),p.ent?.notes]));
+  const soon=m=>{if(!/^\d{4}-\d{2}$/.test(m||''))return null;const [y,mo]=m.split('-').map(Number);const d=(y-today().getFullYear())*12+(mo-1-today().getMonth());return d};
+  if(/windows 10|\bw10\b|win ?10/.test(all))A.push({t:'Windows 10 n’est plus mis à jour',d:'Microsoft a arrêté les mises à jour de sécurité de Windows 10 le 14 octobre 2025 : ces postes sont exposés.',q:'Vous avez prévu de passer vos postes sous Windows 11 ? Certains ne sont peut-être pas compatibles.',dyn:1});
+  const fc=soon(p.impr?.finContrat);if(fc!=null&&fc>=-1&&fc<=15)A.push({t:`Fin du contrat copieur : ${fmtMonth(p.impr.finContrat)}`,d:'Les contrats de location se dénoncent souvent plusieurs mois à l’avance, sinon ils se prolongent.',q:'Vous savez quel est le préavis pour ne pas être reconduit ?',dyn:1});
+  const fe=soon(p.tel?.finEngagement);if(fe!=null&&fe>=-1&&fe<=12)A.push({t:`Fin d’engagement télécom : ${fmtMonth(p.tel.finEngagement)}`,d:'Le bon moment pour comparer forfaits, standard et internet avant de se réengager.',q:'Votre opérateur vous a déjà fait une proposition de renouvellement ?',dyn:1});
+  for(const [k,l,dl] of [['impr','le copieur','du copieur'],['it','le prestataire informatique','du prestataire informatique'],['tel','la téléphonie','de la téléphonie']])if(/insatisf|pas content|mecontent|moyen/.test(norm(p[k]?.satisfaction||'')))A.push({t:`Pas satisfait ${dl}`,d:'Le mécontentement est déjà là : il reste à savoir ce qui coince exactement et depuis quand.',q:`Qu’est-ce qui vous gêne le plus avec ${l} aujourd’hui ?`,dyn:1});
+  if(/\bpanne|en panne|plante|bug|lent\b|lenteur/.test(all))A.push({t:'Les pannes dont ils ont parlé',d:'Ils ont mentionné des pannes ou des lenteurs : partir de leur problème concret.',q:'Ce problème, ça arrive souvent ? Et ça vous coûte combien de temps à chaque fois ?',dyn:1});
+  if(p.it?.aPresta==='Non'||/pas de presta|sans presta|neveu|c'est moi qui|on se debrouille/.test(all))A.push({t:'Pas de prestataire informatique',d:'Quelqu’un en interne bricole à côté de son vrai travail : ça coûte plus cher qu’il n’y paraît.',q:'Qui s’occupe de l’informatique quand ça ne marche pas, et combien de temps ça lui prend ?',dyn:1});
+  const sv=norm(val(p.cyber?.sauvegarde||''));if(/aucun|disque|cle|usb|pas de/.test(sv)||/pas de (sauvegarde|svg)|disque dur externe/.test(all))A.push({t:'Sauvegarde fragile',d:'Un disque ou une clé branchés au poste sont chiffrés en même temps que lui en cas de rançongiciel.',q:'Votre sauvegarde est débranchée et emportée hors du bureau, ou elle reste à côté du poste ?',dyn:1});
+  const inst=p.rne?.installe;if(inst){const age=today().getFullYear()-(+inst.slice(0,4));if(age>=3&&age<=6)A.push({t:`Installés ici depuis ${age} ans`,d:'Les contrats signés à l’emménagement (copieur, télécom, matériel) arrivent souvent à échéance.',q:'Les contrats pris à votre arrivée, ils se terminent bientôt ?',dyn:1})}
+  if(p.ent?.etab==='Établissement secondaire')A.push({t:'Site secondaire',d:'La décision se prend peut-être au siège : savoir qui décide évite de perdre du temps.',q:'Pour l’informatique et la téléphonie, ça se décide ici ou au siège ?',dyn:1});
+  const y=+String(p.ent?.creation||'').slice(-4);if(y&&today().getFullYear()-y<=3)A.push({t:'Entreprise récente',d:'Souvent équipée au minimum au démarrage : le bon moment pour structurer avant de grandir.',q:'Vous avez prévu de recruter ? Votre installation suivra ?',dyn:1});
+  return A}
+const hashStr=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))|0;return Math.abs(h)};
+function anglesFor(p){const sec=ANG_SEC[p.ent?.secteur]||[];const seed=hashStr(p.id);
+  const mix=(arr,k)=>arr.map((a,i)=>[(hashStr(a.t)+seed*(k+1))%997,a]).sort((x,y)=>x[0]-y[0]).map(x=>x[1]);
+  /* alterne secteur et général pour varier */
+  const s=mix(sec,1),g=mix(ANG_GEN,2),pool=[];while(s.length||g.length){if(s.length)pool.push(s.shift());if(s.length)pool.push(s.shift());if(g.length)pool.push(g.shift())}
+  const dyn=dynAngles(p);const seen=new Set(dyn.map(a=>a.t));return[...dyn,...pool.filter(a=>!seen.has(a.t))]}
+function anglesHtml(p){const L=anglesFor(p);if(!L.length)return'';const N=3;S.angOff=S.angOff||{};const pages=Math.ceil(L.length/N);const pg=(S.angOff[p.id]||0)%pages;
+  const cur=L.slice(pg*N,pg*N+N);
+  return `<div class="ang-h"><div class="lbl">Angles d’attaque${p.ent?.secteur?' · '+esc(p.ent.secteur):''}</div>${pages>1?`<button class="btn btn-q btn-s" data-act="angnext" data-id="${p.id}">↻ Autres angles <small>${pg+1}/${pages}</small></button>`:''}</div>
+   <ul class="ang2">${cur.map(a=>`<li${a.dyn?' class="dyn"':''}><b>${esc(a.t)}</b>${a.dyn?'<span class="tag">d’après la fiche</span>':''}<span class="ang-d">${esc(a.d)}</span><span class="ang-q">« ${esc(a.q)} »</span></li>`).join('')}</ul>`}
 function briefData(p){const e=estimates(p);const sec=p.ent?.secteur||'';const sig=[];const now=today().getFullYear();
   const t=p.rne?.tranche;if(t&&TRM[t])sig.push(['👥',`Effectif sur ce site (SIRET ${fmtSiret(p.ent?.siret||'')}) : ${{'00':'0','01':'1 à 2','02':'3 à 5','03':'6 à 9','11':'10 à 19','12':'20 à 49','21':'50 à 99','22':'100 à 199','31':'200 à 249','32':'250 à 499','41':'500 à 999'}[t]||p.ent?.effectif} salariés${p.rne.annee?' ('+p.rne.annee+')':''}`]);
   else if(p.ent?.effectif)sig.push(['👥',`Effectif : ${p.ent.effectif} salariés`]);
@@ -1286,12 +1396,12 @@ function briefData(p){const e=estimates(p);const sec=p.ent?.secteur||'';const si
   if(p.ent?.ca)sig.push(['💶',`CA ${p.ent.ca}${p.ent.resultat?' · résultat '+p.ent.resultat:''}`]);
   if(p.ent?.categorie==='PME'||!p.ent?.categorie)sig.push(['🧾','Facture électronique : réception obligatoire depuis le 1er sept. 2026, émission obligatoire au 1er sept. 2027 pour les PME et TPE. Argument scan / GED / dématérialisation.']);
   return{e,sig,angles:ANGLES[sec]||[],logi:LOGI[sec]||''}}
-function briefHtml(p){if(!p.ent?.nom||!(p.rne?.status==='ok'||p.ent?.effectif))return'';const b=briefData(p);if(!b.e&&!b.sig.length)return'';const open=S.briefOpen!==false;
+function briefHtml(p){if(!p.ent?.nom&&!p.ent?.enseigne)return'';const b=briefData(p);const open=S.briefOpen!==false;
   return `<section class="brief${open?'':' closed'}"><button class="brief-h" data-act="brieftg"><b>Avant l’appel</b><span>${b.e?`≈ ${b.e.postes} poste${b.e.postes>1?'s':''} · ≈ ${b.e.copieurs} copieur${b.e.copieurs>1?'s':''} · ≈ ${b.e.imprimantes} imprimante${b.e.imprimantes>1?'s':''}`:''}</span><i>${open?'Masquer':'Afficher'}</i></button>
    ${open?`<div class="brief-b">
     ${b.e?`<div class="kpis"><div><b>≈ ${b.e.n}</b><span>personnes</span></div><div><b>≈ ${b.e.postes}</b><span>postes</span></div><div><b>≈ ${b.e.copieurs}</b><span>copieur${b.e.copieurs>1?'s':''}</span></div><div><b>≈ ${b.e.imprimantes}</b><span>imprimante${b.e.imprimantes>1?'s':''}</span></div><div><b>≈ ${b.e.lignes}</b><span>lignes tél.</span></div></div><p class="bnote">Estimations d’après l’effectif et le secteur, préremplies dans les onglets avec la mention « estimé ». Fais-les confirmer : ça ouvre la discussion.</p>`:''}
     ${b.sig.length?`<ul class="sig">${b.sig.map(([i,t])=>`<li><span>${i}</span>${esc(t)}</li>`).join('')}</ul>`:''}
-    ${b.angles.length?`<div class="lbl">Angles d’attaque · ${esc(p.ent.secteur)}</div><ul class="ang">${b.angles.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}
+    ${anglesHtml(p)}
     ${b.logi?`<div class="lbl">Logiciels probables</div><p class="bnote" style="margin:0">${esc(b.logi)} : demande lequel ils utilisent.</p>`:''}
    </div>`:''}</section>`}
 function applyRe(p,r,hint={}){
