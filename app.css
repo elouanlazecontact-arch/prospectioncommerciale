@@ -574,3 +574,19 @@ a.btn{text-decoration:none}
 .ang2 .tag{align-self:flex-start;font-size:10.5px}
 .ang2 .ang-d{color:var(--ink-2)}
 .ang2 .ang-q{font-style:italic;color:var(--ink)}
+/* v32 : export par période / compte, journées bien séparées */
+.exp{max-width:620px}
+.exp .chips{flex-wrap:wrap}
+.exp-dates{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:13px}
+.exp-dates label{display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-weight:500}
+.exp-r{display:block;margin-top:6px;color:var(--ink-2);font-size:12.5px}
+.exp-me{font-size:14px;display:flex;gap:10px;align-items:center}
+.exp-me .lnk{all:unset;cursor:pointer;color:var(--accent);font-size:12.5px;text-decoration:underline}
+.exp-prev{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm,8px);padding:10px 12px;font-size:13px}
+.exp-prev ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.exp-prev li{display:flex;justify-content:space-between;gap:12px;border-top:1px dashed var(--line);padding-top:3px}
+.exp-prev li span:first-child{font-weight:600}
+.exp-b{display:flex;gap:8px;flex-wrap:wrap}
+.tl-day{margin:10px 0 4px;padding:5px 10px;border-radius:6px;background:var(--ink,#101823);color:#fff;font:650 12.5px var(--f-display);letter-spacing:.02em;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tl-day:first-child{margin-top:0}
+.tl-day small{font-weight:500;opacity:.8}
