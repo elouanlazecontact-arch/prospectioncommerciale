@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=28;
+const APP_V=29;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -1567,7 +1567,7 @@ function crModel(p){
   const last=J.find(j=>j.canal==='tel'||j.canal==='terrain')||J[0]||null;const ld=jDate(last?.date);
   const quoi=last?.canal==='terrain'||(!last&&p.source==='terrain')?'Visite':'Appel';
   const head=last?`${quoi} du ${longDate(ld)}${last.issue?' · '+last.issue:''}${last.duree?' · durée '+last.duree:''}`:`Fiche créée le ${longDate(new Date(p.createdAt||Date.now()),false)} · aucun appel enregistré`;
-  const etat=[ST[p.statut]?.l,TEMPS.find(x=>x.k===p.temperature)?.l].filter(Boolean).join(' · ');
+  const etat=[ST[p.statut]?.l,TEMPS.find(x=>x.k===p.temperature)?.l].filter(x=>x&&!(last?.issue||'').includes(x)).join(' · ');
   const S_=[];
   /* Entreprise : l'essentiel seulement */
   const ent=[[e.secteur,e.effectif&&e.effectif+' salariés sur le site',[e.cp,e.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
@@ -1721,19 +1721,29 @@ function rdvInfo(p,a){const c=(p.contacts||[]).find(x=>x.decideur==='Oui')||p.co
   const isRdv=a.type==='RDV',isVis=a.type==='Visite';const dur=isRdv?60:isVis?30:15;
   const lieuTxt=isRdv?(/visio/i.test(a.note||'')?'Visio (Teams)':/t[ée]l[ée]phone/i.test(a.note||'')?'Téléphone : '+tel:adr):isVis?adr:(tel?'Tél. '+tel:'');
   const title=isRdv?`RDV ${nm}${who?' — '+who:''}`:isVis?`Visite ${nm}`:a.type==='Relance'?`Relancer ${nm}${who?' — '+who:''}`:`📞 Rappeler ${nm}${who?' — '+who:''}`;
-  const head=[a.note&&!/^RDV\b/.test(a.note)?'À faire : '+a.note:'',!isRdv&&tel?'Numéro : '+tel+(who?' ('+who+')':''):''].filter(Boolean).join('\n');
-  const body=(head?head+'\n\n':'')+crText(p)+'\n\n— Créé depuis Radar (prospection Data Links)';
-  if(!a.heure&&!isRdv){const d=new Date(a.date+'T12:00');d.setDate(d.getDate()+1);return{title,allday:true,start:a.date,end:iso(d),lieu:lieuTxt,body}}
+  const hh=a.heure?fitSlot(a.heure,dur):'';const tm=hh?' à '+hh.replace(':00','h').replace(':','h'):'';const ctel=fmtTel(c.mobile||c.tel||'');
+  const head=isRdv?[`Rendez-vous le ${longDate(jDate(a.date),false)}${tm}`,lieuTxt&&'Lieu : '+lieuTxt,who&&`Interlocuteur : ${who}${c.fonction?' ('+c.fonction+')':''}`,(ctel||tel)&&'Tél. : '+[ctel,tel&&tel!==ctel?'standard '+tel:''].filter(Boolean).join(' · ')].filter(Boolean).join('\n')
+    :[a.note&&!/^RDV\b/.test(a.note)?'À faire : '+a.note:'',tel?'Numéro : '+tel+(who?' ('+who+')':''):''].filter(Boolean).join('\n');
+  const body=(head?head+'\n\n':'')+crText(p)+'\n\n— Créé depuis Radar (prospection Data Links)';const html=calHtml(p,head);
+  if(!a.heure&&!isRdv){const d=new Date(a.date+'T12:00');d.setDate(d.getDate()+1);return{title,allday:true,start:a.date,end:iso(d),lieu:lieuTxt,body,html}}
   const h=fitSlot(a.heure||'10:00',dur);const [H,M]=h.split(':').map(Number);const end=endWithin(h,dur);
-  return{title,start:`${a.date}T${pad(H)}:${pad(M)}:00`,end:`${a.date}T${end}:00`,lieu:lieuTxt,body}}
+  return{title,start:`${a.date}T${pad(H)}:${pad(M)}:00`,end:`${a.date}T${end}:00`,lieu:lieuTxt,body,html}}
+/* Descriptif d'agenda mis en forme (Outlook web lit le descriptif en HTML : les retours à la ligne simples y sont ignorés) */
+function calHtml(p,head){const m=crModel(p);const MAX=5000;let h='';let cut=false;
+  const add=x=>{if(cut)return;if(h.length+x.length>MAX){cut=true;h+='…<br>';return}h+=x};
+  if(head)add(head.split('\n').map(x=>`<b>${esc(x)}</b>`).join('<br>')+'<br><br>');
+  add(`<b>${esc(m.titre)}</b><br>${esc(m.head)}${m.etat?' · '+esc(m.etat):''}<br>`);
+  for(const sec of m.sections){add(`<br><b><u>${esc(sec.h.toUpperCase())}</u></b><br>`);
+    for(const it of sec.items){add('• '+esc(it.t)+'<br>');if(it.sub)for(const x of it.sub.split('\n').filter(Boolean))add('&nbsp;&nbsp;&nbsp;&nbsp;'+esc(x)+'<br>')}}
+  cut=false;h+='<br><i>Créé depuis Radar (prospection Data Links)</i>';return h}
 const withOff=s=>{const d=new Date(s);const o=-d.getTimezoneOffset();return s.slice(0,19)+(o>=0?'+':'-')+pad(Math.floor(Math.abs(o)/60))+':'+pad(Math.abs(o)%60)};
 function outlookUrl(i,host){const u=new URL(`https://${host}/calendar/action/compose`);u.searchParams.set('rru','addevent');
-  u.searchParams.set('subject',i.title);if(i.allday){u.searchParams.set('startdt',i.start);u.searchParams.set('enddt',i.end);u.searchParams.set('allday','true')}else{u.searchParams.set('startdt',withOff(i.start));u.searchParams.set('enddt',withOff(i.end));u.searchParams.set('allday','false')}if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.body.slice(0,1200));return u.toString()}
+  u.searchParams.set('subject',i.title);if(i.allday){u.searchParams.set('startdt',i.start);u.searchParams.set('enddt',i.end);u.searchParams.set('allday','true')}else{u.searchParams.set('startdt',withOff(i.start));u.searchParams.set('enddt',withOff(i.end));u.searchParams.set('allday','false')}if(i.lieu)u.searchParams.set('location',i.lieu);u.searchParams.set('body',i.html||i.body.slice(0,1200));return u.toString()}
 const VTZ=['BEGIN:VTIMEZONE','TZID:Europe/Paris','BEGIN:DAYLIGHT','TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU','END:DAYLIGHT','BEGIN:STANDARD','TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU','END:STANDARD','END:VTIMEZONE'];
 const fold=l=>{const out=[];let s=l;while(new TextEncoder().encode(s).length>73){let n=73;while(new TextEncoder().encode(s.slice(0,n)).length>73)n--;out.push(s.slice(0,n));s=' '+s.slice(n)}out.push(s);return out.join('\r\n')};
 function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/([,;])/g,'\\$1');
   return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH',...VTZ,'BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
-    ...(i.allday?[`DTSTART;VALUE=DATE:${i.start.replace(/-/g,'')}`,`DTEND;VALUE=DATE:${i.end.replace(/-/g,'')}`,'TRANSP:TRANSPARENT']:[`DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`]),`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,'BEGIN:VALARM',i.allday?'TRIGGER:PT9H':i.title.startsWith('RDV')?'TRIGGER:-PT30M':'TRIGGER:-PT5M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
+    ...(i.allday?[`DTSTART;VALUE=DATE:${i.start.replace(/-/g,'')}`,`DTEND;VALUE=DATE:${i.end.replace(/-/g,'')}`,'TRANSP:TRANSPARENT']:[`DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`]),`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,i.html?`X-ALT-DESC;FMTTYPE=text/html:${e('<html><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt">'+i.html+'</body></html>')}`:'','BEGIN:VALARM',i.allday?'TRIGGER:PT9H':i.title.startsWith('RDV')?'TRIGGER:-PT30M':'TRIGGER:-PT5M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
 const proMail=()=>!!USER?.email&&!/@(outlook|hotmail|live|msn)\./i.test(USER.email);
 function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';if(mode==='live'&&proMail())mode='m365';const i=rdvInfo(p,a);
   const what=a.type==='RDV'?'le RDV':a.type==='Visite'?'la visite':a.type==='Relance'?'la relance':'le rappel';
