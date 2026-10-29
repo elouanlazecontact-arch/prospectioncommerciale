@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=32;
+const APP_V=33;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -427,6 +427,10 @@ function renderToday(){
     <p>${acts.length?`${acts.length} action${acts.length>1?'s':''} à traiter${late?`, dont ${late} en retard`:''}.`:'Rien en retard. Bonne journée pour prospecter.'}</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-loc" data-act="view" data-v="around">📍 Autour de moi · 50 m</button>${S.mode==='poste'?`<button class="btn btn-p" data-act="session">Lancer la session d'appels</button>`:`<button class="btn btn-p" data-act="new">+ Nouvelle visite</button>`}<button class="btn btn-g" data-act="new">${S.mode==='poste'?'+ Nouveau prospect':'+ Saisie rapide'}</button><button class="btn btn-g" data-act="expquick" title="Télécharge l’Excel de ta journée">📤 Exporter ma session du jour</button><button class="btn btn-q" data-act="xlsx" title="Choisir la période et les comptes">Autre export…</button></div></div>
   ${exemples?`<div class="banner"><span>Les fiches marquées « exemple » montrent comment l'outil se remplit. Supprime-les quand tu veux.</span><button class="btn btn-g btn-s" data-act="delex">Supprimer les exemples</button></div>`:''}
+  ${S.mode==='terrain'?`<div class="card qn-card"><h2>📝 Notes rapides → fiche</h2><p class="qn-help">Colle ou tape tes notes prises à la va-vite : la fiche est créée, l’entreprise cherchée au registre et chaque info rangée automatiquement.</p>
+    <input class="in" id="qn-nom" placeholder="Nom de l’entreprise ou SIRET (facultatif)" value="${esc(lsGet('radar-qn-nom',''))}" autocomplete="off">
+    <textarea class="in" id="qn-txt" rows="4" placeholder="ex. cabinet dupont, vu la secrétaire mme durand, dg absent, 8 pc sous w10, copieur canon en loc fin 06/27, rapl jeudi 14h">${esc(lsGet('radar-qn-txt',''))}</textarea>
+    <button class="btn btn-p" data-act="qncreate">Créer la fiche et analyser</button></div>`:''}
   <div class="kpis">
     <div class="kpi main"><span class="k">RDV pris ce mois</span><span class="v num">${rdv}<small> / ${obj}</small></span><div class="bar"><i style="width:${Math.min(100,rdv/obj*100)}%"></i></div><span class="s">${rdv>=obj?'Objectif atteint 🎯':`Encore ${obj-rdv} · ${daysLeft} jours ouvrés restants`}</span></div>
     <div class="kpi"><span class="k">Appels aujourd'hui</span><span class="v num">${todayJournal('tel')}</span><span class="s">issues d'appel saisies</span></div>
@@ -491,6 +495,7 @@ function renderFiche(){
      <div class="temp" role="group" aria-label="Température">${TEMPS.map(t=>`<button data-act="temp" data-v="${t.k}" aria-pressed="${p.temperature===t.k}">${t.l}</button>`).join('')}</div></div>
     ${ex?`<div class="warnbox"><b>Hors cible ?</b><span>${esc(ex)}</span></div>`:''}
     ${(()=>{const d=dupOf(p.ent?.siret||p.ent?.siren,p.id);return d?`<div class="warnbox"><b>Doublon</b><span>Ce SIRET est déjà dans la fiche « ${esc(displayName(d))} ».</span><button class="btn btn-p btn-s" data-act="dupopen">Fusionner dans la fiche existante</button></div>`:''})()}
+    ${S.mode==='terrain'?(()=>{const d=lsGet('radar-draft-'+p.id,'');const n=(p.journal||[]).length;return `<button class="qnote" data-act="sheet"><span class="qn-t">📝 Notes rapides${n?` <small>· ${n} note${n>1?'s':''} déjà enregistrée${n>1?'s':''}</small>`:''}</span><span class="qn-d">${d?'Brouillon : '+esc(d.slice(0,90))+(d.length>90?'…':''):'Tape ou dicte tes notes en vrac (« dg mr martin, 12 postes, canon fin 06/27, rapl jeudi 14h ») : tout se range tout seul dans la fiche.'}</span><span class="qn-b">Écrire / analyser →</span></button>`})():''}
     ${phoneBox(p)}
    </div>
    <div class="tabs" role="tablist" id="tabs">${tabsHtml(p)}</div>
@@ -500,7 +505,7 @@ function renderFiche(){
      ${S.confirmDel?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="del2">Confirmer la suppression</button><button class="btn btn-q btn-s" data-act="del0">Annuler</button>`:`<button class="btn btn-q btn-s" data-act="del">Supprimer la fiche</button>`}
    </div>
   </div>
-  ${S.mode==='terrain'?`<button class="fab" data-act="sheet"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5V17h1.5L15 7.5 13.5 6zM12.5 7l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notes & issue</button>`:''}`;
+  ${S.mode==='terrain'?`<button class="fab" data-act="sheet"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5V17h1.5L15 7.5 13.5 6zM12.5 7l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notes rapides</button>`:''}`;
   flashApply();setTimeout(()=>{autoEnrich(cur());autoPhone(cur())},400);
 }
 function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
@@ -601,7 +606,7 @@ function notesHtml(p){
    ${(()=>{const cm=S.calMsg;if(!cm||cm.pid!==p.id)return'';const ids=cm.aids||(cm.aid?[cm.aid]:[]);const L=ids.map(id=>p.actions?.find(x=>x.id===id)).filter(a=>a&&!a.fait);if(!L.length)return'';
      const lab=a=>`${a.type} ${fmtDate(a.date)}${a.heure?' à '+a.heure.replace(':','h'):''}`;const all=L.every(a=>a.cal);
      return `<div class="calmsg"><b>📅 ${L.length>1?L.length+' actions à inscrire dans l’agenda':esc(lab(L[0]))+(all?' envoyé vers Outlook':' à inscrire dans l’agenda')}</b><span>${all?'Si Outlook ne s’est pas ouvert ou que l’événement n’y apparaît pas :':'Un clic par action :'}</span>${L.map(a=>`<div>${L.length>1?`<span class="cal-l">${esc(lab(a))}${a.cal?' ✓':''}</span>`:''}<button class="btn btn-p btn-s" data-act="cal" data-v="m365" data-id="${p.id}" data-a="${a.id}">Outlook web</button><button class="btn btn-g btn-s" data-act="cal" data-v="ics" data-id="${p.id}" data-a="${a.id}">Outlook (application)</button></div>`).join('')}<div><button class="btn btn-q btn-s" data-act="calx">OK</button></div></div>`})()}
-   <div class="np-h"><h2>${m==='poste'?'Appel en cours':'Visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
+   <div class="np-h"><h2>${m==='poste'?'Appel en cours':'📝 Notes rapides · visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
    ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:(p.ent?.tel?'':`<span class="links" style="width:100%">${phoneLinks(p)}</span>`)}
      ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
    <textarea class="in note" id="note-in" placeholder="${m==='poste'?'Tape comme tu parles : « dg mr martin, 12 postes, canon en leasing fin 06/27 pas content, av avast, pas de svg, rapl jeudi 14h »':'ex. « vu accueil, gerante mme lopez absente, 8 pers, copieur ricoh, repasser mardi matin »'}">${esc(draft)}</textarea>
@@ -756,6 +761,9 @@ const ACT={
  expx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.exp=null;renderLayer()},
  expgo:async()=>{const o=S.exp;S.exp=null;renderLayer();await expRun(o)},
  expquick:()=>expRun({per:'jour',owners:[meId()]}),
+ qncreate:async()=>{const nom=($('#qn-nom')?.value||'').trim(),txt=($('#qn-txt')?.value||'').trim();if(!txt&&!nom){toast('Écris d’abord tes notes.');$('#qn-txt')?.focus();return}
+   const p=blank('terrain');const dig=nom.replace(/[\s.\-]/g,'');if(nom&&!/^\d{9}(\d{5})?$/.test(dig))p.ent.nom=nom;S.P.set(p.id,p);touch(p);lsSet('radar-qn-nom',null);lsSet('radar-qn-txt',null);
+   if(txt)await commitNote(p,txt,null);openFiche(p.id,'ent');if(nom)identify(p,nom).catch(()=>{});toast(`Fiche créée${txt?' et notes analysées':''}`)},
  expteam:()=>{expOpen('jour');S.exp.owners=expMembers().map(m=>m.id);renderLayer()},
  del:()=>{S.confirmDel=true;renderFiche()},del0:()=>{S.confirmDel=false;renderFiche()},
  del2:()=>{const p=cur();removeProspect(p.id);S.sel=null;S.confirmDel=false;render();toast(`« ${displayName(p)} » supprimé`,()=>{S.P.set(p.id,p);touch(p);openFiche(p.id)})},
@@ -2189,6 +2197,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('input',e=>{const el=e.target;
   if(el.id==='q'){S.q=el.value;if(S.view!=='list'){S.view='list';if(S.mode==='terrain')S.sel=null;render();$('#q').focus()}else if(S.mode==='terrain'&&S.sel){S.sel=null;render();$('#q').focus()}else renderList();return}
   if(el.id==='note-in'&&S.sel){lsSet('radar-draft-'+S.sel,el.value);return}
+  if(el.id==='qn-nom'||el.id==='qn-txt'){lsSet(el.id==='qn-nom'?'radar-qn-nom':'radar-qn-txt',el.value);return}
   if((el.id==='ident-in'||(el.dataset.k==='ent.nom'&&cur()?.rne?.status!=='ok'))){clearTimeout(sugT);sugT=setTimeout(()=>suggest(el),380)}
   if((el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren')&&cur()){const d=el.value.replace(/\D/g,'');const p=cur();if(((d.length===14&&luhn(d))||(d.length===9&&el.dataset.k==='ent.siren'))&&(p.rne?.status!=='ok'||p.ent?.siren!==d.slice(0,9))){setTimeout(()=>identify(p,d),50)}}
   if(el.dataset.k&&!el.classList.contains('chip-in')){const f=defOf(el.dataset.def||el.dataset.k);let v=el.value;if(f&&f.t==='num')v=v===''?'':+v;if(f&&(f.t==='tel'||/siret|siren/.test(f.k)))v=v.replace(/[^\d+]/g,'');
