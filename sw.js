@@ -1,8 +1,8 @@
 /* Radar — fonctionnement hors ligne : l'appli s'ouvre même sans réseau. */
-const V = 'radar-v33';
+const V = 'radar-v34';
 const SHELL = ['./', 'index.html', 'pc.html', 'mobile.html', 'app.css', 'app.js', 'config.js',
   'manifest-pc.webmanifest', 'manifest-mobile.webmanifest',
-  'pc-192.png', 'pc-512.png', 'mobile-192.png', 'mobile-512.png'];
+  'pc-192.png', 'pc-512.png', 'mobile-192.png', 'mobile-512.png', 'lib/xlsx.full.min.js', 'lib/exceljs.min.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

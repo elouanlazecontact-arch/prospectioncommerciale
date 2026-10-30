@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=33;
+const APP_V=34;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -1768,8 +1768,7 @@ function contactBox(p){const e=p.ent||{};const dom=domainOf(p);const nm=encodeUR
 
 /* ================= Export Excel ================= */
 let xlsxLib=null;
-function loadExcel(){if(window.ExcelJS)return Promise.resolve(window.ExcelJS);if(xlsxLib)return xlsxLib;
-  xlsxLib=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';s.onload=()=>res(window.ExcelJS);s.onerror=()=>{xlsxLib=null;rej(new Error('load'))};document.head.append(s)});return xlsxLib}
+function loadExcel(){return loadLib('excel','https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js','ExcelJS')}
 async function exportXlsx(opt={}){
   toast('Préparation du fichier Excel…');
   let X;try{X=await loadExcel()}catch{toast('Impossible de préparer Excel sans connexion internet. Réessaie avec du réseau.');return}
@@ -2045,8 +2044,10 @@ const FCOLS_X=[['contact2','Contact 2'],['fonction2','Fonction 2'],['telsrc','So
 const FCOLS=[['','Ignorer'],['siret','SIRET (établissement)'],['siren','SIREN (entreprise)'],['sir','SIRET ou SIREN'],['nom','Raison sociale'],['enseigne','Nom commercial'],['tel','Standard (téléphone)'],['mobile','Mobile'],['contact','Contact (nom complet)'],['prenom','Prénom'],['cnom','Nom du contact'],['fonction','Fonction'],['email','Email'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['note','Notes / commentaire'],...FCOLS_X];
 const FHDR=[['',/annuaire|lien|url|fiabilit|latitude|longitude|^ess$|^sigle$|nb dirigeants|annee|effectif|categorie|forme|creation|naf|activit|secteur|^ca\b|resultat|convention|etablissements|profil/],['telsrc',/source du (numero|tel)/],['siret',/siret/],['siren',/siren/],['sir',/n°\s*(d')?entreprise|identifiant|immatricul/],['tel',/t[ée]l|phone|standard|fixe|num[ée]ro(?!.*(siret|siren))/],['mobile',/mobile|portable|gsm|cell/],['email',/mail|courriel/],['nom',/raison|soci[ée]t[ée]|entreprise|d[ée]nomination|client|compte|^nom$|company/],['enseigne',/enseigne|commercial/],['contact',/contact|interlocut|dirigeant|responsable/],['prenom',/pr[ée]nom/],['cnom',/^nom\s*(du)?\s*contact|nom de famille/],['fonction',/fonction|qualit|poste|titre|r[ôo]le/],['adresse',/adresse|rue|voie/],['cp',/code\s*postal|^cp$|postal/],['ville',/ville|commune|localit/],['note',/note|comment|remarque|observ|info/]];
 let fLibs={};
+const LOCAL_LIB={xlsx:'lib/xlsx.full.min.js',excel:'lib/exceljs.min.js'};
+const addScript=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>{s.remove();rej(new Error('lib'))};document.head.appendChild(s)});
 function loadLib(key,url,glob){if(window[glob])return Promise.resolve(window[glob]);if(fLibs[key])return fLibs[key];
-  fLibs[key]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=url;s.onload=()=>res(window[glob]);s.onerror=()=>{fLibs[key]=null;rej(new Error('lib'))};document.head.appendChild(s)});return fLibs[key]}
+  fLibs[key]=(async()=>{for(const src of [LOCAL_LIB[key],url].filter(Boolean)){try{await addScript(src);if(window[glob])return window[glob]}catch{}}fLibs[key]=null;throw new Error('lib')})();return fLibs[key]}
 const cellStr=v=>{if(v==null)return'';if(typeof v==='number')return Number.isInteger(v)?v.toFixed(0):String(v);if(v instanceof Date)return iso(v);return String(v).replace(/\s+/g,' ').trim()};
 function decodeText(buf){let t=new TextDecoder('utf-8').decode(buf);if(/\uFFFD/.test(t))try{t=new TextDecoder('windows-1252').decode(buf)}catch{}return t.replace(/^\uFEFF/,'')}
 function parseCsv(t){const first=t.split(/\r?\n/).find(l=>l.trim())||'';const d=[';','\t',',','|'].map(c=>[c,first.split(c).length]).sort((a,b)=>b[1]-a[1])[0][0];
@@ -2100,11 +2101,14 @@ function rowRec(st,r){const o={};st.map.forEach((k,j)=>{if(!k)return;const v=cel
   if(!tel&&mob&&!o.contact&&!o.cnom&&!o.prenom){tel=mob;mob=''}
   const email=o.email||(full.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)||[])[0]||'';
   return{sir,tel,mob,email:email.replace(/[.\-]+$/,''),nom:o.nom||'',enseigne:o.enseigne||'',contact:o.contact||'',prenom:o.prenom||'',cnom:o.cnom||'',fonction:o.fonction||'',contact2:o.contact2||'',fonction2:o.fonction2||'',telsrc:o.telsrc||'',adresse:o.adresse||'',cp:(o.cp||'').match(/\d{5}/)?.[0]||'',ville:o.ville||'',note:o.note||''}}
-function fimpStats(st){const recs=fimpRows(st).map(r=>rowRec(st,r));const ok=recs.filter(x=>x.sir);const seen=new Set();let dup=0,inFile=0;
-  for(const x of ok){const k=x.sir.length===14?x.sir:x.sir+'|'+norm([x.cp,x.adresse,x.ville].join(' '));if(seen.has(k)){inFile++;continue}seen.add(k);if(dupOf(x.sir.length===14?x.sir:'')||(x.sir.length===9&&dupOf(x.sir)&&!x.cp&&!x.adresse))dup++}
-  return{lignes:recs.length,sir:ok.length,tel:recs.filter(x=>x.tel||x.mob||(x.sir&&[st.cross?.get(x.sir),st.cross?.get(x.sir.slice(0,9))].some(c=>c?.tel||c?.mob))).length,dup,inFile,sansSir:recs.filter(x=>!x.sir&&(x.nom||x.enseigne)&&(x.tel||x.mob)).length}}
+const importable=x=>!!(x.sir||x.nom||x.enseigne||x.tel||x.mob);
+function fimpStats(st){const recs=fimpRows(st).map(r=>rowRec(st,r));const keys=new Map();let inFile=0,dup=0;
+  for(const x of recs.filter(importable)){const ks=[x.sir&&x.sir.length===14&&'s'+x.sir,x.tel&&'t'+x.tel,x.mob&&'t'+x.mob,x.email&&'m'+x.email.toLowerCase(),nmKey(x.nom||x.enseigne||'').length>=4&&'n'+nmKey(x.nom||x.enseigne)+'|'+(x.cp||'')].filter(Boolean);
+    if(ks.some(k=>keys.has(k))){inFile++;continue}ks.forEach(k=>keys.set(k,1));if(findMatch(x))dup++}
+  const ok=recs.filter(importable).length;
+  return{lignes:recs.length,sir:recs.filter(x=>x.sir).length,ok,tel:recs.filter(x=>x.tel||x.mob||(x.sir&&[st.cross?.get(x.sir),st.cross?.get(x.sir.slice(0,9))].some(c=>c?.tel||c?.mob))).length,dup,inFile,sansSir:recs.filter(x=>!x.sir&&importable(x)).length,neuves:Math.max(0,ok-dup-inFile)}}
 function fimpHtml(){const st=S.fimp||{};const src=st.src||'tel';
-  const head=`<h2>Importer un fichier</h2><p class="fsub">Excel, CSV ou PDF de ton entreprise : chaque ligne avec un SIRET ou un SIREN devient une fiche complète (registre officiel, estimations, brief) avec le numéro de ton fichier. Les fiches existantes sont complétées, jamais en double.</p>`;
+  const head=`<h2>Importer un fichier</h2><p class="fsub">Excel, CSV ou PDF de ton entreprise : chaque ligne devient une fiche (complétée par le registre officiel quand il y a un SIRET). Si une fiche existe déjà avec le même SIRET, téléphone, e-mail ou nom, les infos sont combinées au lieu de créer un doublon.</p>`;
   if(!st.rows)return `<div class="modal" data-act="closem"><div class="fimp">${head}
     <label class="drop${st.drag?' on':''}" id="fdrop"><input type="file" id="fimp-in" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt,.pdf" hidden>
       <b>${st.busy?'<span class="spin"></span> Lecture du fichier…':'Glisse ton fichier ici'}</b><span>ou clique pour le choisir · .xlsx, .xls, .csv, .pdf</span></label>
@@ -2117,14 +2121,14 @@ function fimpHtml(){const st=S.fimp||{};const src=st.src||'tel';
    ${run?'':`<div class="lbl">Colonnes reconnues · corrige si besoin</div>
    <div class="ftab"><table><thead><tr>${Array.from({length:W},(_,j)=>`<th><select data-fcol="${j}">${FCOLS.map(([k,l])=>`<option value="${k}" ${st.map[j]===k?'selected':''}>${l}</option>`).join('')}</select>${st.hdr>=0?`<small>${esc(trunc(cellStr(st.rows[st.hdr][j]),28))}</small>`:''}</th>`).join('')}</tr></thead>
     <tbody>${prev.map(r=>`<tr>${Array.from({length:W},(_,j)=>`<td class="${st.map[j]?'on':''}">${esc(trunc(cellStr(r[j]),40))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-   <div class="fstats"><div><b>${s.sir}</b><span>avec SIRET / SIREN</span></div><div><b>${s.tel}</b><span>avec un numéro</span></div><div><b>${s.dup}</b><span>déjà en fiche (complétées)</span></div><div><b>${s.lignes-s.sir}</b><span>sans SIRET${s.sansSir?` (${s.sansSir} créées quand même)`:''}</span></div></div>
+   <div class="fstats"><div><b>${s.sir}</b><span>avec SIRET / SIREN</span></div><div><b>${s.tel}</b><span>avec un numéro</span></div><div><b>${s.dup}</b><span>déjà en fiche : infos combinées</span></div><div><b>${s.sansSir}</b><span>sans SIRET (créées quand même)</span></div></div>
    ${st.cross?.size&&!run?`<p class="fsub">📞 Les numéros et enseignes des autres feuilles du fichier sont ajoutés automatiquement (retrouvés par SIRET / SIREN).</p>`:''}
-   ${s.inFile?`<p class="fsub">${s.inFile} SIRET en double dans le fichier : une seule fiche par SIRET.</p>`:''}
+   ${s.inFile?`<p class="fsub">${s.inFile} ligne${s.inFile>1?'s':''} en double dans le fichier (même SIRET, téléphone ou e-mail) : regroupée${s.inFile>1?'s':''} dans une seule fiche.</p>`:''}
    <div class="ident-row"><span class="lbl">Canal</span><div class="chips">${[['tel','Téléphonique'],['terrain','Terrain']].map(([k,l])=>`<button class="chip" data-act="fimpsrc" data-v="${k}" aria-pressed="${src===k}">${l}</button>`).join('')}</div></div>`}
    ${run?`<div class="ai" data-s="${run.end?'':'busy'}">${run.end?'':'<span class="spin"></span>'}<span>${esc(run.msg)}</span></div>
      <div class="fprog"><i style="width:${Math.round(run.done/Math.max(1,run.total)*100)}%"></i></div>
      ${run.log.length?`<div class="implog">${run.log.slice(-200).map(l=>`<div class="${l.ok?'':l.warn?'warn':'ko'}">${l.ok?'✓':l.warn?'•':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}`:''}
-   <div class="ident-row" style="justify-content:flex-end">${run&&!run.end?`<button class="btn btn-g" data-act="fimpstop">Arrêter</button>`:run?.end?`<button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="fimpsee">Voir les fiches importées</button>`:`<button class="btn btn-g" data-act="closem">Annuler</button><button class="btn btn-p" data-act="fimpgo" ${s.sir+s.sansSir?'':'disabled'}>Créer ${s.sir+s.sansSir-s.inFile} fiche${s.sir+s.sansSir-s.inFile>1?'s':''}</button>`}</div>
+   <div class="ident-row" style="justify-content:flex-end">${run&&!run.end?`<button class="btn btn-g" data-act="fimpstop">Arrêter</button>`:run?.end?`<button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="fimpsee">Voir les fiches importées</button>`:`<button class="btn btn-g" data-act="closem">Annuler</button><button class="btn btn-p" data-act="fimpgo" ${s.ok?'':'disabled'}>Importer : ${s.neuves} nouvelle${s.neuves>1?'s':''}${s.dup?` + ${s.dup} complétée${s.dup>1?'s':''}`:''}</button>`}</div>
   </div></div>`}
 function fimpSheet(st,i){const sh=st.sheets[i];st.si=i;st.rows=sh.rows;Object.assign(st,guessMap(sh.rows));st.cross=crossPhones(st)}
 async function fimpFile(f){const st=S.fimp={src:S.fimp?.src||(S.mode==='terrain'?'terrain':'tel'),busy:true,name:f.name};renderLayer();
@@ -2137,8 +2141,22 @@ async function fimpFile(f){const st=S.fimp={src:S.fimp?.src||(S.mode==='terrain'
     for(const sh of sheets){const g=guessMap(sh.rows);const s2={...g,rows:sh.rows};const recs=fimpRows(s2).map(r=>rowRec(s2,r));sh.n=recs.length;sh.nsir=recs.filter(x=>x.sir).length;sh.ntel=recs.filter(x=>x.sir&&(x.tel||x.mob)).length}
     const useful=sheets.filter(s=>s.nsir);const pick=(useful.length?useful:sheets).slice().sort((a,b)=>(b.ntel/Math.max(1,b.nsir))-(a.ntel/Math.max(1,a.nsir))||b.ntel-a.ntel||b.nsir-a.nsir)[0];
     st.sheets=sheets;fimpSheet(st,sheets.indexOf(pick));st.busy=false}
-  catch(e){Object.assign(st,{busy:false,msg:e?.fr||(e?.message==='lib'?'Impossible de charger le lecteur de fichiers sans connexion internet.':'Fichier illisible. Enregistre-le en .xlsx ou .csv et réessaie.')})}
+  catch(e){Object.assign(st,{busy:false,msg:e?.fr||(e?.message==='lib'?'Le lecteur Excel n’a pas pu se charger. Recharge la page (Ctrl + F5) puis réessaie.':'Fichier illisible ('+(e?.message||'format inconnu')+'). Dans Excel : Fichier → Enregistrer sous → « Classeur Excel (.xlsx) » ou « CSV UTF-8 », puis réessaie.')})}
   if(S.fimp===st)renderLayer()}
+/* Fiche déjà existante pour cette ligne ? (évite les doublons, on combine) */
+const telsOf=p=>[p.ent?.tel,p.ent?.telAlt,...(p.contacts||[]).flatMap(c=>[c.tel,c.mobile])].map(telOf).filter(Boolean);
+const mailsOf=p=>[p.ent?.email,...(p.contacts||[]).map(c=>c.email)].filter(Boolean).map(x=>x.toLowerCase().trim());
+const nmKey=s=>norm(s).replace(/\b(sas|sarl|sa|sasu|eurl|sci|selarl|selas|scp|snc|ste|societe|cabinet|etude|the|le|la|les|l|de|du|des|et)\b/g,'').replace(/[^a-z0-9]/g,'');
+function findMatch(x,exceptId){const P=[...S.P.values()].filter(p=>p.id!==exceptId);let why='';
+  const by=(f,w)=>{const p=P.find(f);if(p&&!why)why=w;return p};
+  const sir=String(x.sir||'');const tels=[x.tel,x.mob].map(telOf).filter(Boolean);const mail=String(x.email||'').toLowerCase().trim();
+  const nk=nmKey(x.nom||x.enseigne||''),cp=x.cp||'';
+  const p=(sir.length===14&&by(q=>sirOf(q).siret===sir,'même SIRET'))
+    ||(tels.length&&by(q=>telsOf(q).some(t=>tels.includes(t)),'même numéro de téléphone'))
+    ||(mail&&!/^(contact|info|accueil|bonjour)@(gmail|hotmail|orange|wanadoo|free|yahoo)/.test(mail)&&by(q=>mailsOf(q).includes(mail),'même e-mail'))
+    ||(sir.length>=9&&by(q=>sirOf(q).siren===sir.slice(0,9)&&(!sirOf(q).siret||sir.length===9)&&(!cp||!q.ent?.cp||q.ent.cp===cp),'même SIREN'))
+    ||(nk.length>=4&&by(q=>[q.ent?.nom,q.ent?.enseigne].some(n=>n&&nmKey(n)===nk)&&(!cp||!q.ent?.cp||q.ent.cp===cp),'même nom'))||null;
+  return p?{p,why}:null}
 /* SIREN seul : retrouver l'établissement visé (adresse / code postal / ville du fichier) plutôt que le siège */
 async function resolveEtab(x){const siren=x.sir.slice(0,9);
   if(x.sir.length===14){const res=await reSearch(x.sir);const r=res.find(z=>z.siren===siren);if(!r)return{};const e=etabsOf(r).find(z=>z.siret===x.sir);if(e)return{r,e};
@@ -2161,7 +2179,8 @@ async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=
   const run=st.run={done:0,total:recs.length,log:[],msg:'Démarrage…',made:[],upd:[],stop:false};renderLayer();const seen=new Set();let nok=0;
   const fill=(p,x,fromReg)=>{const ch=[];const set=(k,v)=>{if(!v)return;const cv=getP(p,k);if(!filled(cv)){setP(p,k,v);ch.push(k)}};
     if(x.tel){if(!p.ent.tel){p.ent.tel=x.tel;p.ent.telSource=x.telsrc?'fichier : '+x.telsrc:'fichier entreprise';p.ent.telLookup={at:iso(today()),status:'ok'};ch.push('tel')}else if(p.ent.tel!==x.tel&&p.ent.telAlt!==x.tel){p.ent.telAlt=x.tel;ch.push('telAlt')}}
-    if(!fromReg){set('ent.nom',niceCase(x.nom||x.enseigne));set('ent.adresse',x.adresse);set('ent.cp',x.cp);set('ent.ville',x.ville&&niceCase(x.ville))}
+    set('ent.nom',niceCase(x.nom||x.enseigne));set('ent.adresse',x.adresse);set('ent.cp',x.cp);set('ent.ville',x.ville&&niceCase(x.ville));
+    if(x.sir&&!p.ent.siren){p.ent.siren=x.sir.slice(0,9);if(x.sir.length===14)p.ent.siret=x.sir;ch.push('siret')}
     set('ent.enseigne',x.enseigne&&norm(x.enseigne)!==norm(p.ent.nom||'')?x.enseigne:'');
     if(x.email&&!/@/.test(p.ent.email||'')&&/^(contact|info|accueil|secretariat|office|bonjour|cabinet|agence)@/i.test(x.email))set('ent.email',x.email);
     for(const [cn,fn] of [[x.contact2,x.fonction2]])if(cn&&!looksCompany(cn)){const w=cn.replace(/\s*\(.*\)\s*$/,'').split(/\s+/);applyPatch(p,{contacts:[{prenom:w.length>1?niceCase(w[0]):'',nom:niceCase(w.length>1?w.slice(1).join(' '):w[0]),fonction:fn?fonctionRne(fn):'',decideur:'Oui'}]},false)}
@@ -2174,19 +2193,21 @@ async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=
   for(const x of recs){const c=x.sir&&(st.cross?.get(x.sir)||st.cross?.get(x.sir.slice(0,9)));if(c){for(const f of ['tel','mob','telsrc','note','enseigne'])if(!x[f]&&c[f])x[f]=c[f]}}
   for(const [i,x] of recs.entries()){if(run.stop)break;run.done=i;run.msg=`${i+1} / ${recs.length} · ${run.made.length} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''}`;if(S.fimp===st&&i%2===0)renderLayer();
     const label=x.nom||x.enseigne||(x.sir?fmtSiret(x.sir):'ligne '+(i+1));
-    if(!x.sir){if((x.nom||x.enseigne)&&(x.tel||x.mob)){const d=[...S.P.values()].find(p=>norm(displayName(p))===norm(x.nom||x.enseigne)&&(!x.cp||p.ent?.cp===x.cp));
-        if(d){fill(d,x,true);touch(d);run.upd.push(d.id);run.log.push({ok:true,t:`${displayName(d)} : complétée (sans SIRET)`})}
-        else{const p=blank(src);p.createdAt=Date.now()+i;fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : créée sans SIRET (à identifier)`})}}
-      continue}
+    if(!importable(x))continue;
+    const mt=findMatch(x);
+    if(mt){const d=mt.p;const hadSir=!!d.ent?.siren;const ch=fill(d,x,true);if(!hadSir&&d.ent.siren&&d.rne?.status!=='ok'){try{await applyRne(d,d.ent.siret||d.ent.siren,{siret:d.ent.siret,soft:true})}catch{}}
+      if(ch.length){touch(d);if(!run.upd.includes(d.id)&&!run.made.includes(d.id))run.upd.push(d.id);run.log.push({ok:true,t:`${displayName(d)} : déjà en fiche (${mt.why}) → ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':ch.includes('siret')?'SIRET ajouté':'infos combinées'}`})}
+      else run.log.push({warn:true,t:`${displayName(d)} : déjà en fiche (${mt.why}), rien de nouveau`});continue}
+    if(!x.sir){const p=blank(src);p.createdAt=Date.now()+i;fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''} : créée sans SIRET (à identifier)`});continue}
     const key=x.sir.length===14?x.sir:x.sir+'|'+norm([x.cp,x.adresse,x.ville].join(' '));if(seen.has(key)){continue}seen.add(key);
     const dup=x.sir.length===14?dupOf(x.sir):null;
     if(dup){const ch=fill(dup,x,true);if(ch.length){touch(dup);run.upd.push(dup.id);run.log.push({ok:true,t:`${displayName(dup)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(dup)} : déjà en fiche, rien de nouveau`});continue}
     try{const {r,e:et,how}=await resolveEtab(x);if(!r)throw{fr:'introuvable'};
       const p=blank(src);applyRe(p,r,et?{siret:et.siret,force:true}:{cp:x.cp});const e=et||pickEtab(r,{});if(how)run.log.push({warn:true,t:`${nameOf(r)} : ${how}`});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-      const d2=dupOf(p.ent.siret||x.sir);if(d2){const ch=fill(d2,x,true);if(ch.length){touch(d2);run.upd.push(d2.id);run.log.push({ok:true,t:`${displayName(d2)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(d2)} : déjà en fiche, rien de nouveau`});continue}
+      const d2=dupOf(p.ent.siret||x.sir)||findMatch({...x,sir:p.ent.siret||x.sir,nom:p.ent.nom})?.p;if(d2){const ch=fill(d2,x,true);if(ch.length){touch(d2);run.upd.push(d2.id);run.log.push({ok:true,t:`${displayName(d2)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(d2)} : déjà en fiche, rien de nouveau`});continue}
       fill(p,x,true);p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Importée depuis '+st.name,texte:fmtSiret(x.sir)});
       p.createdAt=Date.now()+i;S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({ok:true,t:`${displayName(p)}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''}`})}
-    catch(err){nok++;if(x.nom||x.tel){const p=blank(src);p.createdAt=Date.now()+i;p.ent.siret=x.sir.length===14?x.sir:'';p.ent.siren=x.sir.slice(0,9);fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : ${err?.fr==='introuvable'?'SIRET '+fmtSiret(x.sir)+' introuvable au registre':'registre indisponible'}, fiche créée avec les données du fichier`})}
+    catch(err){nok++;if(x.nom||x.enseigne||x.tel||x.mob){const p=blank(src);p.createdAt=Date.now()+i;p.ent.siret=x.sir.length===14?x.sir:'';p.ent.siren=x.sir.slice(0,9);fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : ${err?.fr==='introuvable'?'SIRET '+fmtSiret(x.sir)+' introuvable au registre':'registre indisponible'}, fiche créée avec les données du fichier`})}
       else run.log.push({ok:false,t:`${fmtSiret(x.sir)} : introuvable au registre`})}}
   run.done=run.total;run.end=true;S.lastBatch=[...run.made,...run.upd];
   run.msg=`${run.stop?'Arrêté. ':''}${run.made.length} fiche${run.made.length>1?'s':''} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''}${nok?`, ${nok} problème${nok>1?'s':''}`:''}.`;
