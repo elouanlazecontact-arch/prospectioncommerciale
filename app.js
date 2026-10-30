@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=35;
+const APP_V=36;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -637,7 +637,13 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  ${isAdmin()?teamHtml():''}
  ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b>${isAdmin()?` · <span class="tag-adm">${S.role==='owner'?'Admin principal':'Admin'}</span>`:''}</span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
- <div class="f"><label for="tt-key">Clé TomTom (facultatif, pour trouver plus de numéros)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off"></div>
+ <div class="f"><span class="lab">Recherche de numéros</span>
+  <label for="g-key" style="text-transform:none;letter-spacing:0;font-weight:600">Clé Google Places (recommandé : fiches Google Maps, la meilleure couverture)</label><input class="in mono" id="g-key" placeholder="AIza…" value="${esc(S.settings.gKey||'')}" autocomplete="off">
+  <small class="hint">1 000 recherches gratuites / mois. Créer la clé : console.cloud.google.com → activer « Places API (New) » → Identifiants → Clé API (à restreindre à ton site). Un compte de facturation Google est demandé.</small>
+  <label for="here-key" style="text-transform:none;letter-spacing:0;font-weight:600;margin-top:6px">Clé HERE (alternative, 5 000 recherches gratuites / mois)</label><input class="in mono" id="here-key" placeholder="Clé API HERE" value="${esc(S.settings.hereKey||'')}" autocomplete="off">
+  <small class="hint">platform.here.com → Access Manager → Apps → API key.</small>
+  <label for="tt-key" style="text-transform:none;letter-spacing:0;font-weight:600;margin-top:6px">Clé TomTom (facultatif)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off">
+  <div style="display:flex;gap:6px;align-items:center;margin-top:6px"><button class="btn btn-g btn-s" data-act="keytest">Tester mes clés</button><span id="keytest-r" class="hint"></span></div></div>
  <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
  <div class="f"><span class="lab">Agenda (RDV et rappels)</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['ics','Outlook (application Windows, fichier)'],...(proMail()?[]:[['live','Outlook.com perso']])].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-rappel" ${S.settings.calRappel!==false?'checked':''}> Ouvrir l'agenda automatiquement quand on me demande de rappeler</label></div>
@@ -760,6 +766,11 @@ const ACT={
  expname:()=>{const n=prompt('Nom qui apparaîtra dans tes exports :',S.settings.monNom||'');if(n!=null){S.settings.monNom=n.trim();saveSettings();renderLayer()}},
  expx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.exp=null;renderLayer()},
  expgo:async()=>{const o=S.exp;S.exp=null;renderLayer();await expRun(o)},
+ keytest:async()=>{const o=$('#keytest-r');for(const [id,k] of [['g-key','gKey'],['here-key','hereKey'],['tt-key','tomtomKey']]){const el=$('#'+id);if(el)S.settings[k]=el.value.trim()}saveSettings();if(o)o.textContent='Test en cours…';
+   const t={ent:{nom:'Mairie de Boulogne-Billancourt',cp:'92100',ville:'Boulogne-Billancourt',adresse:'26 avenue André Morizet'}};const pos={lat:48.8352,lon:2.2410};const out=[];
+   if(S.settings.gKey){const L=await googlePhones(t,pos);out.push(L.some(x=>x.phone)?'Google ✓':'Google ✕ '+(S.provErr.google||'aucun résultat'))}
+   if(S.settings.hereKey){const L=await herePhones(t,pos);out.push(L.length?'HERE ✓':'HERE ✕ '+(S.provErr.here||'aucun résultat'))}
+   if(o)o.textContent=out.join(' · ')||'Aucune clé saisie.'},
  expquick:()=>expRun({per:'jour',owners:[meId()]}),
  qncreate:async()=>{const nom=($('#qn-nom')?.value||'').trim(),txt=($('#qn-txt')?.value||'').trim();if(!txt&&!nom){toast('Écris d’abord tes notes.');$('#qn-txt')?.focus();return}
    const p=blank('terrain');const dig=nom.replace(/[\s.\-]/g,'');if(nom&&!/^\d{9}(\d{5})?$/.test(dig))p.ent.nom=nom;S.P.set(p.id,p);touch(p);lsSet('radar-qn-nom',null);lsSet('radar-qn-txt',null);
@@ -777,7 +788,7 @@ const ACT={
   const {data}=await SB.from('admins').select('user_id,role');S.admins=data||[];toast(adm?'Droits admin retirés':'Droits admin donnés');renderLayer()},
  calx:()=>{S.calMsg=null;renderNotesOnly()},
  cal:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);if(a)addToCal(p,a,b.dataset.v)},
- closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const cr2=$('#cal-rappel');if(cr2&&S.menu&&cr2.checked!==(S.settings.calRappel!==false)){S.settings.calRappel=cr2.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}if(S.menu&&$('#wh-0a')){const h=[0,1].map(i=>[$('#wh-'+i+'a')?.value,$('#wh-'+i+'b')?.value]).filter(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]));if(h.length&&JSON.stringify(h)!==JSON.stringify(workHours())){S.settings.hours=h;saveSettings()}}
+ closem:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;const tk=$('#tt-key');if(tk&&S.menu&&tk.value.trim()!==(S.settings.tomtomKey||'')){S.settings.tomtomKey=tk.value.trim();saveSettings()}for(const [id,k] of [['g-key','gKey'],['here-key','hereKey']]){const el=$('#'+id);if(el&&S.menu&&el.value.trim()!==(S.settings[k]||'')){S.settings[k]=el.value.trim();saveSettings()}}const ca=$('#cal-auto');if(ca&&S.menu&&ca.checked!==(S.settings.calAuto!==false)){S.settings.calAuto=ca.checked;saveSettings()}const cr2=$('#cal-rappel');if(cr2&&S.menu&&cr2.checked!==(S.settings.calRappel!==false)){S.settings.calRappel=cr2.checked;saveSettings()}const o=$('#obj');if(o&&S.menu){const n=parseInt(o.value);if(n>0&&n!==S.settings.objectif){S.settings.objectif=n;saveSettings();if(S.view==='today')renderToday()}}if(S.menu&&$('#wh-0a')){const h=[0,1].map(i=>[$('#wh-'+i+'a')?.value,$('#wh-'+i+'b')?.value]).filter(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]));if(h.length&&JSON.stringify(h)!==JSON.stringify(workHours())){S.settings.hours=h;saveSettings()}}
   S.menu=false;S.help=false;S.importing=false;S.fimpOpen=false;renderLayer()},
  fimpopen:()=>{S.menu=false;S.importing=false;S.fimpOpen=true;if(S.fimp?.run?.end)S.fimp=null;renderLayer()},
  fimpsrc:b=>{S.fimp.src=b.dataset.v;renderLayer()},
@@ -1948,6 +1959,26 @@ async function overpassPhones(pos,radius){
   for(const url of [...OVERPASS,OVERPASS[0]]){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:AbortSignal.timeout(15000)});if(!r.ok){await sleep(1500);continue}const j=await r.json();
     return(j.elements||[]).map(osmItem).filter(x=>x.phone||x.email||x.site)}catch{await sleep(800)}}
   return null}
+const qName=p=>p.ent?.enseigne||p.ent?.nom||'';
+S.provErr={};
+async function googlePhones(p,pos){const key=(S.settings.gKey||'').trim();if(!key||!qName(p))return[];
+  const body={textQuery:[qName(p),p.ent?.adresse,p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),languageCode:'fr',regionCode:'FR',pageSize:5};
+  if(pos)body.locationBias={circle:{center:{latitude:pos.lat,longitude:pos.lon},radius:800}};
+  try{const r=await fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.displayName,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.location,places.formattedAddress'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
+    if(!r.ok){const j=await r.json().catch(()=>null);S.provErr.google=`Google : ${j?.error?.message||'erreur '+r.status}`;return[]}delete S.provErr.google;
+    const j=await r.json();return(j.places||[]).map(x=>({name:x.displayName?.text||'',addr:x.formattedAddress||'',phone:normTel(x.nationalPhoneNumber||x.internationalPhoneNumber),site:cleanSite(x.websiteUri),email:'',lat:x.location?.latitude,lon:x.location?.longitude,src:'Google'}))}
+  catch(e){S.provErr.google='Google injoignable ('+(e?.name==='TimeoutError'?'délai dépassé':'réseau')+')';return[]}}
+async function herePhones(p,pos){const key=(S.settings.hereKey||'').trim();if(!key||!qName(p))return[];
+  const u=new URL('https://discover.search.hereapi.com/v1/discover');u.searchParams.set('q',[qName(p),pos?'':[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' ')].filter(Boolean).join(' '));
+  if(pos)u.searchParams.set('at',`${pos.lat},${pos.lon}`);else u.searchParams.set('in','countryCode:FRA');u.searchParams.set('limit','6');u.searchParams.set('lang','fr');u.searchParams.set('apiKey',key);
+  try{const r=await fetch(u,{signal:AbortSignal.timeout(10000)});if(!r.ok){S.provErr.here=`HERE : erreur ${r.status}${r.status===401||r.status===403?' (clé refusée)':''}`;return[]}delete S.provErr.here;
+    const j=await r.json();return(j.items||[]).map(x=>{const c=x.contacts||[];const all=k=>c.flatMap(z=>(z[k]||[]).map(v=>v.value));
+      return{name:x.title||'',addr:x.address?.label||'',phone:all('phone').map(normTel).find(Boolean)||all('mobile').map(normTel).find(Boolean)||'',site:cleanSite(all('www')[0]),email:cleanMail(all('email')[0]),lat:x.position?.lat,lon:x.position?.lng,src:'HERE'}})}
+  catch(e){S.provErr.here='HERE injoignable';return[]}}
+/* même rue / même code postal : confirme un résultat dont le nom diffère un peu */
+function addrHit(p,x){const a=norm(x.addr||'');const cp=p.ent?.cp;const num=String(p.ent?.adresse||'').match(/^\d+/)?.[0];const rue=norm(p.ent?.adresse||'').replace(/^[\d\s,-]+(bis|ter)?\s*/,'').split(' ').filter(w=>w.length>3).slice(-1)[0];
+  return !!(a&&cp&&a.includes(cp)&&rue&&a.includes(rue)&&(!num||new RegExp('\\b'+num+'\\b').test(a)))}
+function pickBest(p,list,pos,min){let h=bestPhone(p,list,pos,min);if(!h){const a=list.filter(x=>addrHit(p,x)&&Math.max(sim(qName(p),x.name),sim(x.name,qName(p)),sim(p.ent?.nom||'',x.name))>=0.3);if(a.length===1)h=a[0]}return h}
 async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return[];
   try{const u=new URL(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'')}.json`);
     u.searchParams.set('key',key);u.searchParams.set('lat',pos.lat);u.searchParams.set('lon',pos.lon);u.searchParams.set('radius','250');u.searchParams.set('limit','8');u.searchParams.set('language','fr-FR');u.searchParams.set('countrySet','FR');
@@ -1955,21 +1986,25 @@ async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return
 async function posOf(p){if(p.geo?.lat)return p.geo;const e=p.ent||{};if(!e.adresse&&!e.ville)return null;
   try{const g=await geocode([e.adresse,e.cp,e.ville].filter(Boolean).join(' '));if(g){p.geo={lat:g.lat,lon:g.lon};touch(p);return p.geo}}catch{}return null}
 function bestPhone(p,list,pos,min=0.5){const names=[p.ent?.enseigne,p.ent?.nom].filter(Boolean);let best=null,bs=0;
-  for(const x of list){const s=Math.max(...names.map(n=>Math.max(sim(n,x.name),sim(x.name,n))));const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>120?0.2:0);if(sc>bs){bs=sc;best=x}}
+  for(const x of list){const kx=nmKey(x.name||'');const s=Math.max(...names.map(n=>{const kn=nmKey(n);return Math.max(sim(n,x.name),sim(x.name,n),kn.length>=4&&kx.length>=4&&(kx.includes(kn)||kn.includes(kx))?0.9:0)}));const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>120?0.2:0);if(sc>bs){bs=sc;best=x}}
   return bs>=min?best:null}
 async function findPhone(p,{silent=false,pool=null,step=()=>{}}={}){
-  step('Localisation de l’adresse…');const pos=await posOf(p);if(!pos)return{status:'noaddr'};
-  step('Recherche dans OpenStreetMap…');let list=pool||await overpassPhones(pos,120);const down=list===null;list=list||[];
-  let hit=bestPhone(p,list.filter(x=>x.phone),pos),web=bestPhone(p,list.filter(x=>x.email||x.site),pos);
-  if(!hit&&!pool&&!down){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide){hit=bestPhone(p,wide.filter(x=>x.phone),pos,0.75);web=web||bestPhone(p,wide.filter(x=>x.email||x.site),pos,0.75)}}
-  if((!hit||!web)&&S.settings.tomtomKey){step('Recherche dans TomTom…');const tt=await tomtomPhones(p,pos);hit=hit||bestPhone(p,tt.filter(x=>x.phone),pos);web=web||bestPhone(p,tt.filter(x=>x.site),pos)}
+  step('Localisation de l’adresse…');const pos=await posOf(p);
+  const keyed=!!(S.settings.gKey||S.settings.hereKey);if(!pos&&!keyed)return{status:'noaddr'};
+  let hit=null,web=null,list=[],down=false;const take=(L,min=0.5)=>{hit=hit||pickBest(p,L.filter(x=>x.phone),pos,min);web=web||pickBest(p,L.filter(x=>x.email||x.site),pos,min);list=list.concat(L)};
+  if(S.settings.gKey){step('Recherche Google (fiches Google Maps)…');take(await googlePhones(p,pos),0.45)}
+  if((!hit||!web)&&S.settings.hereKey){step('Recherche HERE…');take(await herePhones(p,pos),0.45)}
+  if(!hit&&pos){step('Recherche dans OpenStreetMap…');const o=pool||await overpassPhones(pos,120);down=o===null;take(o||[]);
+    if(!hit&&!pool&&!down){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide)take(wide,0.75)}}
+  if((!hit||!web)&&S.settings.tomtomKey&&pos){step('Recherche dans TomTom…');take(await tomtomPhones(p,pos))}
   const gotWeb=fillWeb(p,hit)|fillWeb(p,web);
-  if(!hit&&down)return{status:'down'};
-  if(!hit){const near=list.filter(x=>pos&&x.lat&&haversine(pos,{lat:x.lat,lon:x.lon})<=20);p.ent.telLookup={at:iso(today()),status:'none'};
+  if(!hit&&down&&!keyed)return{status:'down'};
+  if(!hit){const near=list.filter(x=>x.phone&&pos&&x.lat&&haversine(pos,{lat:x.lat,lon:x.lon})<=20);p.ent.telLookup={at:iso(today()),status:'none'};
     if(near.length===1&&!p.ent.tel){p.ent.telAlt=near[0].phone;p.ent.telSource=`même adresse : « ${near[0].name} » (${near[0].src})`;p.ent.telLookup.status='possible'}touch(p);return{status:p.ent.telLookup.status==='possible'?'possible':'none',web:!!gotWeb}}
   p.ent.telLookup={at:iso(today()),status:'ok'};
-  if(!p.ent.tel||p.ent.tel===hit.phone){p.ent.tel=hit.phone;p.ent.telSource=hit.src;touch(p);markFlash(['ent.tel']);return{status:'ok',hit,web:!!gotWeb}}
-  if(p.ent.tel!==hit.phone){p.ent.telAlt=hit.phone;p.ent.telSource=hit.src;touch(p);return{status:'alt',hit,web:!!gotWeb}}}
+  const srcTxt=hit.src+(hit.name&&norm(hit.name)!==norm(qName(p))?` (« ${hit.name} »)`:'');
+  if(!p.ent.tel||p.ent.tel===hit.phone){p.ent.tel=hit.phone;p.ent.telSource=srcTxt;touch(p);markFlash(['ent.tel']);return{status:'ok',hit,web:!!gotWeb}}
+  p.ent.telAlt=hit.phone;p.ent.telSource=srcTxt;touch(p);return{status:'alt',hit,web:!!gotWeb}}
 function fillWeb(p,x){if(!x)return 0;let n=0;p.ent=p.ent||{};if(x.email&&!p.ent.email){p.ent.email=x.email;p.ent.emailSource=x.src;n++}if(x.site&&!p.ent.site){p.ent.site=x.site;p.ent.siteSource=x.src;n++}if(n){touch(p);markFlash(['ent.email','ent.site'])}return n}
 function phoneLinks(p){const n=encodeURIComponent(p.ent?.enseigne||p.ent?.nom||''),v=encodeURIComponent(p.ent?.ville||p.ent?.cp||'');
   return `<a href="https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${n}&ou=${v}" target="_blank" rel="noopener">PagesJaunes</a><a href="https://www.google.com/search?q=${n}+${v}+t%C3%A9l%C3%A9phone" target="_blank" rel="noopener">Google</a><a href="https://www.google.com/maps/search/${n}+${v}" target="_blank" rel="noopener">Maps</a>`}
@@ -1983,7 +2018,8 @@ function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
    ${st.msg&&!st.busy?`<div class="ph-msg${st.ok?' ok':''}">${esc(st.msg)}</div>`:''}${contactBox(p)}</div>`}
 async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.id,busy:true,step:'Démarrage…'};rePhone();if(S.sel===p.id)renderNotesOnly();
   let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
-  S.ph={pid:p.id,ok:r.status==='ok'||r.web,msg:(r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Le service gratuit OpenStreetMap ne répond pas en ce moment. Réessaie plus tard, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).')+(r.web?' Site / e-mail de l’entreprise trouvés aussi (ci-dessous).':'')};
+  const perr=Object.values(S.provErr||{}).join(' · ');const nokey=!S.settings.gKey&&!S.settings.hereKey;
+  S.ph={pid:p.id,ok:r.status==='ok'||r.web,msg:(perr?'⚠ '+perr+'. ':'')+(r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'OpenStreetMap ne répond pas. Pour une recherche fiable, ajoute une clé Google (Options → Recherche de numéros).':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).'+(nokey?' Astuce : avec une clé Google (Options → Recherche de numéros), la recherche passe par les fiches Google Maps et trouve la grande majorité des numéros.':''))+(r.web?' Site / e-mail de l’entreprise trouvés aussi (ci-dessous).':'')};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
 function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===4||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
   applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret,soft:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{})}
@@ -1998,6 +2034,7 @@ async function overpassBbox(b){const q=`[out:json][timeout:25];nwr(${b.s.toFixed
 async function phoneAll(){const list=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));if(!list.length)return;
   const r=S.phoneRun={ids:list.map(p=>p.id),done:[],found:0,step:'Localisation des adresses…'};renderList();
   for(const p of list){if(!p.geo)await posOf(p)}
+  if(S.settings.gKey||S.settings.hereKey){for(const p of list){r.step='Recherche Google / HERE…';const x=await findPhone(p).catch(()=>({status:'err'}));if(x.status==='ok')r.found++;r.done.push(p.id);renderList()}r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},20000);return}
   const groups=new Map();for(const p of list){if(!p.geo){r.done.push(p.id);continue}const k=Math.floor(p.geo.lat/0.03)+'_'+Math.floor(p.geo.lon/0.03);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)}
   for(const ps of groups.values()){const b={s:Math.min(...ps.map(p=>p.geo.lat))-0.002,n:Math.max(...ps.map(p=>p.geo.lat))+0.002,w:Math.min(...ps.map(p=>p.geo.lon))-0.003,e:Math.max(...ps.map(p=>p.geo.lon))+0.003};
     const pool=await overpassBbox(b);
