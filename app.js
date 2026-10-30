@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=34;
+const APP_V=35;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -2128,7 +2128,7 @@ function fimpHtml(){const st=S.fimp||{};const src=st.src||'tel';
    ${run?`<div class="ai" data-s="${run.end?'':'busy'}">${run.end?'':'<span class="spin"></span>'}<span>${esc(run.msg)}</span></div>
      <div class="fprog"><i style="width:${Math.round(run.done/Math.max(1,run.total)*100)}%"></i></div>
      ${run.log.length?`<div class="implog">${run.log.slice(-200).map(l=>`<div class="${l.ok?'':l.warn?'warn':'ko'}">${l.ok?'✓':l.warn?'•':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}`:''}
-   <div class="ident-row" style="justify-content:flex-end">${run&&!run.end?`<button class="btn btn-g" data-act="fimpstop">Arrêter</button>`:run?.end?`<button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="fimpsee">Voir les fiches importées</button>`:`<button class="btn btn-g" data-act="closem">Annuler</button><button class="btn btn-p" data-act="fimpgo" ${s.ok?'':'disabled'}>Importer : ${s.neuves} nouvelle${s.neuves>1?'s':''}${s.dup?` + ${s.dup} complétée${s.dup>1?'s':''}`:''}</button>`}</div>
+   <div class="ident-row" style="justify-content:flex-end">${run&&!run.end?`<button class="btn btn-q" data-act="fimpstop">Arrêter le complément</button><button class="btn btn-p" data-act="closem">Voir mes fiches (le complément continue)</button>`:run?.end?`<button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="fimpsee">Voir les fiches importées</button>`:`<button class="btn btn-g" data-act="closem">Annuler</button><button class="btn btn-p" data-act="fimpgo" ${s.ok?'':'disabled'}>Importer : ${s.neuves} nouvelle${s.neuves>1?'s':''}${s.dup?` + ${s.dup} complétée${s.dup>1?'s':''}`:''}</button>`}</div>
   </div></div>`}
 function fimpSheet(st,i){const sh=st.sheets[i];st.si=i;st.rows=sh.rows;Object.assign(st,guessMap(sh.rows));st.cross=crossPhones(st)}
 async function fimpFile(f){const st=S.fimp={src:S.fimp?.src||(S.mode==='terrain'?'terrain':'tel'),busy:true,name:f.name};renderLayer();
@@ -2147,7 +2147,8 @@ async function fimpFile(f){const st=S.fimp={src:S.fimp?.src||(S.mode==='terrain'
 const telsOf=p=>[p.ent?.tel,p.ent?.telAlt,...(p.contacts||[]).flatMap(c=>[c.tel,c.mobile])].map(telOf).filter(Boolean);
 const mailsOf=p=>[p.ent?.email,...(p.contacts||[]).map(c=>c.email)].filter(Boolean).map(x=>x.toLowerCase().trim());
 const nmKey=s=>norm(s).replace(/\b(sas|sarl|sa|sasu|eurl|sci|selarl|selas|scp|snc|ste|societe|cabinet|etude|the|le|la|les|l|de|du|des|et)\b/g,'').replace(/[^a-z0-9]/g,'');
-function findMatch(x,exceptId){const P=[...S.P.values()].filter(p=>p.id!==exceptId);let why='';
+function findMatch(x,exceptId){const sr=String(x.sir||'').slice(0,9);/* deux SIREN différents = deux entreprises différentes, même si le standard est partagé */
+  const P=[...S.P.values()].filter(p=>p.id!==exceptId&&!(sr.length===9&&sirOf(p).siren&&sirOf(p).siren!==sr));let why='';
   const by=(f,w)=>{const p=P.find(f);if(p&&!why)why=w;return p};
   const sir=String(x.sir||'');const tels=[x.tel,x.mob].map(telOf).filter(Boolean);const mail=String(x.email||'').toLowerCase().trim();
   const nk=nmKey(x.nom||x.enseigne||''),cp=x.cp||'';
@@ -2191,24 +2192,27 @@ async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=
     if(x.note){p.journal=p.journal||[];p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Import '+st.name,texte:x.note})}
     return ch};
   for(const x of recs){const c=x.sir&&(st.cross?.get(x.sir)||st.cross?.get(x.sir.slice(0,9)));if(c){for(const f of ['tel','mob','telsrc','note','enseigne'])if(!x[f]&&c[f])x[f]=c[f]}}
-  for(const [i,x] of recs.entries()){if(run.stop)break;run.done=i;run.msg=`${i+1} / ${recs.length} · ${run.made.length} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''}`;if(S.fimp===st&&i%2===0)renderLayer();
-    const label=x.nom||x.enseigne||(x.sir?fmtSiret(x.sir):'ligne '+(i+1));
-    if(!importable(x))continue;
+  /* Étape 1 (instantanée) : toutes les fiches apparaissent tout de suite, doublons combinés */
+  const todo=[];
+  for(const [i,x] of recs.entries()){if(!importable(x))continue;const label=x.nom||x.enseigne||(x.sir?fmtSiret(x.sir):'ligne '+(i+1));
     const mt=findMatch(x);
-    if(mt){const d=mt.p;const hadSir=!!d.ent?.siren;const ch=fill(d,x,true);if(!hadSir&&d.ent.siren&&d.rne?.status!=='ok'){try{await applyRne(d,d.ent.siret||d.ent.siren,{siret:d.ent.siret,soft:true})}catch{}}
-      if(ch.length){touch(d);if(!run.upd.includes(d.id)&&!run.made.includes(d.id))run.upd.push(d.id);run.log.push({ok:true,t:`${displayName(d)} : déjà en fiche (${mt.why}) → ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':ch.includes('siret')?'SIRET ajouté':'infos combinées'}`})}
-      else run.log.push({warn:true,t:`${displayName(d)} : déjà en fiche (${mt.why}), rien de nouveau`});continue}
-    if(!x.sir){const p=blank(src);p.createdAt=Date.now()+i;fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''} : créée sans SIRET (à identifier)`});continue}
-    const key=x.sir.length===14?x.sir:x.sir+'|'+norm([x.cp,x.adresse,x.ville].join(' '));if(seen.has(key)){continue}seen.add(key);
-    const dup=x.sir.length===14?dupOf(x.sir):null;
-    if(dup){const ch=fill(dup,x,true);if(ch.length){touch(dup);run.upd.push(dup.id);run.log.push({ok:true,t:`${displayName(dup)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(dup)} : déjà en fiche, rien de nouveau`});continue}
+    if(mt){const d=mt.p;const ch=fill(d,x,true);if(ch.length){touch(d);if(!run.upd.includes(d.id)&&!run.made.includes(d.id))run.upd.push(d.id);run.log.push({ok:true,t:`${displayName(d)} : déjà en fiche (${mt.why}) → ${ch.includes('tel')?'numéro ajouté':ch.includes('telAlt')?'2e numéro ajouté':ch.includes('siret')?'SIRET ajouté':'infos combinées'}`})}
+      else run.log.push({warn:true,t:`${displayName(d)} : déjà en fiche (${mt.why}), rien de nouveau`});
+      if(x.sir&&d.rne?.status!=='ok'&&!todo.some(t=>t.p===d))todo.push({p:d,x});continue}
+    const p=blank(src);p.createdAt=Date.now()+i;fill(p,x,false);if(x.sir){p.ent.siren=x.sir.slice(0,9);if(x.sir.length===14)p.ent.siret=x.sir}
+    p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Importée depuis '+st.name,texte:x.sir?fmtSiret(x.sir):''});
+    S.P.set(p.id,p);touch(p);run.made.push(p.id);
+    if(x.sir)todo.push({p,x,label});else run.log.push({warn:true,t:`${label}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''} : créée sans SIRET (à identifier)`})}
+  S.lastBatch=[...run.made,...run.upd];S.filter='batch';S.q='';if($('#q'))$('#q').value='';S.view='list';if(S.mode==='terrain')S.sel=null;render();
+  toast(`${run.made.length} fiche${run.made.length>1?'s':''} ajoutée${run.made.length>1?'s':''}${run.upd.length?`, ${run.upd.length} complétée${run.upd.length>1?'s':''}`:''} : complément au registre en cours…`);
+  /* Étape 2 : complément au registre officiel (adresse exacte, dirigeants, effectif…) fiche par fiche */
+  run.total=todo.length;
+  for(const [i,{p,x,label}] of todo.entries()){if(run.stop)break;run.done=i;run.msg=`Complément au registre : ${i+1} / ${todo.length} · ${run.made.length} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''} (les fiches sont déjà dans ta liste)`;if(S.fimp===st&&i%2===0)renderLayer();
     try{const {r,e:et,how}=await resolveEtab(x);if(!r)throw{fr:'introuvable'};
-      const p=blank(src);applyRe(p,r,et?{siret:et.siret,force:true}:{cp:x.cp});const e=et||pickEtab(r,{});if(how)run.log.push({warn:true,t:`${nameOf(r)} : ${how}`});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-      const d2=dupOf(p.ent.siret||x.sir)||findMatch({...x,sir:p.ent.siret||x.sir,nom:p.ent.nom})?.p;if(d2){const ch=fill(d2,x,true);if(ch.length){touch(d2);run.upd.push(d2.id);run.log.push({ok:true,t:`${displayName(d2)} : déjà en fiche, ${ch.includes('tel')?'numéro ajouté':'complétée'}`})}else run.log.push({warn:true,t:`${displayName(d2)} : déjà en fiche, rien de nouveau`});continue}
-      fill(p,x,true);p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Importée depuis '+st.name,texte:fmtSiret(x.sir)});
-      p.createdAt=Date.now()+i;S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({ok:true,t:`${displayName(p)}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''}`})}
-    catch(err){nok++;if(x.nom||x.enseigne||x.tel||x.mob){const p=blank(src);p.createdAt=Date.now()+i;p.ent.siret=x.sir.length===14?x.sir:'';p.ent.siren=x.sir.slice(0,9);fill(p,x,false);S.P.set(p.id,p);touch(p);run.made.push(p.id);run.log.push({warn:true,t:`${label} : ${err?.fr==='introuvable'?'SIRET '+fmtSiret(x.sir)+' introuvable au registre':'registre indisponible'}, fiche créée avec les données du fichier`})}
-      else run.log.push({ok:false,t:`${fmtSiret(x.sir)} : introuvable au registre`})}}
+      applyRe(p,r,et?{siret:et.siret,force:true,soft:!run.made.includes(p.id)}:{cp:x.cp,soft:!run.made.includes(p.id)});const e=et||pickEtab(r,{});if(how)run.log.push({warn:true,t:`${nameOf(r)} : ${how}`});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
+      fill(p,x,true);touch(p);if(label)run.log.push({ok:true,t:`${displayName(p)}${p.ent.tel?' · 📞 '+fmtTel(p.ent.tel):''}`})}
+    catch(err){nok++;run.log.push({warn:true,t:`${label||displayName(p)} : ${err?.fr==='introuvable'?'SIRET '+fmtSiret(x.sir)+' introuvable au registre':'registre indisponible'}, gardée avec les données du fichier`})}
+    if(i%5===4)renderSoft(false)}
   run.done=run.total;run.end=true;S.lastBatch=[...run.made,...run.upd];
   run.msg=`${run.stop?'Arrêté. ':''}${run.made.length} fiche${run.made.length>1?'s':''} créée${run.made.length>1?'s':''}, ${run.upd.length} complétée${run.upd.length>1?'s':''}${nok?`, ${nok} problème${nok>1?'s':''}`:''}.`;
   renderSoft(false);if(S.fimp===st)renderLayer();toast(run.msg)}
