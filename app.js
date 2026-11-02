@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=39;
+const APP_V=40;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -1237,7 +1237,10 @@ async function odsSearch(q,opt={}){const d=String(q).replace(/[\s.\-]/g,'');
   if(/^\d{9}$|^\d{14}$/.test(d))return odsGroup(await odsGet(`siren="${d.slice(0,9)}"`,{signal:opt.signal}));
   const words=String(q).replace(/\b\d+\b/g,' ').replace(/\b(rue|avenue|av|bd|boulevard|place|allee|chemin|quai|impasse|route|cours)\b.*$/i,' ').trim()||String(q);
   const name=odsQ(words);const cp=opt.code_postal?` AND codepostaletablissement="${opt.code_postal}"`:'';
-  let rows=await odsGet(`(search(denominationunitelegale,${name}) OR search(enseigne1etablissement,${name}) OR search(denominationusuelleetablissement,${name}) OR search(sigleunitelegale,${name})) AND etatadministratifetablissement="Actif"${cp}`,{limit:Math.min(100,(opt.per_page||10)*4),signal:opt.signal});
+  const W=`(search(denominationunitelegale,${name}) OR search(enseigne1etablissement,${name}) OR search(denominationusuelleetablissement,${name}) OR search(sigleunitelegale,${name})) AND etatadministratifetablissement="Actif"${cp}`;
+  /* Île-de-France d'abord, puis le reste de la France */
+  const [idf,all]=await Promise.all([cp?Promise.resolve([]):odsGet(W+' AND codedepartementetablissement IN ("75","77","78","91","92","93","94","95")',{limit:40,signal:opt.signal}),odsGet(W,{limit:Math.min(100,(opt.per_page||10)*4),signal:opt.signal})]);
+  let rows=[...idf,...all];
   if(!rows.length&&words.split(/\s+/).length>2)rows=await odsGet(`search(denominationunitelegale,${odsQ(words.split(/\s+/).slice(0,2).join(' '))}) AND etatadministratifetablissement="Actif"${cp}`,{limit:40,signal:opt.signal});
   return odsGroup(rows).slice(0,opt.per_page||10)}
 async function odsNear(pos,radius){const pt=`geom'POINT(${pos.lon.toFixed(6)} ${pos.lat.toFixed(6)})'`;const rows=[];
