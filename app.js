@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=38;
+const APP_V=39;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -1201,8 +1201,9 @@ async function getJSON(url,{signal}={}){
     const cool=Math.max(0,coolUntil-Date.now());if(cool)await sleep(cool);
     const wait=Math.max(0,nextSlot-Date.now());nextSlot=Math.max(nextSlot,Date.now())+260;if(wait)await sleep(wait);
     if(signal?.aborted)throw{name:'AbortError'};
-    let r;try{r=await fetch(url,{signal,cache:'no-store'})}
-    catch(e){if(e?.name==='AbortError')throw e;if(/recherche-entreprises/.test(url)){if(k<1){await sleep(600);continue}throw{fr:'registre injoignable',re:true}}if(k<2){await sleep(k?4000:1200);continue}
+    const isRE=/recherche-entreprises/.test(url);const to=AbortSignal.timeout(isRE?6000:12000);const sig=signal&&AbortSignal.any?AbortSignal.any([signal,to]):(signal||to);
+    let r;try{r=await fetch(url,{signal:sig,cache:'no-store'})}
+    catch(e){if(e?.name==='AbortError'&&signal?.aborted)throw e;if(isRE){if(k<1&&e?.name!=='TimeoutError'){await sleep(600);continue}throw{fr:'registre injoignable',re:true}}if(k<2){await sleep(k?4000:1200);continue}
       const d=await netDiag(url);const svc=svcName(url);
       if(d==='limit'){coolUntil=Date.now()+30000;throw{fr:`Le ${svc} limite le nombre de recherches pour le moment (trop de recherches d’affilée, par ex. après un import). Attends 1 minute puis réessaie.`,diag:d,url}}
       if(d==='blocked')throw{fr:`Le ${svc} est bloqué par ce réseau (pare-feu d’entreprise ou bloqueur de publicité). Teste le lien « Tester le registre » ; s’il ne s’ouvre pas, demande à ton informatique d’autoriser ${new URL(url).host}, ou essaie en partage de connexion 4G.`,diag:d,url}
@@ -1229,8 +1230,8 @@ function odsGroup(rows){const m=new Map();
     const e=odsEtab(x);if(!r.matching_etablissements.some(z=>z.siret===e.siret))r.matching_etablissements.push(e);if(e.est_siege)r.siege=e}
   for(const r of m.values()){r.siege=r.siege||r.matching_etablissements.find(e=>e.siret===r._siegeSiret)||r.matching_etablissements[0];r.nombre_etablissements_ouverts=r.matching_etablissements.filter(e=>e.etat_administratif==='A').length||1}
   return[...m.values()]}
-async function odsGet(where,{limit=100,order='',signal}={}){const u=new URL(ODS);u.searchParams.set('where',where);u.searchParams.set('limit',String(limit));if(order)u.searchParams.set('order_by',order);
-  let r;try{r=await fetch(u,{signal,cache:'no-store'})}catch(e){if(e?.name==='AbortError')throw e;throw{fr:'Le registre des entreprises est injoignable depuis ce réseau (api.gouv.fr et sa copie de secours). Essaie en partage de connexion 4G.'}}
+async function odsGet(where,{limit=100,order='',signal}={}){signal=signal&&AbortSignal.any?AbortSignal.any([signal,AbortSignal.timeout(15000)]):(signal||AbortSignal.timeout(15000));const u=new URL(ODS);u.searchParams.set('where',where);u.searchParams.set('limit',String(limit));if(order)u.searchParams.set('order_by',order);
+  let r;try{r=await fetch(u,{signal,cache:'no-store'})}catch(e){if(e?.name==='AbortError'&&!/timed out/i.test(e?.message||''))throw e;throw{fr:'Le registre des entreprises est injoignable depuis ce réseau (api.gouv.fr et sa copie de secours). Essaie en partage de connexion 4G.'}}
   if(!r.ok)throw{fr:`Le registre de secours a répondu une erreur (${r.status}). Réessaie dans un instant.`};return(await r.json()).results||[]}
 async function odsSearch(q,opt={}){const d=String(q).replace(/[\s.\-]/g,'');
   if(/^\d{9}$|^\d{14}$/.test(d))return odsGroup(await odsGet(`siren="${d.slice(0,9)}"`,{signal:opt.signal}));
