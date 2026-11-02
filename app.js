@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=36;
+const APP_V=37;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -562,6 +562,7 @@ function identHtml(p){
      ${p.ent?.siren?`<button class="btn btn-q btn-s" data-act="rnerefresh">${ok?'Actualiser depuis le registre':'Compléter depuis le registre'}</button>`:''}
      <span style="font-size:12px;color:var(--ink-3)">${S.mode==='poste'?'<kbd>Ctrl</kbd>+<kbd>Entrée</kbd>':''}</span></div>
    ${st.msg||st.busy?`<div class="ai" data-s="${st.busy?'busy':''}" style="background:var(--surface)">${st.busy?'<span class="spin"></span>':''}<span>${esc(st.msg||'')}</span></div>`:''}
+   ${!st.busy&&/bloqué|limite|connexion|injoignable|indisponible/i.test(st.msg||'')?`<div class="links"><a href="https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent((st.keep||p.ent?.nom||'data links').slice(0,60))}" target="_blank" rel="noopener">Tester le registre</a><a href="https://annuaire-entreprises.data.gouv.fr/rechercher?terme=${encodeURIComponent((st.keep||p.ent?.nom||'').slice(0,60))}" target="_blank" rel="noopener">Chercher sur l’Annuaire des entreprises</a></div>`:''}
    ${cands.length?`<div class="cands"><div class="lbl">${cands[0].kind==='etab'||cands[0].kind==='addr'?'Entreprises enregistrées à cette adresse':'Choisis la bonne entreprise'}</div>${cands.map(candHtml).join('')}
       <button class="btn btn-q btn-s" data-act="candx" style="align-self:flex-start">Aucune ne correspond</button></div>`:''}
    ${ok?`<p style="font-size:11.5px">Données officielles (${esc(fmtDate(p.rne.at).toLowerCase())}) · registre public des entreprises (INSEE / RNE).</p>`:''}
@@ -1187,15 +1188,26 @@ function seedExamples(){const t=today();const mk=(o)=>{const p=Object.assign(bla
 /* ================= Registre des entreprises & adresses (services publics) ================= */
 const RE='https://recherche-entreprises.api.gouv.fr', GEO='https://data.geopf.fr/geocodage';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let nextSlot=0;
+let nextSlot=0,coolUntil=0;
+const svcName=u=>/recherche-entreprises/.test(u)?'registre des entreprises (api.gouv.fr)':/geopf|geocodage/.test(u)?'service d’adresses (IGN)':'service public';
+/* Diagnostic quand l'appel échoue : serveur joignable mais réponse bloquée (limite de requêtes) ou réseau qui bloque le site */
+async function netDiag(url){const host=new URL(url).origin;
+  try{await fetch(host+'/',{mode:'no-cors',cache:'no-store',signal:AbortSignal.timeout(6000)});return'limit'}catch{}
+  try{await fetch('https://www.google.com/generate_204',{mode:'no-cors',cache:'no-store',signal:AbortSignal.timeout(6000)});return'blocked'}catch{}
+  return'offline'}
 async function getJSON(url,{signal}={}){
   if(!navigator.onLine)throw{fr:'Pas de connexion internet.'};
   for(let k=0;k<3;k++){
-    const wait=Math.max(0,nextSlot-Date.now());nextSlot=Math.max(nextSlot,Date.now())+160;if(wait)await sleep(wait);
+    const cool=Math.max(0,coolUntil-Date.now());if(cool)await sleep(cool);
+    const wait=Math.max(0,nextSlot-Date.now());nextSlot=Math.max(nextSlot,Date.now())+260;if(wait)await sleep(wait);
     if(signal?.aborted)throw{name:'AbortError'};
-    let r;try{r=await fetch(url,{signal,headers:{Accept:'application/json'}})}
-    catch(e){if(e?.name==='AbortError')throw e;if(k<2){await sleep(700);continue}throw{fr:'Service public injoignable. Vérifie ta connexion.'}}
-    if(r.status===429){await sleep(1100*(k+1));continue}
+    let r;try{r=await fetch(url,{signal,cache:'no-store'})}
+    catch(e){if(e?.name==='AbortError')throw e;if(k<2){await sleep(k?4000:1200);continue}
+      const d=await netDiag(url);const svc=svcName(url);
+      if(d==='limit'){coolUntil=Date.now()+30000;throw{fr:`Le ${svc} limite le nombre de recherches pour le moment (trop de recherches d’affilée, par ex. après un import). Attends 1 minute puis réessaie.`,diag:d,url}}
+      if(d==='blocked')throw{fr:`Le ${svc} est bloqué par ce réseau (pare-feu d’entreprise ou bloqueur de publicité). Teste le lien « Tester le registre » ; s’il ne s’ouvre pas, demande à ton informatique d’autoriser ${new URL(url).host}, ou essaie en partage de connexion 4G.`,diag:d,url}
+      throw{fr:'Pas de connexion internet.',diag:d,url}}
+    if(r.status===429){coolUntil=Date.now()+1500*(k+1);await sleep(1500*(k+1));continue}
     if(r.status===404||r.status===400)return null;
     if(!r.ok){if(k<2&&r.status>=500){await sleep(800);continue}throw{fr:`Le registre a répondu une erreur (${r.status}). Réessaie dans un instant.`}}
     return r.json()}
