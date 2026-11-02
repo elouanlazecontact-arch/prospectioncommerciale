@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=37;
+const APP_V=38;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -1202,7 +1202,7 @@ async function getJSON(url,{signal}={}){
     const wait=Math.max(0,nextSlot-Date.now());nextSlot=Math.max(nextSlot,Date.now())+260;if(wait)await sleep(wait);
     if(signal?.aborted)throw{name:'AbortError'};
     let r;try{r=await fetch(url,{signal,cache:'no-store'})}
-    catch(e){if(e?.name==='AbortError')throw e;if(k<2){await sleep(k?4000:1200);continue}
+    catch(e){if(e?.name==='AbortError')throw e;if(/recherche-entreprises/.test(url)){if(k<1){await sleep(600);continue}throw{fr:'registre injoignable',re:true}}if(k<2){await sleep(k?4000:1200);continue}
       const d=await netDiag(url);const svc=svcName(url);
       if(d==='limit'){coolUntil=Date.now()+30000;throw{fr:`Le ${svc} limite le nombre de recherches pour le moment (trop de recherches d’affilée, par ex. après un import). Attends 1 minute puis réessaie.`,diag:d,url}}
       if(d==='blocked')throw{fr:`Le ${svc} est bloqué par ce réseau (pare-feu d’entreprise ou bloqueur de publicité). Teste le lien « Tester le registre » ; s’il ne s’ouvre pas, demande à ton informatique d’autoriser ${new URL(url).host}, ou essaie en partage de connexion 4G.`,diag:d,url}
@@ -1213,7 +1213,40 @@ async function getJSON(url,{signal}={}){
     return r.json()}
   throw{fr:'Trop de recherches d’un coup : réessaie dans quelques secondes.'}}
 const reCache=new Map();
+/* ---------- Registre de secours : base SIRENE (INSEE) publiée par OpenDataSoft, quand api.gouv.fr ne répond pas ---------- */
+const ODS='https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/economicref-france-sirene-v3/records';
+let reDownAt=0;const reDown=()=>Date.now()-reDownAt<10*60e3;
+const odsQ=s=>'"'+String(s).replace(/["\\]/g,' ').trim()+'"';
+function odsEtab(x){const g=x.geolocetablissement||{};const t=x.trancheeffectifsetablissementtriable;
+  return{siret:x.siret,adresse:[x.adresseetablissement,x.codepostaletablissement,x.libellecommuneetablissement].filter(Boolean).join(' '),code_postal:x.codepostaletablissement||'',libelle_commune:x.libellecommuneetablissement||'',
+    latitude:g.lat,longitude:g.lon,activite_principale:x.activiteprincipaleetablissement||'',tranche_effectif_salarie:t==null||t<0?'NN':String(t).padStart(2,'0'),etat_administratif:x.etatadministratifetablissement==='Actif'?'A':'F',
+    est_siege:x.etablissementsiege==='oui',date_creation:x.datecreationetablissement||'',nom_commercial:x.enseigne1etablissement||x.denominationusuelleetablissement||'',liste_enseignes:[x.enseigne1etablissement,x.enseigne2etablissement].filter(Boolean)}}
+function odsGroup(rows){const m=new Map();
+  for(const x of rows){let r=m.get(x.siren);if(!r){const t=x.trancheeffectifsunitelegaletriable;const nom=x.denominationunitelegale||[x.prenomusuelunitelegale||x.prenom1unitelegale,x.nomusageunitelegale||x.nomunitelegale].filter(Boolean).join(' ');
+      r={siren:x.siren,nom_complet:nom+(x.sigleunitelegale?` (${x.sigleunitelegale})`:''),nom_raison_sociale:nom,sigle:x.sigleunitelegale||null,nature_juridique:x.categoriejuridiqueunitelegale||'',activite_principale:x.activiteprincipaleunitelegale||'',
+        date_creation:x.datecreationunitelegale||'',tranche_effectif_salarie:t==null||t<0?'NN':String(t).padStart(2,'0'),categorie_entreprise:x.categorieentreprise||null,etat_administratif:x.etatadministratifunitelegale==='Active'?'A':'C',
+        dirigeants:[],matching_etablissements:[],siege:null,_ods:true,_siegeSiret:x.siretsiegeunitelegale};m.set(x.siren,r)}
+    const e=odsEtab(x);if(!r.matching_etablissements.some(z=>z.siret===e.siret))r.matching_etablissements.push(e);if(e.est_siege)r.siege=e}
+  for(const r of m.values()){r.siege=r.siege||r.matching_etablissements.find(e=>e.siret===r._siegeSiret)||r.matching_etablissements[0];r.nombre_etablissements_ouverts=r.matching_etablissements.filter(e=>e.etat_administratif==='A').length||1}
+  return[...m.values()]}
+async function odsGet(where,{limit=100,order='',signal}={}){const u=new URL(ODS);u.searchParams.set('where',where);u.searchParams.set('limit',String(limit));if(order)u.searchParams.set('order_by',order);
+  let r;try{r=await fetch(u,{signal,cache:'no-store'})}catch(e){if(e?.name==='AbortError')throw e;throw{fr:'Le registre des entreprises est injoignable depuis ce réseau (api.gouv.fr et sa copie de secours). Essaie en partage de connexion 4G.'}}
+  if(!r.ok)throw{fr:`Le registre de secours a répondu une erreur (${r.status}). Réessaie dans un instant.`};return(await r.json()).results||[]}
+async function odsSearch(q,opt={}){const d=String(q).replace(/[\s.\-]/g,'');
+  if(/^\d{9}$|^\d{14}$/.test(d))return odsGroup(await odsGet(`siren="${d.slice(0,9)}"`,{signal:opt.signal}));
+  const words=String(q).replace(/\b\d+\b/g,' ').replace(/\b(rue|avenue|av|bd|boulevard|place|allee|chemin|quai|impasse|route|cours)\b.*$/i,' ').trim()||String(q);
+  const name=odsQ(words);const cp=opt.code_postal?` AND codepostaletablissement="${opt.code_postal}"`:'';
+  let rows=await odsGet(`(search(denominationunitelegale,${name}) OR search(enseigne1etablissement,${name}) OR search(denominationusuelleetablissement,${name}) OR search(sigleunitelegale,${name})) AND etatadministratifetablissement="Actif"${cp}`,{limit:Math.min(100,(opt.per_page||10)*4),signal:opt.signal});
+  if(!rows.length&&words.split(/\s+/).length>2)rows=await odsGet(`search(denominationunitelegale,${odsQ(words.split(/\s+/).slice(0,2).join(' '))}) AND etatadministratifetablissement="Actif"${cp}`,{limit:40,signal:opt.signal});
+  return odsGroup(rows).slice(0,opt.per_page||10)}
+async function odsNear(pos,radius){const pt=`geom'POINT(${pos.lon.toFixed(6)} ${pos.lat.toFixed(6)})'`;const rows=[];
+  for(let off=0;off<400;off+=100){const u=new URL(ODS);u.searchParams.set('where',`within_distance(geolocetablissement, ${pt}, ${Math.max(10,Math.round(radius))}m) AND etatadministratifetablissement="Actif"`);u.searchParams.set('limit','100');u.searchParams.set('offset',String(off));u.searchParams.set('order_by',`distance(geolocetablissement, ${pt})`);
+    const r=await fetch(u,{cache:'no-store'}).catch(()=>null);if(!r?.ok)break;const j=await r.json();rows.push(...(j.results||[]));if((j.results||[]).length<100)break}
+  return odsGroup(rows)}
 async function reSearch(q,opt={}){
+  if(reDown()){const k='ods|'+q+'|'+(opt.code_postal||'');if(reCache.has(k))return reCache.get(k);const out=await odsSearch(q,opt);reCache.set(k,out);return out}
+  try{return await reSearch0(q,opt)}catch(e){if(e?.name==='AbortError')throw e;reDownAt=Date.now();console.warn('api.gouv.fr injoignable, registre de secours utilisé',e);return odsSearch(q,opt)}}
+async function reSearch0(q,opt={}){
   const u=new URL(RE+'/search');u.searchParams.set('q',q);u.searchParams.set('per_page',String(opt.per_page||10));u.searchParams.set('page','1');
   if(opt.code_postal)u.searchParams.set('code_postal',opt.code_postal);if(opt.etabs)u.searchParams.set('limite_matching_etablissements','100');
   const k=u.toString();if(reCache.has(k))return reCache.get(k);
@@ -1524,9 +1557,11 @@ const nafLabel=n=>NAFLAB[n]||GROUPS.find(g=>g.k===groupOf(n))?.l||'';
 function outOfTarget(x){const n=x.naf;if(/^64\.1/.test(n)||/^64\.19/.test(n))return'Banque';if(n==='47.73Z')return'Pharmacie';if(/^64\.(20|30)/.test(n))return'Holding';if(/^68\.20/.test(n))return'Location immobilière';return''}
 function knownProspect(x){for(const p of S.P.values()){if(x.siret&&p.ent?.siret===x.siret)return p;if(x.siren&&p.ent?.siren===x.siren&&(!p.ent?.cp||p.ent.cp===x.adr.cp))return p}return null}
 async function nearEtabs(pos,radius){
-  const map=new Map();let page=1,pages=1;
+  const map=new Map();let page=1,pages=1;let odsDone=false;
   do{const u=`${RE}/near_point?lat=${pos.lat.toFixed(6)}&long=${pos.lon.toFixed(6)}&radius=${Math.max(0.01,radius/1000).toFixed(3)}&per_page=25&page=${page}`;
-    const j=await getJSON(u);if(!j)break;pages=Math.min(j.total_pages||1,16);
+    let j;if(reDown()||odsDone){if(odsDone)break;j={results:await odsNear(pos,radius)};odsDone=true}
+    else{try{j=await getJSON(u)}catch(e){reDownAt=Date.now();j={results:await odsNear(pos,radius)};odsDone=true}}
+    if(!j)break;pages=Math.min(j.total_pages||1,16);
     for(const r of (j.results||[])){const ets=(r.matching_etablissements&&r.matching_etablissements.length)?r.matching_etablissements:(r.siege?[r.siege]:[]);
       for(const e of ets){if(e.etat_administratif==='F'||!e.latitude||!e.longitude)continue;const lat=+e.latitude,lon=+e.longitude;const dist=haversine(pos,{lat,lon});if(dist>radius*1.2+15)continue;
         if(map.has(e.siret))continue;const naf=nafFmt(e.activite_principale||r.activite_principale);const adr=addrOf(e);
