@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=44;
+const APP_V=45;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -182,18 +182,23 @@ const S={P:new Map(),sel:null,view:'today',mode:'poste',modeForced:false,tab:'en
   settings:{objectif:20},queue:new Set(),selMode:false,picked:new Set(),confirmBulk:false,sample:null,aiImages:false,aiBusy:false,aiMsg:'',ask:null,session:null,call:null,sheet:false,flash:new Set(),undo:null,confirmDel:false,downloads:null};
 const dirty=new Map(),timers={},chains={};
 
-function blank(src){return{id:'p_'+rid(),createdAt:Date.now(),updatedAt:Date.now(),statut:'nouveau',temperature:'',source:src,ent:{},contacts:[],besoins:{},cyber:{},impr:{},it:{},tel:{},actions:[],journal:[]}}
+function blank(src){return{ws:(typeof curWs==='function'?curWs().id:'main'),id:'p_'+rid(),createdAt:Date.now(),updatedAt:Date.now(),statut:'nouveau',temperature:'',source:src,ent:{},contacts:[],besoins:{},cyber:{},impr:{},it:{},tel:{},actions:[],journal:[]}}
 const cur=()=>S.P.get(S.sel);
 
 /* ================= Stockage : local + synchro Supabase ================= */
 const CFG=window.RADAR_CONFIG||{};let SB=null,USER=null,RT=null;
 const LK=()=>'radar-'+(USER?.id||'local');
 function loadLocal(){S.P.clear();for(const p of lsGet(LK()+'-data',[]))if(p&&p.id)S.P.set(p.id,p);
-  S.settings={objectif:20,...lsGet(LK()+'-settings',{})};if(S.settings.cal==='live'&&proMail())S.settings.cal='m365';S.queue=new Set(lsGet(LK()+'-queue',[]))}
+  S.settings={objectif:20,...lsGet(LK()+'-settings',{})};S.ws=lsGet(LK()+'-ws','main');if(S.settings.cal==='live'&&proMail())S.settings.cal='m365';S.queue=new Set(lsGet(LK()+'-queue',[]))}
 /* ---------- Rôles : admin = accès aux fiches de toute l'équipe ---------- */
 const isAdmin=()=>S.role==='admin'||S.role==='owner';
 const ownerOf=p=>p?._owner||USER?.id;
-function vis(p){if(!isAdmin()||S.who==='all')return true;if(!S.who||S.who==='me')return !p._owner||p._owner===USER?.id;return p._owner===S.who}
+/* ---------- Espaces de travail (ex. Data Links / Becloud) : séparation complète des fiches ---------- */
+const WS_COLORS=['#0B6B6A','#2F6FD6','#8A4FD0','#C2412D','#B7791F','#1F8A4C','#C2185B'];
+function wsList(){const L=S.settings?.ws;return Array.isArray(L)&&L.length?L:[{id:'main',name:'Data Links',c:''}]}
+const curWs=()=>{const L=wsList();return L.find(w=>w.id===S.ws)||L[0]};
+const wsOf=p=>p?.ws||'main';const inWs=p=>wsOf(p)===curWs().id;
+function vis(p){if(!inWs(p))return false;if(!isAdmin()||S.who==='all')return true;if(!S.who||S.who==='me')return !p._owner||p._owner===USER?.id;return p._owner===S.who}
 const VP=()=>[...S.P.values()].filter(vis);
 const memberName=id=>{if(!id||id===USER?.id)return'Moi';const m=(S.team||[]).find(x=>x.id===id);return m?(m.nom||m.email.split('@')[0]):'Collègue'};
 async function loadRole(){if(!SB||!USER)return;
@@ -214,7 +219,7 @@ function removeProspect(id){const p=S.P.get(id);if(p?._owner){S.delOwner=S.delOw
 /* ---------- Doublons de SIRET / SIREN ---------- */
 const sirOf=p=>({siret:/^\d{14}$/.test(p.ent?.siret||'')?p.ent.siret:'',siren:p.ent?.siren||(p.ent?.siret||'').slice(0,9)||p.rne?.siren||''});
 function dupOf(num,exceptId){num=String(num||'').replace(/\D/g,'');if(num.length!==9&&num.length!==14)return null;
-  for(const p of S.P.values()){if(p.id===exceptId)continue;const o=sirOf(p);
+  for(const p of S.P.values()){if(p.id===exceptId||!inWs(p))continue;const o=sirOf(p);
     if(num.length===14){if(o.siret===num||(!o.siret&&o.siren===num.slice(0,9)))return p}
     else if(o.siren===num)return p}
   return null}
@@ -346,7 +351,7 @@ function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMo
 function todayJournal(c){const t=iso(today());let n=0;for(const p of VP())for(const j of (p.journal||[]))if(j.date?.startsWith(t)&&j.canal===c&&j.issue)n++;return n}
 
 /* ================= Rendu : coquille ================= */
-function teamHtml(){const d=new Date();const mo=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;const all=[...S.P.values()];
+function teamHtml(){const d=new Date();const mo=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;const all=[...S.P.values()].filter(inWs);
   const rows=(S.team||[]).map(m=>{const ps=all.filter(p=>(p._owner||USER.id)===m.id);const rdv=ps.filter(p=>String(p.rdvPrisLe||'').startsWith(mo)).length;const adm=(S.admins||[]).find(a=>a.user_id===m.id);
     return `<div class="tm"><b title="${esc(m.email)}">${esc(m.nom||m.email)}</b>${adm?`<span class="tag-adm">${adm.role==='owner'?'Admin principal':'Admin'}</span>`:''}<span>${ps.length} fiches · ${rdv} RDV ce mois</span>
       <button class="btn btn-q btn-s" data-act="whoset" data-v="${m.id===USER.id?'me':m.id}">Voir</button>
@@ -356,7 +361,7 @@ function renderWho(){for(const nav of $$('nav')){let b=nav.querySelector('[data-
   const w=$('#who-wrap');if(!w)return;if(!isAdmin()){w.innerHTML='';return}
   const opts=[['me','Mes fiches'],['all','Toute l’équipe'],...(S.team||[]).filter(m=>m.id!==USER?.id).map(m=>[m.id,m.nom||m.email])];
   w.innerHTML=`<label class="who"><span>👁</span><select id="who-sel" aria-label="Fiches affichées">${opts.map(([v,l])=>`<option value="${v}" ${S.who===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`}
-function render(){
+function render(){applyWs();
   renderWho();const app=$('#app');app.className=S.mode;
   $$('[data-act="view"]').forEach(b=>b.setAttribute('aria-current',String(S.view===b.dataset.v&&!(S.mode==='terrain'&&S.view==='list'&&S.sel&&false))));
   $$('[data-act="mode"]').forEach(b=>b.setAttribute('aria-pressed',String(S.mode===b.dataset.v)));
@@ -380,7 +385,7 @@ function renderSoft(selChanged){
 const NOREACH=/r[ée]pondeur|nrp|faux num|barrage/i;
 function memberStats(id,per){const now=new Date();const t=iso(now);const wk=iso(addDays(now,-6));const mo=t.slice(0,7);
   const from=per==='jour'?t:per==='semaine'?wk:mo+'-01';
-  const ps=[...S.P.values()].filter(p=>(p._owner||USER?.id)===id);let calls=0,reach=0,visits=0,last='';
+  const ps=[...S.P.values()].filter(p=>(p._owner||USER?.id)===id&&inWs(p));let calls=0,reach=0,visits=0,last='';
   for(const p of ps)for(const j of p.journal||[]){const d=String(j.date||'').slice(0,10);if(j.date>last)last=j.date;if(d<from)continue;if(j.canal==='tel'){calls++;if(!NOREACH.test(j.issue||''))reach++}else if(j.canal==='terrain')visits++}
   const rdv=ps.filter(p=>p.rdvPrisLe&&iso(new Date(p.rdvPrisLe))>=from).length;
   const created=ps.filter(p=>p.createdAt&&iso(new Date(p.createdAt))>=from).length;
@@ -426,6 +431,7 @@ function renderToday(){
   <div class="hello"><div><h1>${h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir'}${''} — ${esc(JOURS[new Date().getDay()])} ${new Date().getDate()} ${MOIS[new Date().getMonth()]}</h1>
     <p>${acts.length?`${acts.length} action${acts.length>1?'s':''} à traiter${late?`, dont ${late} en retard`:''}.`:'Rien en retard. Bonne journée pour prospecter.'}</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-loc" data-act="view" data-v="around">📍 Autour de moi · 50 m</button>${S.mode==='poste'?`<button class="btn btn-p" data-act="session">Lancer la session d'appels</button>`:`<button class="btn btn-p" data-act="new">+ Nouvelle visite</button>`}<button class="btn btn-g" data-act="new">${S.mode==='poste'?'+ Nouveau prospect':'+ Saisie rapide'}</button><button class="btn btn-g" data-act="expquick" title="Télécharge l’Excel de ta journée">📤 Exporter ma session du jour</button><button class="btn btn-q" data-act="xlsx" title="Choisir la période et les comptes">Autre export…</button></div></div>
+  ${!lsGet('radar-ws-tip',false)?`<div class="banner ws-tip"><span>🗂️ <b>Nouveau : espaces de travail.</b> Tu travailles pour plusieurs entreprises (ex. Data Links et Becloud) ? Crée un espace par activité : fiches, agenda, stats et exports complètement séparés. Clique sur le nom en haut à gauche (« ${esc(curWs().name)} ▾ ») pour changer d’espace.</span><span style="display:flex;gap:6px"><button class="btn btn-p btn-s" data-act="wsmenu">Créer un espace</button><button class="btn btn-q btn-s" data-act="wstipx">OK</button></span></div>`:''}
   ${exemples?`<div class="banner"><span>Les fiches marquées « exemple » montrent comment l'outil se remplit. Supprime-les quand tu veux.</span><button class="btn btn-g btn-s" data-act="delex">Supprimer les exemples</button></div>`:''}
   ${S.mode==='terrain'?`<div class="card qn-card"><h2>📝 Notes rapides → fiche</h2><p class="qn-help">Colle ou tape tes notes prises à la va-vite : la fiche est créée, l’entreprise cherchée au registre et chaque info rangée automatiquement.</p>
     <input class="in" id="qn-nom" placeholder="Nom de l’entreprise ou SIRET (facultatif)" value="${esc(lsGet('radar-qn-nom',''))}" autocomplete="off">
@@ -628,7 +634,22 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
+  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
+function applyWs(){const w=curWs();const r=document.documentElement;
+  if(w.c){r.style.setProperty('--accent',w.c);r.style.setProperty('--accent-2',w.c);r.style.setProperty('--accent-soft',`color-mix(in srgb, ${w.c} 16%, var(--surface, #fff))`)}else['--accent','--accent-2','--accent-soft'].forEach(k=>r.style.removeProperty(k));
+  const sm=$('.brand small');if(sm)sm.innerHTML=`<button class="ws-btn" data-act="wsmenu" title="Changer d’espace de travail">${esc(w.name)} <span aria-hidden="true">▾</span></button>`;
+  document.body.dataset.ws=w.id;document.title=`Radar · ${w.name}`}
+function wsCount(id){let n=0;for(const p of S.P.values())if(wsOf(p)===id&&(!p._owner||p._owner===USER?.id))n++;return n}
+function wsHtml(){const L=wsList(),c=curWs();const ed=S.wsEdit;
+ return `<div class="modal" data-act="wsx"><div class="wsm"><h2>Espaces de travail</h2>
+  <p class="fsub">Chaque espace a ses propres fiches, son agenda, ses statistiques et ses exports : rien ne se mélange. Pratique pour séparer deux activités (ex. Data Links et Becloud).</p>
+  <div class="wsl">${L.map(w=>`<div class="wsi${w.id===c.id?' on':''}"><button class="wsg" data-act="wsgo" data-v="${w.id}"><i style="background:${w.c||'#0B6B6A'}"></i><b>${esc(w.name)}</b><small>${wsCount(w.id)} fiche${wsCount(w.id)>1?'s':''}${w.id===c.id?' · espace actuel':''}</small></button><button class="btn btn-q btn-s" data-act="wsren" data-v="${w.id}">Renommer</button>${L.length>1&&!wsCount(w.id)?`<button class="btn btn-q btn-s" data-act="wsdel" data-v="${w.id}">Supprimer</button>`:''}</div>`).join('')}</div>
+  ${ed?`<div class="wsnew"><label for="ws-name">${ed.id?'Nouveau nom':'Nom du nouvel espace'}</label><input class="in" id="ws-name" value="${esc(ed.name||'')}" placeholder="ex. Becloud" autocomplete="off">
+    <div class="chips">${WS_COLORS.map(col=>`<button class="wsc" data-act="wscol" data-v="${col}" aria-pressed="${(ed.c||'')===col}" style="background:${col}" aria-label="Couleur"></button>`).join('')}</div>
+    <div class="ident-row"><button class="btn btn-p" data-act="wssave">${ed.id?'Enregistrer':'Créer l’espace'}</button><button class="btn btn-g" data-act="wscancel">Annuler</button></div></div>`
+   :`<button class="btn btn-p" data-act="wsnew">+ Nouvel espace</button>`}
+  <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="wsx">Fermer</button></div></div></div>`}
+function wsSwitch(id){if(!wsList().some(w=>w.id===id))return;S.ws=id;lsSet(LK()+'-ws',id);S.sel=null;S.filter='all';S.q='';if($('#q'))$('#q').value='';S.session=null;S.wsMenu=false;S.wsEdit=null;applyWs();renderLayer();render();toast(`Espace « ${curWs().name} »`)}
 function gkHelpHtml(){return `<div class="modal" data-act="gkhx"><div class="gk"><h2>Activer la recherche Google</h2>
  <p class="fsub">Google ne laisse aucune appli lire ses fiches sans une clé personnelle. Une fois la clé collée ici, chaque recherche de numéro passe par Google Maps (1 000 recherches gratuites par mois).</p>
  <ol>
@@ -661,6 +682,7 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-rappel" ${S.settings.calRappel!==false?'checked':''}> Ouvrir l'agenda automatiquement quand on me demande de rappeler</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
+  <button class="btn btn-g" data-act="wsmenu">Espaces de travail (${esc(curWs().name)}${wsList().length>1?' + '+(wsList().length-1)+' autre'+(wsList().length>2?'s':''):''})</button>
   <button class="btn btn-p" data-act="fimpopen">Importer un fichier (Excel, CSV, PDF)</button>
   <button class="btn btn-g" data-act="importopen">Créer des fiches depuis des SIRET / SIREN</button>
   <button class="btn btn-g" data-act="xlsx">Exporter en Excel (jour, semaine, mois, comptes…)</button>
@@ -778,6 +800,18 @@ const ACT={
  expname:()=>{const n=prompt('Nom qui apparaîtra dans tes exports :',S.settings.monNom||'');if(n!=null){S.settings.monNom=n.trim();saveSettings();renderLayer()}},
  expx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.exp=null;renderLayer()},
  expgo:async()=>{const o=S.exp;S.exp=null;renderLayer();await expRun(o)},
+ wsmenu:()=>{lsSet('radar-ws-tip',true);S.menu=false;S.wsMenu=true;S.wsEdit=null;renderLayer()},
+ wsx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.wsMenu=false;S.wsEdit=null;renderLayer()},
+ wsgo:b=>wsSwitch(b.dataset.v),
+ wstipx:()=>{lsSet('radar-ws-tip',true);render()},
+ wsnew:()=>{const used=wsList().map(w=>w.c||WS_COLORS[0]);S.wsEdit={name:'',c:WS_COLORS.find(c=>!used.includes(c))||WS_COLORS[1]};renderLayer();setTimeout(()=>$('#ws-name')?.focus(),30)},
+ wsren:b=>{const w=wsList().find(x=>x.id===b.dataset.v);S.wsEdit={id:w.id,name:w.name,c:w.c||WS_COLORS[0]};renderLayer();setTimeout(()=>$('#ws-name')?.focus(),30)},
+ wscol:b=>{S.wsEdit.name=$('#ws-name')?.value||S.wsEdit.name;S.wsEdit.c=b.dataset.v;renderLayer()},
+ wscancel:()=>{S.wsEdit=null;renderLayer()},
+ wssave:()=>{const n=($('#ws-name')?.value||'').trim();if(!n){$('#ws-name')?.focus();return}const L=wsList().map(w=>({...w}));const ed=S.wsEdit;
+   if(ed.id){const w=L.find(x=>x.id===ed.id);w.name=n;w.c=ed.c===WS_COLORS[0]&&w.id==='main'?'':ed.c}else{const id='ws_'+rid();L.push({id,name:n,c:ed.c});S.settings.ws=L;saveSettings();S.wsEdit=null;wsSwitch(id);return}
+   S.settings.ws=L;saveSettings();S.wsEdit=null;applyWs();renderLayer()},
+ wsdel:b=>{if(wsCount(b.dataset.v))return;S.settings.ws=wsList().filter(w=>w.id!==b.dataset.v);saveSettings();if(S.ws===b.dataset.v)wsSwitch(wsList()[0].id);else renderLayer()},
  gkeyhelp:()=>{S.gkHelp=true;renderLayer()},
  gkhx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.gkHelp=false;renderLayer()},
  gksave:async()=>{const v=($('#gk-in')?.value||'').trim();const o=$('#gk-r');if(!/^AIza[\w-]{30,}$/.test(v)){if(o)o.textContent='Ce n’est pas une clé Google valide : elle commence par « AIza ».';return}S.settings.gKey=v;saveSettings();if(o)o.textContent='Test en cours…';
@@ -1954,7 +1988,7 @@ function perRange(k,f,t){const now=today(),T=iso(now);
   return{from:'',to:'',l:'Tout l’historique',slug:'global'}}
 const inR=(d,r)=>{if(!r.from)return true;d=String(d||'').slice(0,10);return d>=r.from&&d<=r.to};
 function expSel(o){const r=perRange(o.per,o.from,o.to);const own=new Set(o.owners);
-  const P=[...S.P.values()].filter(p=>own.has(okey(p))&&!p.exemple);
+  const P=[...S.P.values()].filter(p=>own.has(okey(p))&&!p.exemple&&inWs(p));
   const act=p=>!r.from||(p.journal||[]).some(j=>inR(j.date,r))||(p.createdAt&&inR(iso(new Date(p.createdAt)),r))||(p.rdvPrisLe&&inR(iso(new Date(p.rdvPrisLe)),r))||(p.actions||[]).some(a=>a.createdAt&&inR(iso(new Date(a.createdAt)),r));
   const fiches=P.filter(act);const J=[];for(const p of fiches)for(const j of p.journal||[])if(inR(j.date,r))J.push({p,j});
   J.sort((a,b)=>a.j.date<b.j.date?-1:1);return{r,fiches,J}}
@@ -1972,10 +2006,10 @@ function expHtml(){const o=S.exp;const M=expMembers();const sel=expSel(o);const 
    <div class="exp-prev"><b>${sel.fiches.length} fiche${sel.fiches.length>1?'s':''}</b> · ${statTxt(dayStats(sel.J))}${dl.length?`<ul>${dl.slice(0,7).map(([d,L])=>`<li><span>${esc(dayLabel(d))}</span><span>${esc(statTxt(dayStats(L)))}</span></li>`).join('')}${dl.length>7?`<li><span>… et ${dl.length-7} autre${dl.length-7>1?'s':''} jour${dl.length-7>1?'s':''}</span></li>`:''}</ul>`:''}</div>
    <div class="exp-b"><button class="btn btn-p" data-act="expgo" ${!o.owners.length||(!sel.fiches.length&&o.per!=='tout')?'disabled':''}>Télécharger l’Excel</button><button class="btn btn-g" data-act="expx">Annuler</button></div>
   </div></div>`}
-async function expRun(o){const sel=expSel(o);if(!sel.fiches.length){toast('Rien à exporter sur cette période.');return}
+async function expRun(o){o={...o};const sel=expSel(o);if(!sel.fiches.length){toast('Rien à exporter sur cette période.');return}
   const names=o.owners.map(ownName);const who=names.length===expMembers().length&&names.length>1?'Toute l’équipe ('+names.join(', ')+')':names.join(', ');
   const slugN=names.length>2?'equipe':names.map(n=>slug(String(n).split('@')[0])).join('+');
-  await exportXlsx({P:sel.fiches,J:sel.J,range:sel.r,who,multi:o.owners.length>1,file:`Radar-${slugN||'export'}-${sel.r.slug}.xlsx`})}
+  await exportXlsx({P:sel.fiches,J:sel.J,range:sel.r,who:who+(wsList().length>1?' · '+curWs().name:''),multi:o.owners.length>1,file:`Radar-${wsList().length>1?slug(curWs().name)+'-':''}${slugN||'export'}-${sel.r.slug}.xlsx`})}
 
 /* ================= Agenda Outlook ================= */
 function rdvInfo(p,a){const c=(p.contacts||[]).find(x=>x.decideur==='Oui')||p.contacts?.[0]||{};const tel=fmtTel(c.tel||c.mobile||p.ent?.tel||'');
@@ -2283,7 +2317,7 @@ const telsOf=p=>[p.ent?.tel,p.ent?.telAlt,...(p.contacts||[]).flatMap(c=>[c.tel,
 const mailsOf=p=>[p.ent?.email,...(p.contacts||[]).map(c=>c.email)].filter(Boolean).map(x=>x.toLowerCase().trim());
 const nmKey=s=>norm(s).replace(/\b(sas|sarl|sa|sasu|eurl|sci|selarl|selas|scp|snc|ste|societe|cabinet|etude|the|le|la|les|l|de|du|des|et)\b/g,'').replace(/[^a-z0-9]/g,'');
 function findMatch(x,exceptId){const sr=String(x.sir||'').slice(0,9);/* deux SIREN différents = deux entreprises différentes, même si le standard est partagé */
-  const P=[...S.P.values()].filter(p=>p.id!==exceptId&&!(sr.length===9&&sirOf(p).siren&&sirOf(p).siren!==sr));let why='';
+  const P=[...S.P.values()].filter(p=>p.id!==exceptId&&inWs(p)&&!(sr.length===9&&sirOf(p).siren&&sirOf(p).siren!==sr));let why='';
   const by=(f,w)=>{const p=P.find(f);if(p&&!why)why=w;return p};
   const sir=String(x.sir||'');const tels=[x.tel,x.mob].map(telOf).filter(Boolean);const mail=String(x.email||'').toLowerCase().trim();
   const nk=nmKey(x.nom||x.enseigne||''),cp=x.cp||'';
