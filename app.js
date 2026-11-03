@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=41;
+const APP_V=42;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -650,7 +650,7 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
  ${USER?`<div class="acct"><span>Connecté : <b>${esc(USER.email)}</b>${isAdmin()?` · <span class="tag-adm">${S.role==='owner'?'Admin principal':'Admin'}</span>`:''}</span><button class="btn btn-q btn-s" data-act="logout">Se déconnecter</button></div>`:`<div class="acct"><span>${SB?'Non connecté':'Synchronisation non configurée : les fiches restent sur cet appareil.'}</span></div>`}
  <div class="f"><label for="obj">Objectif RDV par mois</label><input class="in" id="obj" type="number" min="1" value="${S.settings.objectif||20}"></div>
  <div class="f"><span class="lab">Recherche de numéros</span>
-  <label for="g-key" style="text-transform:none;letter-spacing:0;font-weight:600">Clé Google Places (recommandé : fiches Google Maps, la meilleure couverture)</label><input class="in mono" id="g-key" placeholder="AIza…" value="${esc(S.settings.gKey||'')}" autocomplete="off">
+  <label for="g-key" style="text-transform:none;letter-spacing:0;font-weight:600">Clé Google Places (facultatif : Radar cherche déjà gratuitement dans Overture Maps et OpenStreetMap)</label><input class="in mono" id="g-key" placeholder="AIza…" value="${esc(S.settings.gKey||'')}" autocomplete="off">
   <small class="hint">1 000 recherches gratuites / mois. Créer la clé : console.cloud.google.com → activer « Places API (New) » → Identifiants → Clé API (à restreindre à ton site). Un compte de facturation Google est demandé.</small>
   <label for="here-key" style="text-transform:none;letter-spacing:0;font-weight:600;margin-top:6px">Clé HERE (alternative, 5 000 recherches gratuites / mois)</label><input class="in mono" id="here-key" placeholder="Clé API HERE" value="${esc(S.settings.hereKey||'')}" autocomplete="off">
   <small class="hint">platform.here.com → Access Manager → Apps → API key.</small>
@@ -2027,6 +2027,28 @@ async function overpassPhones(pos,radius){
     return(j.elements||[]).map(osmItem).filter(x=>x.phone||x.email||x.site)}catch{await sleep(800)}}
   return null}
 const qName=p=>p.ent?.enseigne||p.ent?.nom||'';
+/* ---------- Overture Maps : base ouverte et gratuite (Meta, Microsoft, Amazon…) avec numéros, sites et e-mails, sans clé ---------- */
+const OVT_DEF='https://tiles.overturemaps.org/2026-10-21.0/places.pmtiles';let ovtP=null;const ovtCache=new Map();
+async function ovtSource(){const c=lsGet('radar-ovt',null);if(c&&Date.now()-c.at<7*864e5)return c.url;
+  try{const cat=await fetch('https://stac.overturemaps.org/catalog.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());const rel=cat.links.filter(l=>l.rel==='child').map(l=>l.href).sort().at(-1);
+    const pl=await fetch(rel.replace(/catalog\.json$/,'places/catalog.json'),{signal:AbortSignal.timeout(6000)}).then(r=>r.json());const u=pl.links.find(l=>l.rel==='pmtiles')?.href;if(u){lsSet('radar-ovt',{url:u,at:Date.now()});return u}}catch{}
+  return c?.url||OVT_DEF}
+const ovtTel=t=>{let d=String(t||'').replace(/[^\d+]/g,'');if(/^33\d{9}$/.test(d))d='+'+d;return normTel(d)};
+const jarr=v=>{if(!v||v==='null')return[];try{const a=JSON.parse(v);return Array.isArray(a)?a:[a]}catch{return[v]}};
+async function ovtTile(z,x,y){const k=`${z}/${x}/${y}`;if(ovtCache.has(k))return ovtCache.get(k);
+  const pr=(async()=>{await loadLib('tiles',null,'VectorTile');if(!ovtP)ovtP=new pmtiles.PMTiles(await ovtSource());
+    const r=await ovtP.getZxy(z,x,y);if(!r?.data)return[];const L=new VectorTile(new Pbf(new Uint8Array(r.data))).layers.place;if(!L)return[];const out=[];const n=2**z;
+    for(let i=0;i<L.length;i++){const f=L.feature(i);const pr=f.properties;const pt=f.loadGeometry()?.[0]?.[0];if(!pt)continue;
+      const lon=(x+pt.x/L.extent)/n*360-180,lat=Math.atan(Math.sinh(Math.PI*(1-2*(y+pt.y/L.extent)/n)))*180/Math.PI;
+      const ad=jarr(pr.addresses)[0]||{};const phones=jarr(pr.phones).map(ovtTel).filter(Boolean);
+      out.push({name:pr['@name']||'',phone:phones[0]||'',phones,site:cleanSite(jarr(pr.websites)[0]),email:cleanMail(jarr(pr.emails)[0]),addr:[ad.freeform,ad.postcode,ad.locality].filter(Boolean).join(' '),lat,lon,src:'Overture Maps'})}
+    return out})();
+  ovtCache.set(k,pr);pr.catch(()=>ovtCache.delete(k));return pr}
+async function overturePlaces(pos,radius=350){const z=14,n=2**z;const tx=(pos.lon+180)/360*n,ty=(1-Math.log(Math.tan(pos.lat*Math.PI/180)+1/Math.cos(pos.lat*Math.PI/180))/Math.PI)/2*n;
+  const m=radius/(156543*Math.cos(pos.lat*Math.PI/180)*2**-z*256);/* marge en fraction de tuile */const T=new Set();
+  for(const dx of [-m,0,m])for(const dy of [-m,0,m])T.add(`${Math.floor(tx+dx)},${Math.floor(ty+dy)}`);
+  const L=(await Promise.all([...T].map(k=>{const [x,y]=k.split(',').map(Number);return ovtTile(z,x,y).catch(()=>null)})));if(L.every(x=>x===null))return null;
+  return L.flat().filter(x=>x&&haversine(pos,x)<=radius)}
 S.provErr={};
 async function googlePhones(p,pos){const key=(S.settings.gKey||'').trim();if(!key||!qName(p))return[];
   const body={textQuery:[qName(p),p.ent?.adresse,p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),languageCode:'fr',regionCode:'FR',pageSize:5};
@@ -2059,7 +2081,8 @@ async function findPhone(p,{silent=false,pool=null,step=()=>{}}={}){
   step('Localisation de l’adresse…');const pos=await posOf(p);
   const keyed=!!(S.settings.gKey||S.settings.hereKey);if(!pos&&!keyed)return{status:'noaddr'};
   let hit=null,web=null,list=[],down=false;const take=(L,min=0.5)=>{hit=hit||pickBest(p,L.filter(x=>x.phone),pos,min);web=web||pickBest(p,L.filter(x=>x.email||x.site),pos,min);list=list.concat(L)};
-  if(S.settings.gKey){step('Recherche Google (fiches Google Maps)…');take(await googlePhones(p,pos),0.45)}
+  if(pos){step('Recherche dans Overture Maps (base gratuite)…');const ov=await overturePlaces(pos,350).catch(()=>null);if(ov)take(ov)}
+  if(!hit&&S.settings.gKey){step('Recherche Google (fiches Google Maps)…');take(await googlePhones(p,pos),0.45)}
   if((!hit||!web)&&S.settings.hereKey){step('Recherche HERE…');take(await herePhones(p,pos),0.45)}
   if(!hit&&pos){step('Recherche dans OpenStreetMap…');const o=pool||await overpassPhones(pos,120);down=o===null;take(o||[]);
     if(!hit&&!pool&&!down){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide)take(wide,0.75)}}
@@ -2079,7 +2102,7 @@ function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
   return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<a class="mono ph-num" href="tel:${esc(e.tel)}">📞 ${esc(fmtTel(e.tel))}</a>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
    <button class="btn ${e.tel?'btn-q':'btn-g'} btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'<span class="spin"></span> Recherche…':e.tel?'🔎 Revérifier':'🔎 Trouver le numéro'}</button>
    ${e.tel?'':`<span class="links ph-links">${phoneLinks(p)}</span>`}</div>
-   ${!S.settings.gKey&&!S.settings.hereKey?`<div class="srcwarn"><span>⚠ Recherche automatique via <b>OpenStreetMap seulement</b> (peu de numéros). Pour chercher dans les fiches <b>Google Maps</b>, ajoute une clé Google une fois pour toutes.</span><button class="btn btn-p btn-s" data-act="gkeyhelp">Activer Google (5 min)</button></div>`:''}
+
    ${st.busy?`<div class="ph-run"><span class="spin"></span>${esc(st.step||'Recherche en cours…')} <small>(jusqu’à 30 s)</small></div>`:''}
    ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">${e.tel?'Autre numéro trouvé':'Numéro possible ('+esc(e.telSource||'')+')'} : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
    ${!e.tel&&e.telLookup&&!st.msg&&!st.busy?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Ouvre PagesJaunes ou Google, puis colle le numéro dans Standard (onglet Entreprise).'}</div>`:''}
@@ -2087,7 +2110,7 @@ function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
 async function findPhoneUI(p){if(S.ph?.busy&&S.ph.pid===p.id)return;S.ph={pid:p.id,busy:true,step:'Démarrage…'};rePhone();if(S.sel===p.id)renderNotesOnly();
   let r;try{r=await findPhone(p,{step:t=>{if(S.ph?.pid===p.id){S.ph.step=t;rePhone()}}})}catch{r={status:'err'}}
   const perr=Object.values(S.provErr||{}).join(' · ');const nokey=!S.settings.gKey&&!S.settings.hereKey;
-  S.ph={pid:p.id,ok:r.status==='ok'||r.web,msg:(perr?'⚠ '+perr+'. ':'')+(r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'OpenStreetMap ne répond pas. Pour une recherche fiable, ajoute une clé Google (Options → Recherche de numéros).':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).'+(nokey?' Astuce : avec une clé Google (Options → Recherche de numéros), la recherche passe par les fiches Google Maps et trouve la grande majorité des numéros.':''))+(r.web?' Site / e-mail de l’entreprise trouvés aussi (ci-dessous).':'')};
+  S.ph={pid:p.id,ok:r.status==='ok'||r.web,msg:(perr?'⚠ '+perr+'. ':'')+(r.status==='ok'?`✓ Numéro trouvé sur ${r.hit.src} (« ${r.hit.name} »). Vérifie-le au premier appel.`:r.status==='alt'?'Un autre numéro a été trouvé, voir ci-dessus.':r.status==='noaddr'?'Ajoute d’abord l’adresse (ou identifie l’entreprise) pour chercher son numéro.':r.status==='down'||r.status==='err'?'Les bases de numéros ne répondent pas pour le moment. Réessaie dans un instant, ou utilise PagesJaunes / Google.':'Aucun numéro public trouvé automatiquement. Ouvre PagesJaunes ou Google, puis colle le numéro dans le champ Standard (onglet Entreprise).')+(r.web?' Site / e-mail de l’entreprise trouvés aussi (ci-dessous).':'')};
   if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
 function autoEnrich(p){if(!p||p.rne?.status!=='ok'||p.rne?.v===4||!(p.ent?.siret||p.ent?.siren))return;S.enr=S.enr||new Set();if(S.enr.has(p.id))return;S.enr.add(p.id);
   applyRne(p,p.ent.siret||p.ent.siren,{siret:p.ent.siret,soft:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{})}
@@ -2102,7 +2125,7 @@ async function overpassBbox(b){const q=`[out:json][timeout:25];nwr(${b.s.toFixed
 async function phoneAll(){const list=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));if(!list.length)return;
   const r=S.phoneRun={ids:list.map(p=>p.id),done:[],found:0,step:'Localisation des adresses…'};renderList();
   for(const p of list){if(!p.geo)await posOf(p)}
-  if(S.settings.gKey||S.settings.hereKey){for(const p of list){r.step='Recherche Google / HERE…';const x=await findPhone(p).catch(()=>({status:'err'}));if(x.status==='ok')r.found++;r.done.push(p.id);renderList()}r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},20000);return}
+  {for(const p of list){r.step='Recherche Google / HERE…';const x=await findPhone(p).catch(()=>({status:'err'}));if(x.status==='ok')r.found++;r.done.push(p.id);renderList()}r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},20000);return}
   const groups=new Map();for(const p of list){if(!p.geo){r.done.push(p.id);continue}const k=Math.floor(p.geo.lat/0.03)+'_'+Math.floor(p.geo.lon/0.03);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)}
   for(const ps of groups.values()){const b={s:Math.min(...ps.map(p=>p.geo.lat))-0.002,n:Math.max(...ps.map(p=>p.geo.lat))+0.002,w:Math.min(...ps.map(p=>p.geo.lon))-0.003,e:Math.max(...ps.map(p=>p.geo.lon))+0.003};
     const pool=await overpassBbox(b);
@@ -2149,7 +2172,7 @@ const FCOLS_X=[['contact2','Contact 2'],['fonction2','Fonction 2'],['telsrc','So
 const FCOLS=[['','Ignorer'],['siret','SIRET (établissement)'],['siren','SIREN (entreprise)'],['sir','SIRET ou SIREN'],['nom','Raison sociale'],['enseigne','Nom commercial'],['tel','Standard (téléphone)'],['mobile','Mobile'],['contact','Contact (nom complet)'],['prenom','Prénom'],['cnom','Nom du contact'],['fonction','Fonction'],['email','Email'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['note','Notes / commentaire'],...FCOLS_X];
 const FHDR=[['',/annuaire|lien|url|fiabilit|latitude|longitude|^ess$|^sigle$|nb dirigeants|annee|effectif|categorie|forme|creation|naf|activit|secteur|^ca\b|resultat|convention|etablissements|profil/],['telsrc',/source du (numero|tel)/],['siret',/siret/],['siren',/siren/],['sir',/n°\s*(d')?entreprise|identifiant|immatricul/],['tel',/t[ée]l|phone|standard|fixe|num[ée]ro(?!.*(siret|siren))/],['mobile',/mobile|portable|gsm|cell/],['email',/mail|courriel/],['nom',/raison|soci[ée]t[ée]|entreprise|d[ée]nomination|client|compte|^nom$|company/],['enseigne',/enseigne|commercial/],['contact',/contact|interlocut|dirigeant|responsable/],['prenom',/pr[ée]nom/],['cnom',/^nom\s*(du)?\s*contact|nom de famille/],['fonction',/fonction|qualit|poste|titre|r[ôo]le/],['adresse',/adresse|rue|voie/],['cp',/code\s*postal|^cp$|postal/],['ville',/ville|commune|localit/],['note',/note|comment|remarque|observ|info/]];
 let fLibs={};
-const LOCAL_LIB={xlsx:'lib/xlsx.full.min.js',excel:'lib/exceljs.min.js'};
+const LOCAL_LIB={xlsx:'lib/xlsx.full.min.js',excel:'lib/exceljs.min.js',tiles:'lib/tiles.js'};
 const addScript=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>{s.remove();rej(new Error('lib'))};document.head.appendChild(s)});
 function loadLib(key,url,glob){if(window[glob])return Promise.resolve(window[glob]);if(fLibs[key])return fLibs[key];
   fLibs[key]=(async()=>{for(const src of [LOCAL_LIB[key],url].filter(Boolean)){try{await addScript(src);if(window[glob])return window[glob]}catch{}}fLibs[key]=null;throw new Error('lib')})();return fLibs[key]}
