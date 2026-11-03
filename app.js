@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=40;
+const APP_V=41;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -628,7 +628,18 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
+  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
+function gkHelpHtml(){return `<div class="modal" data-act="gkhx"><div class="gk"><h2>Activer la recherche Google</h2>
+ <p class="fsub">Google ne laisse aucune appli lire ses fiches sans une clé personnelle. Une fois la clé collée ici, chaque recherche de numéro passe par Google Maps (1 000 recherches gratuites par mois).</p>
+ <ol>
+  <li>Ouvre <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">console.cloud.google.com</a> avec un compte Google et crée un projet « Radar ».</li>
+  <li>Active l’API : <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" rel="noopener">Places API (New) → Activer</a>. Google demande d’ajouter un compte de facturation (carte bancaire) : rien n’est facturé sous 1 000 recherches par mois.</li>
+  <li>Crée la clé : <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Identifiants → Créer des identifiants → Clé API</a>, puis copie-la (elle commence par « AIza »).</li>
+  <li>Conseillé : dans la clé, « Restrictions d’application » → Sites web → ajoute <code>${esc(location.origin)}/*</code>.</li>
+ </ol>
+ <label for="gk-in">Colle ta clé ici</label><input class="in mono" id="gk-in" placeholder="AIza…" value="${esc(S.settings.gKey||'')}" autocomplete="off">
+ <div class="ident-row"><button class="btn btn-p" data-act="gksave">Enregistrer et tester</button><button class="btn btn-g" data-act="gkhx">Fermer</button><span id="gk-r" class="fsub" style="margin:0"></span></div>
+ <p class="fsub">La clé est enregistrée dans ton compte Radar (pas besoin de la recoller sur le téléphone).</p></div></div>`}
 function helpHtml(){return `<div class="modal" data-act="closem"><div><h2>Raccourcis clavier</h2><div class="keys">
  <kbd>N</kbd><span>Nouveau prospect</span><kbd>/</kbd><span>Rechercher</span><kbd>J</kbd> <kbd>K</kbd><span>Prospect suivant / précédent (ou suivant en session d'appels)</span>
  <kbd>Ctrl Entrée</kbd><span>Analyser la note (ou l'identification)</span><kbd>Alt 1…8</kbd><span>Issue d'appel rapide</span><kbd>Alt ⇧ 1…8</kbd><span>Changer d'onglet</span><kbd>Échap</kbd><span>Sortir du champ</span></div>
@@ -767,6 +778,11 @@ const ACT={
  expname:()=>{const n=prompt('Nom qui apparaîtra dans tes exports :',S.settings.monNom||'');if(n!=null){S.settings.monNom=n.trim();saveSettings();renderLayer()}},
  expx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.exp=null;renderLayer()},
  expgo:async()=>{const o=S.exp;S.exp=null;renderLayer();await expRun(o)},
+ gkeyhelp:()=>{S.gkHelp=true;renderLayer()},
+ gkhx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.gkHelp=false;renderLayer()},
+ gksave:async()=>{const v=($('#gk-in')?.value||'').trim();const o=$('#gk-r');if(!/^AIza[\w-]{30,}$/.test(v)){if(o)o.textContent='Ce n’est pas une clé Google valide : elle commence par « AIza ».';return}S.settings.gKey=v;saveSettings();if(o)o.textContent='Test en cours…';
+   const L=await googlePhones({ent:{nom:'Mairie de Boulogne-Billancourt',cp:'92100',ville:'Boulogne-Billancourt'}},{lat:48.8352,lon:2.2410});
+   if(L.some(x=>x.phone)){if(o)o.innerHTML='<b style="color:var(--ok)">✓ Google fonctionne.</b> Les recherches de numéros passent maintenant par Google Maps.';setTimeout(()=>{S.gkHelp=false;renderLayer();renderSoft(false)},1800)}else if(o)o.textContent='✕ '+(S.provErr.google||'Aucun résultat')+'. Vérifie que « Places API (New) » est bien activée sur le projet.'},
  keytest:async()=>{const o=$('#keytest-r');for(const [id,k] of [['g-key','gKey'],['here-key','hereKey'],['tt-key','tomtomKey']]){const el=$('#'+id);if(el)S.settings[k]=el.value.trim()}saveSettings();if(o)o.textContent='Test en cours…';
    const t={ent:{nom:'Mairie de Boulogne-Billancourt',cp:'92100',ville:'Boulogne-Billancourt',adresse:'26 avenue André Morizet'}};const pos={lat:48.8352,lon:2.2410};const out=[];
    if(S.settings.gKey){const L=await googlePhones(t,pos);out.push(L.some(x=>x.phone)?'Google ✓':'Google ✕ '+(S.provErr.google||'aucun résultat'))}
@@ -2063,6 +2079,7 @@ function phoneBox(p){const e=p.ent||{};const st=S.ph&&S.ph.pid===p.id?S.ph:{};
   return `<div class="phonebox" id="phone-box"><div class="ident-row"><span class="lbl">Standard</span>${e.tel?`<a class="mono ph-num" href="tel:${esc(e.tel)}">📞 ${esc(fmtTel(e.tel))}</a>${e.telSource?`<span class="cr-sub" style="margin:0">source : ${esc(e.telSource)}</span>`:''}`:'<span class="cr-sub" style="margin:0">pas encore de numéro</span>'}
    <button class="btn ${e.tel?'btn-q':'btn-g'} btn-s" data-act="findphone" ${st.busy?'disabled':''}>${st.busy?'<span class="spin"></span> Recherche…':e.tel?'🔎 Revérifier':'🔎 Trouver le numéro'}</button>
    ${e.tel?'':`<span class="links ph-links">${phoneLinks(p)}</span>`}</div>
+   ${!S.settings.gKey&&!S.settings.hereKey?`<div class="srcwarn"><span>⚠ Recherche automatique via <b>OpenStreetMap seulement</b> (peu de numéros). Pour chercher dans les fiches <b>Google Maps</b>, ajoute une clé Google une fois pour toutes.</span><button class="btn btn-p btn-s" data-act="gkeyhelp">Activer Google (5 min)</button></div>`:''}
    ${st.busy?`<div class="ph-run"><span class="spin"></span>${esc(st.step||'Recherche en cours…')} <small>(jusqu’à 30 s)</small></div>`:''}
    ${e.telAlt&&e.telAlt!==e.tel?`<div class="ident-row"><span class="cr-sub" style="margin:0">${e.tel?'Autre numéro trouvé':'Numéro possible ('+esc(e.telSource||'')+')'} : <b class="mono">${esc(fmtTel(e.telAlt))}</b></span><button class="btn btn-q btn-s" data-act="usealt">Utiliser celui-ci</button></div>`:''}
    ${!e.tel&&e.telLookup&&!st.msg&&!st.busy?`<div class="cr-sub" style="margin:0">Recherche automatique faite le ${esc(fmtDate(e.telLookup.at).toLowerCase())} : ${e.telLookup.status==='possible'?'un numéro possible à la même adresse.':'aucun numéro public trouvé. Ouvre PagesJaunes ou Google, puis colle le numéro dans Standard (onglet Entreprise).'}</div>`:''}
