@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=42;
+const APP_V=43;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -2067,28 +2067,35 @@ async function herePhones(p,pos){const key=(S.settings.hereKey||'').trim();if(!k
 /* même rue / même code postal : confirme un résultat dont le nom diffère un peu */
 function addrHit(p,x){const a=norm(x.addr||'');const cp=p.ent?.cp;const num=String(p.ent?.adresse||'').match(/^\d+/)?.[0];const rue=norm(p.ent?.adresse||'').replace(/^[\d\s,-]+(bis|ter)?\s*/,'').split(' ').filter(w=>w.length>3).slice(-1)[0];
   return !!(a&&cp&&a.includes(cp)&&rue&&a.includes(rue)&&(!num||new RegExp('\\b'+num+'\\b').test(a)))}
-function pickBest(p,list,pos,min){let h=bestPhone(p,list,pos,min);if(!h){const a=list.filter(x=>addrHit(p,x)&&Math.max(sim(qName(p),x.name),sim(x.name,qName(p)),sim(p.ent?.nom||'',x.name))>=0.3);if(a.length===1)h=a[0]}return h}
+function pickBest(p,list,pos,min){let h=bestPhone(p,list,pos,min);if(!h){const a=list.filter(x=>addrHit(p,x)&&Math.max(nameScore(qName(p),x.name||''),nameScore(p.ent?.nom||'',x.name||''))>=0.3);if(a.length===1)h=a[0]}return h}
 async function tomtomPhones(p,pos){const key=S.settings.tomtomKey;if(!key)return[];
   try{const u=new URL(`https://api.tomtom.com/search/2/poiSearch/${encodeURIComponent(p.ent?.enseigne||p.ent?.nom||'')}.json`);
     u.searchParams.set('key',key);u.searchParams.set('lat',pos.lat);u.searchParams.set('lon',pos.lon);u.searchParams.set('radius','250');u.searchParams.set('limit','8');u.searchParams.set('language','fr-FR');u.searchParams.set('countrySet','FR');
     const j=await fetch(u,{signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null);return(j?.results||[]).map(x=>({name:x.poi?.name,phone:normTel(x.poi?.phone),site:cleanSite(x.poi?.url),email:'',lat:x.position?.lat,lon:x.position?.lon,src:'TomTom'})).filter(x=>x.phone||x.site)}catch{return[]}}
 async function posOf(p){if(p.geo?.lat)return p.geo;const e=p.ent||{};if(!e.adresse&&!e.ville)return null;
   try{const g=await geocode([e.adresse,e.cp,e.ville].filter(Boolean).join(' '));if(g){p.geo={lat:g.lat,lon:g.lon};touch(p);return p.geo}}catch{}return null}
+/* mots trop courants pour identifier une entreprise à eux seuls */
+const GEN=new Set(['architecture','architectes','architecte','assurance','assurances','assur','conseil','conseils','consulting','immobilier','immobiliere','immo','avocat','avocats','notaire','notaires','notarial','office','expertise','expert','experts','comptable','comptables','medical','medicale','dentaire','cabinet','services','service','solutions','france','paris','boulogne','billancourt','asnieres','seine','gestion','groupe','group','associes','associe','partners','international','transport','transports','travaux','batiment','renovation','informatique','digital','agence','studio','design','sante','pharmacie','restaurant','boulangerie','garage','auto','hotel','ecole','formation','courtage','patrimoine','finance','invest','holding','sarl','sas','selarl','scp','sci']);
+const dtok=s=>toks(s).filter(w=>!GEN.has(w));
+const hitIn=(A,B)=>A.filter(w=>B.some(x=>x===w||(w.length>4&&x.length>4&&(x.startsWith(w)||w.startsWith(x))))).length;
+function nameScore(n,xn){const A=dtok(n),B=dtok(xn);
+  if(A.length&&B.length){const a=hitIn(A,B)/A.length,b=hitIn(B,A)/B.length;if(a||b)return 0.7*a+0.3*b}
+  const kn=nmKey(n),kx=nmKey(xn);if(kn.length>=5&&kx.includes(kn))return 0.9;if(kx.length>=6&&kn.includes(kx)&&kx.length>=0.6*kn.length)return 0.8;return 0}
 function bestPhone(p,list,pos,min=0.5){const names=[p.ent?.enseigne,p.ent?.nom].filter(Boolean);let best=null,bs=0;
-  for(const x of list){const kx=nmKey(x.name||'');const s=Math.max(...names.map(n=>{const kn=nmKey(n);return Math.max(sim(n,x.name),sim(x.name,n),kn.length>=4&&kx.length>=4&&(kx.includes(kn)||kn.includes(kx))?0.9:0)}));const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>120?0.2:0);if(sc>bs){bs=sc;best=x}}
+  for(const x of list){const s=Math.max(0,...names.map(n=>nameScore(n,x.name||'')));if(!s)continue;const d=pos&&x.lat?haversine(pos,{lat:x.lat,lon:x.lon}):0;const sc=s-(d>150?0.3:0);if(sc>bs){bs=sc;best=x}}
   return bs>=min?best:null}
 async function findPhone(p,{silent=false,pool=null,step=()=>{}}={}){
   step('Localisation de l’adresse…');const pos=await posOf(p);
   const keyed=!!(S.settings.gKey||S.settings.hereKey);if(!pos&&!keyed)return{status:'noaddr'};
   let hit=null,web=null,list=[],down=false;const take=(L,min=0.5)=>{hit=hit||pickBest(p,L.filter(x=>x.phone),pos,min);web=web||pickBest(p,L.filter(x=>x.email||x.site),pos,min);list=list.concat(L)};
-  if(pos){step('Recherche dans Overture Maps (base gratuite)…');const ov=await overturePlaces(pos,350).catch(()=>null);if(ov)take(ov)}
+  if(pos){step('Recherche dans Overture Maps (base gratuite)…');const ov=await overturePlaces(pos,350).catch(()=>null);if(ov){take(ov);var ovOK=true}}
   if(!hit&&S.settings.gKey){step('Recherche Google (fiches Google Maps)…');take(await googlePhones(p,pos),0.45)}
   if((!hit||!web)&&S.settings.hereKey){step('Recherche HERE…');take(await herePhones(p,pos),0.45)}
   if(!hit&&pos){step('Recherche dans OpenStreetMap…');const o=pool||await overpassPhones(pos,120);down=o===null;take(o||[]);
-    if(!hit&&!pool&&!down){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide)take(wide,0.75)}}
+    if(!hit&&!pool&&!down&&!ovOK){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide)take(wide,0.75)}}
   if((!hit||!web)&&S.settings.tomtomKey&&pos){step('Recherche dans TomTom…');take(await tomtomPhones(p,pos))}
   const gotWeb=fillWeb(p,hit)|fillWeb(p,web);
-  if(!hit&&down&&!keyed)return{status:'down'};
+  if(!hit&&down&&!keyed&&!ovOK)return{status:'down'};
   if(!hit){const near=list.filter(x=>x.phone&&pos&&x.lat&&haversine(pos,{lat:x.lat,lon:x.lon})<=20);p.ent.telLookup={at:iso(today()),status:'none'};
     if(near.length===1&&!p.ent.tel){p.ent.telAlt=near[0].phone;p.ent.telSource=`même adresse : « ${near[0].name} » (${near[0].src})`;p.ent.telLookup.status='possible'}touch(p);return{status:p.ent.telLookup.status==='possible'?'possible':'none',web:!!gotWeb}}
   p.ent.telLookup={at:iso(today()),status:'ok'};
