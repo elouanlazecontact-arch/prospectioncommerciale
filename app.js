@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=43;
+const APP_V=44;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -2091,7 +2091,7 @@ async function findPhone(p,{silent=false,pool=null,step=()=>{}}={}){
   if(pos){step('Recherche dans Overture Maps (base gratuite)…');const ov=await overturePlaces(pos,350).catch(()=>null);if(ov){take(ov);var ovOK=true}}
   if(!hit&&S.settings.gKey){step('Recherche Google (fiches Google Maps)…');take(await googlePhones(p,pos),0.45)}
   if((!hit||!web)&&S.settings.hereKey){step('Recherche HERE…');take(await herePhones(p,pos),0.45)}
-  if(!hit&&pos){step('Recherche dans OpenStreetMap…');const o=pool||await overpassPhones(pos,120);down=o===null;take(o||[]);
+  if(!hit&&pos&&!ovOK){step('Recherche dans OpenStreetMap…');const o=pool||await overpassPhones(pos,120);down=o===null;take(o||[]);
     if(!hit&&!pool&&!down&&!ovOK){step('Recherche élargie autour de l’adresse…');const wide=await overpassPhones(pos,400);if(wide)take(wide,0.75)}}
   if((!hit||!web)&&S.settings.tomtomKey&&pos){step('Recherche dans TomTom…');take(await tomtomPhones(p,pos))}
   const gotWeb=fillWeb(p,hit)|fillWeb(p,web);
