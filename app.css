@@ -619,3 +619,4 @@ body[data-ws]:not([data-ws="main"]) .top{box-shadow:inset 0 -3px 0 var(--accent)
 .ws-tip{border-color:var(--accent)}
 #app.terrain .brand small{display:inline-flex!important;letter-spacing:0;text-transform:none;font-size:13px}.brand small .ws-btn{letter-spacing:0;text-transform:none;font-size:12.5px}
 #app:not(.terrain) .brand small .ws-btn{font-size:14px;padding:5px 12px;margin-left:6px;border:1.5px solid var(--accent)}
+.linkbar{font-size:12.5px;padding:6px 10px;border-radius:8px;background:var(--accent-soft);margin-bottom:8px;line-height:1.5}.linkbar .lnk{all:unset;cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline}

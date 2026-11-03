@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=46;
+const APP_V=47;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -214,7 +214,41 @@ async function loadRole(){if(!SB||!USER)return;
 function saveLocal(){lsSet(LK()+'-data',[...S.P.values()]);lsSet(LK()+'-queue',[...S.queue])}
 let saveT=null;const saveLocalSoon=()=>{clearTimeout(saveT);saveT=setTimeout(saveLocal,200)};
 function markDirty(id){S.queue.add(id);saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800);renderStore()}
-function touch(p){p.updatedAt=Date.now();markDirty(p.id)}
+function touch(p){p.updatedAt=Date.now();markDirty(p.id);if(!S.linkBusy)linkSoon(p.id)}
+/* ---------- Fiches liées : même entreprise (SIRET, téléphone, e-mail, nom + CP, dirigeant) dans plusieurs fiches / espaces.
+   Les infos entreprise se complètent mutuellement ; statut, notes, rappels et besoins restent propres à chaque fiche. ---------- */
+const LINK_SECS=['ent','impr','it','tel','cyber'];const LINK_SKIP=new Set(['telLookup','telAlt']);
+const pName=c=>norm([c?.prenom,c?.nom].filter(Boolean).join(' ')).replace(/[^a-z ]/g,'').trim();
+function sameCompany(a,b){const sa=sirOf(a),sb=sirOf(b);
+  if(sa.siren&&sb.siren&&sa.siren!==sb.siren)return'';
+  if(sa.siret&&sb.siret)return sa.siret===sb.siret?'même SIRET':'';
+  const cpOk=!a.ent?.cp||!b.ent?.cp||a.ent.cp===b.ent.cp;
+  if(sa.siren&&sb.siren&&sa.siren===sb.siren)return cpOk?'même SIREN':'';
+  const ta=telsOf(a),tb=telsOf(b);if(ta.some(t=>tb.includes(t))&&cpOk)return'même téléphone';
+  const ma=mailsOf(a).filter(m=>!/^(contact|info|accueil|bonjour)@(gmail|hotmail|orange|wanadoo|free|yahoo)/.test(m)),mb=mailsOf(b);if(ma.some(m=>mb.includes(m)))return'même e-mail';
+  const ka=[a.ent?.nom,a.ent?.enseigne].filter(Boolean).map(nmKey).filter(k=>k.length>=4),kb=[b.ent?.nom,b.ent?.enseigne].filter(Boolean).map(nmKey).filter(k=>k.length>=4);
+  const sameName=ka.some(k=>kb.includes(k));if(sameName&&a.ent?.cp&&b.ent?.cp&&cpOk)return'même nom et code postal';
+  const da=(a.contacts||[]).map(pName).filter(n=>n.includes(' ')),db=(b.contacts||[]).map(pName).filter(n=>n.includes(' '));
+  if(da.some(n=>db.includes(n))&&(sameName||(a.ent?.cp&&a.ent.cp===b.ent?.cp)))return'même dirigeant';
+  if(sameName&&(!a.ent?.cp||!b.ent?.cp)&&ka.some(k=>k.length>=8&&kb.includes(k)))return'même nom';
+  return''}
+function linkKeys(p){const o=sirOf(p),k=[];if(o.siren)k.push('n'+o.siren);for(const t of telsOf(p))k.push('t'+t);for(const m of mailsOf(p))k.push('m'+m);
+  for(const n of [p.ent?.nom,p.ent?.enseigne])if(n){const x=nmKey(n);if(x.length>=4)k.push('k'+x)}for(const c of p.contacts||[]){const n=pName(c);if(n.includes(' '))k.push('d'+n)}return k.map(x=>okey(p)+'|'+x)}
+let LIDX=null;function linkIndex(){const m=new Map();for(const p of S.P.values())for(const k of linkKeys(p)){if(!m.has(k))m.set(k,new Set());m.get(k).add(p.id)}return m}
+function linkedOf(p,idx){idx=idx||linkIndex();const cand=new Set();for(const k of linkKeys(p))for(const id of idx.get(k)||[])cand.add(id);const out=[];for(const id of cand){const q=S.P.get(id);if(!q){continue}if(q.id===p.id||okey(q)!==okey(p)||q.exemple||p.exemple)continue;const why=sameCompany(p,q);if(why)out.push({q,why})}return out}
+const sameC=(x,y)=>(pName(x)&&pName(x)===pName(y))||(x.email&&x.email===y.email)||((x.tel||x.mobile)&&[y.tel,y.mobile].includes(x.tel||x.mobile));
+function linkMerge(dst,src){let ch=false;
+  for(const sec of LINK_SECS){const S2=src[sec]||{};dst[sec]=dst[sec]||{};for(const [k,v] of Object.entries(S2)){if(LINK_SKIP.has(k)||!filled(v))continue;const cv=dst[sec][k];
+      if(!filled(cv)||(dst.est?.[`${sec}.${k}`]&&!src.est?.[`${sec}.${k}`])){dst[sec][k]=structuredClone(v);if(src.est?.[`${sec}.${k}`]){dst.est=dst.est||{};dst.est[`${sec}.${k}`]=true}else if(dst.est)delete dst.est[`${sec}.${k}`];ch=true}}}
+  dst.contacts=dst.contacts||[];for(const c of src.contacts||[]){const ex=dst.contacts.find(x=>sameC(x,c));if(ex){for(const [k,v] of Object.entries(c))if(k!=='id'&&filled(v)&&!filled(ex[k])){ex[k]=v;ch=true}}else{dst.contacts.push({...structuredClone(c),id:rid()});ch=true}}
+  if(!dst.geo&&src.geo){dst.geo={...src.geo};ch=true}
+  if(src.rne?.status==='ok'&&dst.rne?.status!=='ok'){dst.rne=structuredClone(src.rne);ch=true}
+  return ch}
+const linkQ=new Set();let linkT=null;
+function linkSoon(id){linkQ.add(id);clearTimeout(linkT);linkT=setTimeout(()=>{const ids=[...linkQ];linkQ.clear();syncLinks(ids)},1200)}
+function syncLinks(ids){S.linkBusy=true;let n=0;const idx=linkIndex();try{for(const id of ids){const p=S.P.get(id);if(!p)continue;for(const {q} of linkedOf(p,idx)){const a=linkMerge(q,p),b=linkMerge(p,q);if(a){touch(q);n++}if(b){touch(p);n++}}}}finally{S.linkBusy=false}
+  if(n){try{if(S.sel)renderFiche();renderList()}catch{}}return n}
+function syncAllLinks(){return syncLinks([...S.P.keys()])}
 function removeProspect(id){const p=S.P.get(id);if(p?._owner){S.delOwner=S.delOwner||{};S.delOwner[id]=p._owner}S.P.delete(id);markDirty(id)}
 /* ---------- Doublons de SIRET / SIREN ---------- */
 const sirOf=p=>({siret:/^\d{14}$/.test(p.ent?.siret||'')?p.ent.siret:'',siren:p.ent?.siren||(p.ent?.siret||'').slice(0,9)||p.rne?.siren||''});
@@ -295,7 +329,7 @@ async function initStore(){
       SB.auth.onAuthStateChange((ev,sess)=>{const u=sess?.user||null;if((u?.id||null)!==(USER?.id||null)){USER=u;onUser()}})}
     catch(e){SB=null}}
   onUser()}
-function onUser(){
+function onUser(){setTimeout(()=>{try{const n=syncAllLinks();if(n)toast(`${n} fiche${n>1?'s':''} complétée${n>1?'s':''} grâce aux fiches liées (même entreprise)`)}catch(e){console.warn(e)}},2500);
   if(SB&&!USER){showAuth();return}
   hideAuth();loadLocal();
   if(SB&&USER){const loc=lsGet('radar-local-data',[]);if(loc.length){for(const p of loc)if(!S.P.has(p.id)){S.P.set(p.id,p);S.queue.add(p.id)}lsSet('radar-local-data',[])}}
@@ -493,7 +527,7 @@ function renderFiche(){
   const q=qualif(p),ex=excluded(p);const sub=[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
   el.innerHTML=`<div class="fiche">
    ${S.mode==='terrain'?`<div><button class="back" data-act="back">← Prospects</button></div>`:''}
-   <div class="fhead">${p._owner&&p._owner!==USER?.id?`<div class="ownbar">👁 Fiche de <b>${esc(memberName(p._owner))}</b> · tes modifications sont enregistrées sur sa fiche</div>`:''}
+   <div class="fhead">${(()=>{const L=linkedOf(p);if(!L.length)return'';return `<div class="linkbar">🔗 Même entreprise que ${L.slice(0,3).map(({q,why})=>`<button class="lnk" data-act="golink" data-id="${q.id}" title="${esc(why)}">« ${esc(displayName(q))} »${wsOf(q)!==wsOf(p)?' · espace '+esc((wsList().find(w=>w.id===wsOf(q))||{name:'?'}).name):''}</button>`).join(', ')} : infos entreprise et contacts partagés automatiquement · statut, notes et rappels restent séparés</div>`})()}${p._owner&&p._owner!==USER?.id?`<div class="ownbar">👁 Fiche de <b>${esc(memberName(p._owner))}</b> · tes modifications sont enregistrées sur sa fiche</div>`:''}
     <div class="fhead-top"><div class="fname"><input id="f-ent-nom" data-k="ent.nom" value="${esc(p.ent?.nom||'')}" placeholder="Tape le nom : suggestions du registre" autocomplete="off">
       <div class="fmeta" id="fmeta">${fmetaHtml(p,sub)}</div></div>
       <div class="ring" title="Qualification de la fiche">${ringSvg(q)}<b class="num" id="ringv">${q}%</b><small>qualifiée</small></div></div>
@@ -803,6 +837,7 @@ const ACT={
  wsmenu:()=>{lsSet('radar-ws-tip',true);S.menu=false;S.wsMenu=true;S.wsEdit=null;renderLayer()},
  wsx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.wsMenu=false;S.wsEdit=null;renderLayer()},
  wsgo:b=>wsSwitch(b.dataset.v),
+ golink:b=>{const q=S.P.get(b.dataset.id);if(!q)return;if(wsOf(q)!==curWs().id)wsSwitch(wsOf(q));openFiche(q.id,'ent')},
  wstipx:()=>{lsSet('radar-ws-tip',true);render()},
  wsnew:()=>{const used=wsList().map(w=>w.c||WS_COLORS[0]);S.wsEdit={name:'',c:WS_COLORS.find(c=>!used.includes(c))||WS_COLORS[1]};renderLayer();setTimeout(()=>$('#ws-name')?.focus(),30)},
  wsren:b=>{const w=wsList().find(x=>x.id===b.dataset.v);S.wsEdit={id:w.id,name:w.name,c:w.c||WS_COLORS[0]};renderLayer();setTimeout(()=>$('#ws-name')?.focus(),30)},
