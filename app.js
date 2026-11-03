@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=47;
+const APP_V=48;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -508,7 +508,7 @@ function renderAgenda(){
 function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
-  el.innerHTML=`<div class="list-head"><div class="lh-acts"><button class="btn btn-loc btn-s" data-act="view" data-v="around">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen">+ SIRET / SIREN</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer un fichier</button></div>
+  el.innerHTML=`<div class="list-head"><div class="lh-acts"><button class="btn btn-loc btn-s" data-act="view" data-v="around">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" title="Colle une liste de sociétés, des notes ou des SIRET">+ Coller une liste</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer un fichier</button></div>
    ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
@@ -718,7 +718,7 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
   ${S.installEvt?'<button class="btn btn-p" data-act="install">Installer l’application</button>':''}
   <button class="btn btn-g" data-act="wsmenu">Espaces de travail (${esc(curWs().name)}${wsList().length>1?' + '+(wsList().length-1)+' autre'+(wsList().length>2?'s':''):''})</button>
   <button class="btn btn-p" data-act="fimpopen">Importer un fichier (Excel, CSV, PDF)</button>
-  <button class="btn btn-g" data-act="importopen">Créer des fiches depuis des SIRET / SIREN</button>
+  <button class="btn btn-g" data-act="importopen">Créer des fiches depuis un texte (noms, notes, SIRET…)</button>
   <button class="btn btn-g" data-act="xlsx">Exporter en Excel (jour, semaine, mois, comptes…)</button>
   <button class="btn btn-g" data-act="export">Exporter en CSV (import Artis)</button>
   <button class="btn btn-g" data-act="backup">Télécharger une sauvegarde complète</button>
@@ -826,6 +826,7 @@ const ACT={
  importopen:()=>{S.menu=false;S.imp=S.imp&&S.imp.busy?S.imp:{};S.importing=true;renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  impsrc:b=>{const st=S.imp=S.imp||{};st.text=$('#imp-text')?.value||st.text;st.src=b.dataset.v;renderLayer()},
  impgo:()=>runImport(),
+ impnew:()=>{S.imp={src:S.imp?.src};renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  copycr:()=>copy(crText(cur()),'Compte rendu copié'),
  xlsx:()=>expOpen('jour'),
  expper:b=>{S.exp.per=b.dataset.v;renderLayer()},
@@ -2211,13 +2212,74 @@ async function phoneAll(){const list=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.
       r.done.push(p.id);renderList()}}
   r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},20000)}
 /* ================= Import de SIRET / SIREN en lot ================= */
-function importHtml(){const st=S.imp||{};return `<div class="modal" data-act="closem"><div style="max-width:620px"><h2>Créer des fiches depuis des SIRET / SIREN</h2>
-  <p style="margin:0;color:var(--ink-2);font-size:13.5px">Colle un ou plusieurs numéros (un par ligne, ou séparés par des virgules ou des espaces). Chaque fiche est créée et remplie depuis le registre officiel, puis l'outil cherche son numéro de standard.</p>
-  <textarea class="in" id="imp-text" style="min-height:150px" placeholder="847 689 759&#10;751 972 134 00017&#10;880982301" ${st.busy?'disabled':''}>${esc(st.text||'')}</textarea>
+function importHtml(){const st=S.imp||{};const prev=!st.busy&&!st.done&&st.text?parseFree(st.text):[];const free=prev.length&&!prev.every(x=>x.onlySir);
+  return `<div class="modal" data-act="closem"><div style="max-width:720px"><h2>Créer des fiches depuis un texte</h2>
+  <p style="margin:0;color:var(--ink-2);font-size:13.5px">Colle n’importe quel texte : une liste de noms de sociétés, des notes, un mail, un tableau copié… Une entreprise par ligne (ou par paragraphe). Le nom suffit : Radar cherche l’entreprise au registre, son numéro, et range les autres infos (téléphone, e-mail, adresse, contact, notes) dans chaque fiche. Les SIRET / SIREN marchent aussi.</p>
+  <textarea class="in" id="imp-text" style="min-height:170px" placeholder="Cabinet Martin, Asnières – M. Martin gérant, 01 47 22 33 44&#10;Etude Durand notaires 92100&#10;Boulangerie du Centre&#10;847 689 759" ${st.busy?'disabled':''}>${esc(st.text||'')}</textarea>
+  ${prev.length?`<div class="lbl">${prev.length} entreprise${prev.length>1?'s':''} repérée${prev.length>1?'s':''} · décoche celles à ignorer</div>
+   <div class="fprev">${prev.map((x,i)=>`<label class="fpi"><input type="checkbox" data-fp="${i}" ${(st.skip||[]).includes(i)?'':'checked'}><b>${esc(x.nom||fmtSiret(x.sir))}</b><span>${esc([x.sir&&x.nom?fmtSiret(x.sir):'',fmtTel(x.tel||x.mob||''),x.email,[x.cp,x.ville].filter(Boolean).join(' '),x.rest?'+ notes':''].filter(Boolean).join(' · '))}</span></label>`).join('')}</div>`:''}
   <div class="ident-row"><span class="lbl">Canal</span><div class="chips">${[['tel','Téléphonique'],['terrain','Terrain']].map(([k,l])=>`<button class="chip" data-act="impsrc" data-v="${k}" aria-pressed="${(st.src||(S.mode==='terrain'?'terrain':'tel'))===k}">${l}</button>`).join('')}</div></div>
   ${st.msg?`<div class="ai" data-s="${st.busy?'busy':''}">${st.busy?'<span class="spin"></span>':''}<span>${esc(st.msg)}</span></div>`:''}
-  ${st.log?.length?`<div class="implog">${st.log.map(l=>`<div class="${l.ok?'':'ko'}">${l.ok?'✓':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}
-  <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="closem">Fermer</button><button class="btn btn-p" data-act="impgo" ${st.busy?'disabled':''}>Créer les fiches</button></div></div></div>`}
+  ${st.log?.length?`<div class="implog">${st.log.map(l=>`<div class="${l.ok?'':l.warn?'warn':'ko'}">${l.ok?'✓':l.warn?'•':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}
+  <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="closem">Fermer</button>${st.done?`<button class="btn btn-p" data-act="impnew">Coller un autre texte</button>`:`<button class="btn btn-p" data-act="impgo" ${st.busy||!prev.length?'disabled':''}>${prev.length?`Créer ${prev.length-(st.skip||[]).filter(i=>i<prev.length).length} fiche${prev.length-(st.skip||[]).length>1?'s':''}`:'Créer les fiches'}</button>`}</div></div></div>`}
+/* ---------- Texte libre → entreprises ---------- */
+const PHONE_RX=/(?:\+33\s?|0)[1-9](?:[\s.\-]?\d{2}){4}/g, MAIL_RX=/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, SITE_RX=/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fr|com|net|org|eu|io|paris|immo|law|avocat|notaires\.fr|biz|info)\b(?:\/[^\s,;]*)?/gi;
+const CPV_RX=/\b(\d{5})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' \-]{1,40}?)(?=$|[,;\n.()]|\s{2}|\s[-–]\s)/;
+const ADDR_FULL=/\b\d{1,4}\s*(?:bis|ter)?,?\s+(?:rue|avenue|av\.?|bd|boulevard|place|pl\.?|all[ée]e|chemin|quai|impasse|route|cours|square|villa|passage|rond-point)\b[^,;\n]*/i;
+const LABEL_RX=/^(soci[ée]t[ée]|entreprise|raison sociale|nom|client|prospect|structure|cabinet\s*:)\s*[:\-–]\s*/i;
+function freeBlocks(t){t=String(t||'').replace(/\r/g,'').trim();if(!t)return[];
+  let lines=t.split('\n').map(l=>l.trim());
+  /* paragraphes séparés par des lignes vides : un par entreprise */
+  const paras=t.split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
+  if(paras.length>1&&paras.some(p=>p.includes('\n')))return paras;
+  lines=lines.filter(Boolean);
+  if(lines.length===1&&!/\d{5}|@|(?:\+33|0)[1-9]\d/.test(lines[0])&&lines[0].split(/[,;|]/).length>=3)return lines[0].split(/[,;|]/).map(x=>x.trim()).filter(Boolean);
+  return lines}
+function parseFree(t){const out=[];
+  for(const blk of freeBlocks(t)){let b=blk.replace(/^\s*(?:[-•*·▪►>]+|\d{1,3}[.)])\s*/,'');
+    const sirs=parseNums(b);const sir=sirs.find(n=>n.length===14)||sirs[0]||'';
+    const phones=[...b.matchAll(PHONE_RX)].map(m=>telOf(m[0])).filter(Boolean);const tel=phones.find(x=>!/^0[67]/.test(x))||'',mob=phones.find(x=>/^0[67]/.test(x))||'';
+    const email=(b.match(MAIL_RX)||[])[0]||'';const site=((b.replace(MAIL_RX,' ').match(SITE_RX)||[])[0]||'');
+    const cpm=b.match(CPV_RX);const cp=cpm?.[1]||(b.match(/\b(75|77|78|91|92|93|94|95)\d{3}\b/)||[])[0]||'';const ville=cpm?.[2]?.trim()||'';
+    const adresse=(b.match(ADDR_FULL)||[''])[0].replace(/\s*\d{5}.*$/,'').trim();
+    /* nom = premier morceau qui n'est ni un numéro, ni un e-mail, ni une adresse */
+    const first=b.split('\n')[0].replace(LABEL_RX,'');let nom='';
+    for(const seg of first.split(/\s[-–—|]\s|\t|\s*[|;:]\s*|,\s+|\s\(/)){let x=seg.replace(PHONE_RX,' ').replace(MAIL_RX,' ').replace(SITE_RX,' ').replace(/\b\d{9}(\d{5})?\b|\b\d{3}\s?\d{3}\s?\d{3}(\s?\d{5})?\b/g,' ').replace(/[)\]]+$/,'').replace(/\s+/g,' ').trim();
+      if(!x||x.length<2||ADDR_RE.test(x)||/^\d+$/.test(x)||/^(tel|tél|mail|email|siret|siren|adresse|contact)\b/i.test(x))continue;
+      if(cpm&&x.includes(cpm[1]))x=x.replace(cpm[0],'').trim();if(!x)continue;nom=x;break}
+    if(nom&&/^(m\.|mr|mme|madame|monsieur)\s/i.test(nom)&&!sir)nom='';
+    if(!nom&&!sir)continue;
+    let rest=b.replace(/(^|\n)\s*(soci[ée]t[ée]|entreprise|raison sociale|adresse|notes?|commentaires?)\s*:\s*/gi,'$1');for(const v of [nom,email,site])if(v)rest=rest.replace(v,' ');rest=rest.replace(/\s+/g,' ').replace(/^[\s,;:\-–|]+|[\s,;:\-–|]+$/g,'').trim();
+    out.push({nom:nom.slice(0,90),sir,tel,mob,email,site,cp,ville,adresse,rest:rest.length>3&&!/^[\d\s.]+$/.test(rest)?rest:'',onlySir:!nom&&!!sir})}
+  return out}
+async function runFree(st){const all=parseFree(st.text);const list=all.filter((x,i)=>!(st.skip||[]).includes(i));if(!list.length)return;
+  st.busy=true;st.log=[];st.msg=`Création de ${list.length} fiche${list.length>1?'s':''}…`;renderLayer();const src=st.src||(S.mode==='terrain'?'terrain':'tel');const made=[],upd=[];
+  const now=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19);
+  for(const [i,x] of list.entries()){st.msg=`${i+1} / ${list.length} · ${x.nom||fmtSiret(x.sir)}…`;if(S.imp===st)renderLayer();
+    const label=x.nom||fmtSiret(x.sir);let p=findMatch(x)?.p||null;const isNew=!p;
+    if(isNew){p=blank(src);p.createdAt=Date.now()+i}
+    const set=(k,v)=>{if(v&&!filled(getP(p,k)))setP(p,k,v)};
+    set('ent.nom',x.nom&&niceCase(x.nom));set('ent.adresse',x.adresse);set('ent.cp',x.cp);set('ent.ville',x.ville&&niceCase(x.ville));set('ent.site',x.site);
+    if(x.email&&/^(contact|info|accueil|secretariat|office|bonjour|cabinet|agence)@/i.test(x.email))set('ent.email',x.email);
+    if(x.tel&&!p.ent.tel){p.ent.tel=x.tel;p.ent.telSource='texte collé'}
+    let how='';
+    try{if(p.rne?.status!=='ok'){
+      if(x.sir){const res=await reSearch(x.sir);const r=res.find(z=>z.siren===x.sir.slice(0,9))||res[0];if(r){applyRe(p,r,x.sir.length===14?{siret:x.sir,force:true,soft:!isNew}:{cp:x.cp,soft:!isNew});how='registre ✓'}}
+      else if(x.nom){const res=rankRes(await reSearch(x.nom,{per_page:12,code_postal:x.cp||undefined}),x.nom+' '+(x.ville||''),x.cp).slice(0,5);
+        const top=res[0];const sc=top?Math.max(nameScore(x.nom,nameOf(top)),...etabsOf(top).map(e=>nameScore(x.nom,enseigneOf(top,e)||''))):0;
+        const clear=top&&sc>=0.8&&(!res[1]||res[1]._s<top._s-0.5||x.cp);
+        if(clear){applyRe(p,top,{cp:x.cp,adresse:x.adresse,soft:true});how='registre ✓'}
+        else if(res.length){p.rneCands=res.map(r=>{const e=pickEtab(r,{cp:x.cp});const a=addrOf(e||r.siege);return{siren:r.siren,nom:nameOf(r),info:[[a.cp,a.ville].filter(Boolean).join(' '),nafLabel(nafFmt(r.activite_principale))].filter(Boolean).join(' · ')}});p.rne={status:'a_verifier'};how=`${res.length} entreprise${res.length>1?'s':''} possible${res.length>1?'s':''} au registre : à confirmer dans la fiche`}
+        else how='pas trouvée au registre (fiche gardée avec le nom)'}}}
+    catch(e){how='registre indisponible, fiche gardée avec les infos du texte'}
+    if(x.mob||x.rest){const loc=x.rest?parseLocal(x.rest,p):{contacts:[]};if(x.mob&&!(loc.contacts||[]).some(c=>c.mobile)){if(loc.contacts?.[0])loc.contacts[0].mobile=x.mob;else (loc.contacts=loc.contacts||[]).push({mobile:x.mob})}applyPatch(p,loc,false)}
+    p.journal=p.journal||[];p.journal.push({id:rid(),date:now(),canal:'note',issue:isNew?'Créée depuis un texte collé':'Complétée depuis un texte collé',texte:x.rest||'',propre:x.rest?cleanNote(x.rest):[]});
+    S.P.set(p.id,p);touch(p);(isNew?made:upd).push(p);
+    st.log.push({ok:how==='registre ✓'||!isNew,warn:how!=='registre ✓'&&isNew,t:`${displayName(p)}${isNew?'':' · déjà en fiche, complétée'}${how?' · '+how:''}`})}
+  S.lastBatch=[...made,...upd].map(p=>p.id);S.filter='batch';S.view='list';render();
+  let ph=0;const need=[...made,...upd].filter(p=>!p.ent.tel);for(const [i,p] of need.entries()){st.msg=`Fiches créées. Recherche des numéros ${i+1}/${need.length}…`;if(S.imp===st)renderLayer();try{const r=await findPhone(p,{silent:true});if(r.status==='ok')ph++}catch{}}
+  st.busy=false;st.done=true;st.msg=`${made.length} fiche${made.length>1?'s':''} créée${made.length>1?'s':''}${upd.length?`, ${upd.length} complétée${upd.length>1?'s':''}`:''}${need.length?`, ${ph} numéro${ph>1?'s':''} trouvé${ph>1?'s':''}`:''}. Elles sont dans Prospects (filtre « Dernier ajout »).`;
+  if(S.imp===st)renderLayer();renderSoft(false);toast(st.msg)}
 function parseNums(txt){const out=[];
   for(const line of String(txt).split(/[\n,;|]+/)){const g=line.match(/\d+/g)||[];let i=0;
     while(i<g.length){if(g[i].length===9||g[i].length===14){out.push(g[i]);i++;continue}
@@ -2225,6 +2287,7 @@ function parseNums(txt){const out=[];
       i=got?j:i+1}}
   return[...new Set(out)]}
 async function runImport(){const txt=$('#imp-text')?.value||'';const st=S.imp=S.imp||{};st.text=txt;
+  const fp=parseFree(txt);if(fp.length&&!fp.every(x=>x.onlySir))return runFree(st);
   const nums=parseNums(txt);
   if(!nums.length){st.msg='Aucun SIRET (14 chiffres) ni SIREN (9 chiffres) reconnu.';renderLayer();return}
   st.busy=true;st.log=[];st.msg=`Création de ${nums.length} fiche${nums.length>1?'s':''}…`;renderLayer();const src=st.src||(S.mode==='terrain'?'terrain':'tel');const made=[];
@@ -2240,7 +2303,7 @@ async function runImport(){const txt=$('#imp-text')?.value||'';const st=S.imp=S.
     st.msg=`${i+1}/${nums.length} traités…`;if(S.imp===st)renderLayer()}
   S.lastBatch=made.map(p=>p.id);renderSoft(false);
   let ph=0;for(const [i,p] of made.entries()){st.msg=`Fiches créées. Recherche des numéros de standard ${i+1}/${made.length}…`;if(S.imp===st)renderLayer();try{const r=await findPhone(p,{silent:true});if(r.status==='ok')ph++}catch{}}
-  st.busy=false;st.text='';st.msg=`${made.length} fiche${made.length>1?'s':''} créée${made.length>1?'s':''}, ${ph} numéro${ph>1?'s':''} de standard trouvé${ph>1?'s':''}. Elles sont dans Prospects (filtre « Dernier ajout »).`;
+  st.busy=false;st.done=true;st.msg=`${made.length} fiche${made.length>1?'s':''} créée${made.length>1?'s':''}, ${ph} numéro${ph>1?'s':''} de standard trouvé${ph>1?'s':''}. Elles sont dans Prospects (filtre « Dernier ajout »).`;
   if(S.imp===st)renderLayer();renderSoft(false);toast(`${made.length} fiches créées`)}
 
 /* ================= Import d'un fichier (Excel, CSV, PDF) ================= */
@@ -2426,6 +2489,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('input',e=>{const el=e.target;
   if(el.id==='q'){S.q=el.value;if(S.view!=='list'){S.view='list';if(S.mode==='terrain')S.sel=null;render();$('#q').focus()}else if(S.mode==='terrain'&&S.sel){S.sel=null;render();$('#q').focus()}else renderList();return}
   if(el.id==='note-in'&&S.sel){lsSet('radar-draft-'+S.sel,el.value);return}
+  if(el.id==='imp-text'&&S.imp&&!S.imp.busy){S.imp.text=el.value;S.imp.skip=[];clearTimeout(S.impT);S.impT=setTimeout(()=>{const pos=el.selectionStart;renderLayer();const t=$('#imp-text');if(t){t.focus();t.setSelectionRange(pos,pos)}},450);return}
   if(el.id==='qn-nom'||el.id==='qn-txt'){lsSet(el.id==='qn-nom'?'radar-qn-nom':'radar-qn-txt',el.value);return}
   if((el.id==='ident-in'||(el.dataset.k==='ent.nom'&&cur()?.rne?.status!=='ok'))){clearTimeout(sugT);sugT=setTimeout(()=>suggest(el),380)}
   if((el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren')&&cur()){const d=el.value.replace(/\D/g,'');const p=cur();if(((d.length===14&&luhn(d))||(d.length===9&&el.dataset.k==='ent.siren'))&&(p.rne?.status!=='ok'||p.ent?.siren!==d.slice(0,9))){setTimeout(()=>identify(p,d),50)}}
@@ -2435,6 +2499,7 @@ document.addEventListener('input',e=>{const el=e.target;
 document.addEventListener('change',e=>{const el=e.target;
   if((el.id==='exp-from'||el.id==='exp-to')&&S.exp){S.exp[el.id==='exp-from'?'from':'to']=el.value;renderLayer();return}
   if(el.id==='who-sel'){S.who=el.value;lsSet(LK()+'-who',S.who);if(S.sel&&!vis(cur()||{}))S.sel=null;S.filter='all';render();toast(el.value==='me'?'Tes fiches':el.value==='all'?'Fiches de toute l’équipe':'Fiches de '+memberName(el.value));return}if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
+  if(el.dataset.fp!=null&&S.imp){const i=+el.dataset.fp;S.imp.skip=S.imp.skip||[];S.imp.skip=el.checked?S.imp.skip.filter(x=>x!==i):[...S.imp.skip,i];renderLayer();return}
   if(el.id==='fimp-in'&&el.files[0]){const f=el.files[0];el.value='';fimpFile(f);return}
   if(el.dataset.fcol!=null&&S.fimp){const j=+el.dataset.fcol,k=el.value;if(k&&k!=='note')S.fimp.map=S.fimp.map.map((x,i)=>i!==j&&x===k?'':x);S.fimp.map[j]=k;renderLayer();return}
   if(el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren'){el.value=fmtSiret(el.value);renderFiche()}if(el.dataset.def==='c.decideur')$('#tabbody').innerHTML=tabBody(cur())});
