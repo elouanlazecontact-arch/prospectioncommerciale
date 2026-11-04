@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=48;
+const APP_V=49;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -505,6 +505,22 @@ function renderAgenda(){
 }
 
 /* ================= Liste ================= */
+/* Recherche d'une société dans la barre : propositions du registre officiel, fiche créée et remplie en un clic */
+const REGQ=new Map();let regT=null;
+function regSugWanted(){const q=(S.q||'').trim();return q.length>=3&&!/^[\d\s.+-]+$/.test(q)&&!/@/.test(q)?q:''}
+function regSugHtml(){const q=regSugWanted();if(!q)return'';const st=REGQ.get(q.toLowerCase());
+  if(!st){clearTimeout(regT);regT=setTimeout(()=>regSugFetch(q),450);return `<div class="regsug" id="regsug"><div class="lbl">Au registre des entreprises</div><div class="rs-msg"><span class="spin"></span> Recherche de « ${esc(q)} »…</div></div>`}
+  if(st.busy)return `<div class="regsug" id="regsug"><div class="lbl">Au registre des entreprises</div><div class="rs-msg"><span class="spin"></span> Recherche de « ${esc(q)} »…</div></div>`;
+  if(st.err)return `<div class="regsug" id="regsug"><div class="lbl">Au registre des entreprises</div><div class="rs-msg">${esc(st.err)}</div></div>`;
+  if(!st.res.length)return `<div class="regsug" id="regsug"><div class="lbl">Au registre des entreprises</div><div class="rs-msg">Aucune société « ${esc(q)} » au registre. <button class="btn btn-q btn-s" data-act="regblank">Créer quand même une fiche « ${esc(q)} »</button></div></div>`;
+  return `<div class="regsug" id="regsug"><div class="lbl">Au registre des entreprises · un clic crée la fiche remplie</div>${st.res.map((r,i)=>{const e=pickEtab(r,{});const a=addrOf(e||r.siege);const d=dupOf(r.siege?.siret||r.siren);
+    return `<div class="rs-i"><span class="rs-t"><b>${esc(nameOf(r))}</b><small>${esc([[a.cp,a.ville].filter(Boolean).join(' '),nafLabel(nafFmt(r.activite_principale)),effLabel(etabTranche(r,e))&&effLabel(etabTranche(r,e))+' sal.'].filter(Boolean).join(' · '))}</small></span>${d?`<button class="btn btn-q btn-s" data-act="open" data-id="${d.id}">Déjà en fiche → ouvrir</button>`:`<button class="btn btn-p btn-s" data-act="regadd" data-i="${i}">+ Créer la fiche</button>`}</div>`}).join('')}</div>`}
+async function regSugFetch(q){const k=q.toLowerCase();if(REGQ.has(k))return;const st={busy:true,res:[]};REGQ.set(k,st);
+  try{st.res=rankRes(await reSearch(q,{per_page:12}),q,'').filter(r=>r.etat_administratif!=='C').slice(0,5)}catch(e){st.err=e?.fr||'Registre indisponible pour le moment.'}
+  st.busy=false;if(regSugWanted().toLowerCase()===k){const el=$('#regsug');if(el)el.outerHTML=regSugHtml()}}
+async function regCreate(r,{open=true}={}){const p=blank(S.mode==='poste'?'tel':'terrain');applyRe(p,r,{});const e=pickEtab(r,{});if(e?.latitude)p.geo={lat:+e.latitude,lon:+e.longitude};
+  p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Créée depuis la recherche',texte:''});
+  S.P.set(p.id,p);touch(p);if(open){S.q='';if($('#q'))$('#q').value='';openFiche(p.id,'ent')}findPhone(p,{silent:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{});return p}
 function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
   const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
@@ -513,6 +529,7 @@ function renderList(){
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
+   ${regSugHtml()}
    <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
      ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="tdot" data-t="${p.temperature||''}"></span>`}<span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
      <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${p.ent?.tel?'📞 '+esc(fmtTel(p.ent.tel))+' · ':S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'📞 recherche… · ':''}${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
@@ -826,6 +843,9 @@ const ACT={
  importopen:()=>{S.menu=false;S.imp=S.imp&&S.imp.busy?S.imp:{};S.importing=true;renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  impsrc:b=>{const st=S.imp=S.imp||{};st.text=$('#imp-text')?.value||st.text;st.src=b.dataset.v;renderLayer()},
  impgo:()=>runImport(),
+ regadd:b=>{const st=REGQ.get(regSugWanted().toLowerCase());const r=st?.res?.[+b.dataset.i];if(r){regCreate(r);toast(`${nameOf(r)} : fiche créée et remplie depuis le registre`)}},
+ regblank:()=>{const q=regSugWanted();const p=blank(S.mode==='poste'?'tel':'terrain');p.ent.nom=q;S.P.set(p.id,p);touch(p);S.q='';if($('#q'))$('#q').value='';openFiche(p.id,'ent')},
+ impch:()=>{},
  impnew:()=>{S.imp={src:S.imp?.src};renderLayer();setTimeout(()=>$('#imp-text')?.focus(),50)},
  copycr:()=>copy(crText(cur()),'Compte rendu copié'),
  xlsx:()=>expOpen('jour'),
@@ -2212,16 +2232,26 @@ async function phoneAll(){const list=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.
       r.done.push(p.id);renderList()}}
   r.end=true;renderSoft(true);setTimeout(()=>{if(S.phoneRun===r){S.phoneRun=null;renderList()}},20000)}
 /* ================= Import de SIRET / SIREN en lot ================= */
-function importHtml(){const st=S.imp||{};const prev=!st.busy&&!st.done&&st.text?parseFree(st.text):[];const free=prev.length&&!prev.every(x=>x.onlySir);
+function importHtml(){const st=S.imp||{};const prev=!st.busy&&!st.done&&st.text?parseFree(st.text):[];if(prev.length)setTimeout(freeLookAll,0);const free=prev.length&&!prev.every(x=>x.onlySir);
   return `<div class="modal" data-act="closem"><div style="max-width:720px"><h2>Créer des fiches depuis un texte</h2>
   <p style="margin:0;color:var(--ink-2);font-size:13.5px">Colle n’importe quel texte : une liste de noms de sociétés, des notes, un mail, un tableau copié… Une entreprise par ligne (ou par paragraphe). Le nom suffit : Radar cherche l’entreprise au registre, son numéro, et range les autres infos (téléphone, e-mail, adresse, contact, notes) dans chaque fiche. Les SIRET / SIREN marchent aussi.</p>
   <textarea class="in" id="imp-text" style="min-height:170px" placeholder="Cabinet Martin, Asnières – M. Martin gérant, 01 47 22 33 44&#10;Etude Durand notaires 92100&#10;Boulangerie du Centre&#10;847 689 759" ${st.busy?'disabled':''}>${esc(st.text||'')}</textarea>
   ${prev.length?`<div class="lbl">${prev.length} entreprise${prev.length>1?'s':''} repérée${prev.length>1?'s':''} · décoche celles à ignorer</div>
-   <div class="fprev">${prev.map((x,i)=>`<label class="fpi"><input type="checkbox" data-fp="${i}" ${(st.skip||[]).includes(i)?'':'checked'}><b>${esc(x.nom||fmtSiret(x.sir))}</b><span>${esc([x.sir&&x.nom?fmtSiret(x.sir):'',fmtTel(x.tel||x.mob||''),x.email,[x.cp,x.ville].filter(Boolean).join(' '),x.rest?'+ notes':''].filter(Boolean).join(' · '))}</span></label>`).join('')}</div>`:''}
+   <div class="fprev">${prev.map((x,i)=>{const L=freeLook(x);const ch=(st.pick||{})[freeKey(x)];return `<div class="fpi"><input type="checkbox" data-fp="${i}" ${(st.skip||[]).includes(i)?'':'checked'} aria-label="Importer ${esc(x.nom||x.sir)}"><b>${esc(x.nom||fmtSiret(x.sir))}</b><span>${esc([x.sir&&x.nom?fmtSiret(x.sir):'',fmtTel(x.tel||x.mob||''),x.email,[x.cp,x.ville].filter(Boolean).join(' '),x.rest?'+ notes':''].filter(Boolean).join(' · '))}</span>
+     <span class="fp-reg">${!L?'':L.busy?'<span class="spin"></span> recherche au registre…':L.err?esc(L.err):!L.res.length?'pas trouvée au registre (fiche créée avec le nom)':`<select data-fpk="${esc(freeKey(x))}">${L.res.map((r,j)=>{const a=addrOf(pickEtab(r,{cp:x.cp})||r.siege);return `<option value="${j}" ${String(ch??L.best)===String(j)?'selected':''}>✓ ${esc(nameOf(r))} · ${esc([a.cp,a.ville].filter(Boolean).join(' '))} · ${esc(fmtSiret(r.siren))}</option>`}).join('')}<option value="-1" ${String(ch??L.best)==='-1'?'selected':''}>Aucune ne correspond (garder seulement le nom)</option></select>`}</span></div>`}).join('')}</div>`:''}
   <div class="ident-row"><span class="lbl">Canal</span><div class="chips">${[['tel','Téléphonique'],['terrain','Terrain']].map(([k,l])=>`<button class="chip" data-act="impsrc" data-v="${k}" aria-pressed="${(st.src||(S.mode==='terrain'?'terrain':'tel'))===k}">${l}</button>`).join('')}</div></div>
   ${st.msg?`<div class="ai" data-s="${st.busy?'busy':''}">${st.busy?'<span class="spin"></span>':''}<span>${esc(st.msg)}</span></div>`:''}
   ${st.log?.length?`<div class="implog">${st.log.map(l=>`<div class="${l.ok?'':l.warn?'warn':'ko'}">${l.ok?'✓':l.warn?'•':'✕'} ${esc(l.t)}</div>`).join('')}</div>`:''}
   <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="closem">Fermer</button>${st.done?`<button class="btn btn-p" data-act="impnew">Coller un autre texte</button>`:`<button class="btn btn-p" data-act="impgo" ${st.busy||!prev.length?'disabled':''}>${prev.length?`Créer ${prev.length-(st.skip||[]).filter(i=>i<prev.length).length} fiche${prev.length-(st.skip||[]).length>1?'s':''}`:'Créer les fiches'}</button>`}</div></div></div>`}
+/* recherche au registre pendant la saisie (aperçu) */
+const FREEQ=new Map();const freeKey=x=>(x.sir||norm(x.nom))+'|'+(x.cp||'');let freeRun=false;
+function freeLook(x){return FREEQ.get(freeKey(x))||null}
+async function freeLookAll(){if(freeRun)return;freeRun=true;try{for(let n=0;n<40;n++){const st=S.imp;if(!st||st.busy||!st.text)break;const todo=parseFree(st.text).slice(0,40).find(x=>!FREEQ.has(freeKey(x)));if(!todo)break;
+    const k=freeKey(todo);const L={busy:true,res:[]};FREEQ.set(k,L);try{
+      if(todo.sir){const res=await reSearch(todo.sir);L.res=res.filter(r=>r.siren===todo.sir.slice(0,9)).slice(0,1);L.best=L.res.length?0:-1}
+      else{const res=rankRes(await reSearch(todo.nom,{per_page:12,code_postal:todo.cp||undefined}),todo.nom+' '+(todo.ville||''),todo.cp).filter(r=>r.etat_administratif!=='C').slice(0,5);L.res=res;
+        const top=res[0];const sc=top?Math.max(nameScore(todo.nom,nameOf(top)),...etabsOf(top).map(e=>nameScore(todo.nom,enseigneOf(top,e)||''))):0;L.best=top&&sc>=0.6?0:-1}}
+    catch(e){L.err=e?.fr||'registre indisponible'}L.busy=false;if(S.importing&&S.imp===st&&!st.busy){const ae=document.activeElement;const pos=ae?.id==='imp-text'?ae.selectionStart:null;renderLayer();if(pos!=null){const t=$('#imp-text');t?.focus();t?.setSelectionRange(pos,pos)}}}}finally{freeRun=false}}
 /* ---------- Texte libre → entreprises ---------- */
 const PHONE_RX=/(?:\+33\s?|0)[1-9](?:[\s.\-]?\d{2}){4}/g, MAIL_RX=/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, SITE_RX=/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fr|com|net|org|eu|io|paris|immo|law|avocat|notaires\.fr|biz|info)\b(?:\/[^\s,;]*)?/gi;
 const CPV_RX=/\b(\d{5})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' \-]{1,40}?)(?=$|[,;\n.()]|\s{2}|\s[-–]\s)/;
@@ -2247,6 +2277,7 @@ function parseFree(t){const out=[];
     for(const seg of first.split(/\s[-–—|]\s|\t|\s*[|;:]\s*|,\s+|\s\(/)){let x=seg.replace(PHONE_RX,' ').replace(MAIL_RX,' ').replace(SITE_RX,' ').replace(/\b\d{9}(\d{5})?\b|\b\d{3}\s?\d{3}\s?\d{3}(\s?\d{5})?\b/g,' ').replace(/[)\]]+$/,'').replace(/\s+/g,' ').trim();
       if(!x||x.length<2||ADDR_RE.test(x)||/^\d+$/.test(x)||/^(tel|tél|mail|email|siret|siren|adresse|contact)\b/i.test(x))continue;
       if(cpm&&x.includes(cpm[1]))x=x.replace(cpm[0],'').trim();if(!x)continue;nom=x;break}
+    nom=nom.replace(/\s*\b\d{5}\b.*$/,'').trim()||nom;
     if(nom&&/^(m\.|mr|mme|madame|monsieur)\s/i.test(nom)&&!sir)nom='';
     if(!nom&&!sir)continue;
     let rest=b.replace(/(^|\n)\s*(soci[ée]t[ée]|entreprise|raison sociale|adresse|notes?|commentaires?)\s*:\s*/gi,'$1');for(const v of [nom,email,site])if(v)rest=rest.replace(v,' ');rest=rest.replace(/\s+/g,' ').replace(/^[\s,;:\-–|]+|[\s,;:\-–|]+$/g,'').trim();
@@ -2265,6 +2296,7 @@ async function runFree(st){const all=parseFree(st.text);const list=all.filter((x
     let how='';
     try{if(p.rne?.status!=='ok'){
       if(x.sir){const res=await reSearch(x.sir);const r=res.find(z=>z.siren===x.sir.slice(0,9))||res[0];if(r){applyRe(p,r,x.sir.length===14?{siret:x.sir,force:true,soft:!isNew}:{cp:x.cp,soft:!isNew});how='registre ✓'}}
+      else if(freeLook(x)&&!freeLook(x).busy&&!freeLook(x).err){const L=freeLook(x);const j=+((st.pick||{})[freeKey(x)]??L.best);const r=j>=0?L.res[j]:null;if(r){applyRe(p,r,{cp:x.cp,adresse:x.adresse,soft:!isNew});const e=pickEtab(r,{cp:x.cp});if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};how='registre ✓'}else how=L.res.length?'gardée avec le nom (aucune entreprise choisie)':'pas trouvée au registre (fiche gardée avec le nom)'}
       else if(x.nom){const res=rankRes(await reSearch(x.nom,{per_page:12,code_postal:x.cp||undefined}),x.nom+' '+(x.ville||''),x.cp).slice(0,5);
         const top=res[0];const sc=top?Math.max(nameScore(x.nom,nameOf(top)),...etabsOf(top).map(e=>nameScore(x.nom,enseigneOf(top,e)||''))):0;
         const clear=top&&sc>=0.8&&(!res[1]||res[1]._s<top._s-0.5||x.cp);
@@ -2499,6 +2531,7 @@ document.addEventListener('input',e=>{const el=e.target;
 document.addEventListener('change',e=>{const el=e.target;
   if((el.id==='exp-from'||el.id==='exp-to')&&S.exp){S.exp[el.id==='exp-from'?'from':'to']=el.value;renderLayer();return}
   if(el.id==='who-sel'){S.who=el.value;lsSet(LK()+'-who',S.who);if(S.sel&&!vis(cur()||{}))S.sel=null;S.filter='all';render();toast(el.value==='me'?'Tes fiches':el.value==='all'?'Fiches de toute l’équipe':'Fiches de '+memberName(el.value));return}if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
+  if(el.dataset.fpk!=null&&S.imp){S.imp.pick=S.imp.pick||{};S.imp.pick[el.dataset.fpk]=el.value;return}
   if(el.dataset.fp!=null&&S.imp){const i=+el.dataset.fp;S.imp.skip=S.imp.skip||[];S.imp.skip=el.checked?S.imp.skip.filter(x=>x!==i):[...S.imp.skip,i];renderLayer();return}
   if(el.id==='fimp-in'&&el.files[0]){const f=el.files[0];el.value='';fimpFile(f);return}
   if(el.dataset.fcol!=null&&S.fimp){const j=+el.dataset.fcol,k=el.value;if(k&&k!=='note')S.fimp.map=S.fimp.map.map((x,i)=>i!==j&&x===k?'':x);S.fimp.map[j]=k;renderLayer();return}
