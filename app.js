@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=49;
+const APP_V=50;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -236,11 +236,19 @@ function linkKeys(p){const o=sirOf(p),k=[];if(o.siren)k.push('n'+o.siren);for(co
   for(const n of [p.ent?.nom,p.ent?.enseigne])if(n){const x=nmKey(n);if(x.length>=4)k.push('k'+x)}for(const c of p.contacts||[]){const n=pName(c);if(n.includes(' '))k.push('d'+n)}return k.map(x=>okey(p)+'|'+x)}
 let LIDX=null;function linkIndex(){const m=new Map();for(const p of S.P.values())for(const k of linkKeys(p)){if(!m.has(k))m.set(k,new Set());m.get(k).add(p.id)}return m}
 function linkedOf(p,idx){idx=idx||linkIndex();const cand=new Set();for(const k of linkKeys(p))for(const id of idx.get(k)||[])cand.add(id);const out=[];for(const id of cand){const q=S.P.get(id);if(!q){continue}if(q.id===p.id||okey(q)!==okey(p)||q.exemple||p.exemple)continue;const why=sameCompany(p,q);if(why)out.push({q,why})}return out}
+const cKey=c=>{const o={...c};delete o.id;return JSON.stringify(Object.keys(o).sort().map(k=>[k,o[k]]))};
+const cIdent=c=>!!(pName(c)||c?.email||c?.tel||c?.mobile);
+/* nettoyage : contacts en double (dont ceux multipliés par erreur entre fiches liées) */
+function dedupeContacts(p){const L=p.contacts||[];if(L.length<2)return false;const seen=new Set(),out=[];
+  for(const c of L){const k=cKey(c);if(seen.has(k))continue;const ex=out.find(x=>sameC(x,c)||(!cIdent(x)&&!cIdent(c)&&(x.fonction||'')===(c.fonction||'')));
+    if(ex){for(const [k2,v] of Object.entries(c))if(k2!=='id'&&filled(v)&&!filled(ex[k2]))ex[k2]=v;continue}seen.add(k);out.push(c)}
+  if(out.length!==L.length){p.contacts=out;return true}return false}
+function cleanAllContacts(){let n=0;for(const p of S.P.values()){if(p._owner&&p._owner!==USER?.id)continue;if(dedupeContacts(p)){S.queue.add(p.id);n++}}if(n){saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800)}return n}
 const sameC=(x,y)=>(pName(x)&&pName(x)===pName(y))||(x.email&&x.email===y.email)||((x.tel||x.mobile)&&[y.tel,y.mobile].includes(x.tel||x.mobile));
 function linkMerge(dst,src){let ch=false;
   for(const sec of LINK_SECS){const S2=src[sec]||{};dst[sec]=dst[sec]||{};for(const [k,v] of Object.entries(S2)){if(LINK_SKIP.has(k)||!filled(v))continue;const cv=dst[sec][k];
       if(!filled(cv)||(dst.est?.[`${sec}.${k}`]&&!src.est?.[`${sec}.${k}`])){dst[sec][k]=structuredClone(v);if(src.est?.[`${sec}.${k}`]){dst.est=dst.est||{};dst.est[`${sec}.${k}`]=true}else if(dst.est)delete dst.est[`${sec}.${k}`];ch=true}}}
-  dst.contacts=dst.contacts||[];for(const c of src.contacts||[]){const ex=dst.contacts.find(x=>sameC(x,c));if(ex){for(const [k,v] of Object.entries(c))if(k!=='id'&&filled(v)&&!filled(ex[k])){ex[k]=v;ch=true}}else{dst.contacts.push({...structuredClone(c),id:rid()});ch=true}}
+  dst.contacts=dst.contacts||[];if(dst.contacts===src.contacts)return ch;for(const c of [...(src.contacts||[])].slice(0,30)){if(!cIdent(c)&&dst.contacts.some(x=>(x.fonction||'')===(c.fonction||'')))continue;if(dst.contacts.length>=30)break;const ex=dst.contacts.find(x=>sameC(x,c));if(ex){for(const [k,v] of Object.entries(c))if(k!=='id'&&filled(v)&&!filled(ex[k])){ex[k]=v;ch=true}}else{dst.contacts.push({...structuredClone(c),id:rid()});ch=true}}
   if(!dst.geo&&src.geo){dst.geo={...src.geo};ch=true}
   if(src.rne?.status==='ok'&&dst.rne?.status!=='ok'){dst.rne=structuredClone(src.rne);ch=true}
   return ch}
@@ -306,7 +314,7 @@ async function pullAll(){
       const {data,error}=await q;if(error)throw error;
       for(const r of data){if(mergeRemote(r)){any=true;if(r.id===S.sel)selChanged=true}last=r.updated_at}
       if(data.length<1000)break;from+=1000}
-    if(last)lsSet(LK()+'-since',last);saveLocal();S.syncErr='';if(any||S.view==='today')renderSoft(selChanged);renderStore()}
+    if(last)lsSet(LK()+'-since',last);try{cleanAllContacts()}catch{}saveLocal();S.syncErr='';if(any||S.view==='today')renderSoft(selChanged);renderStore()}
   catch(e){S.syncErr=e?.message||String(e);renderStore()}}
 function subscribe(){
   if(!SB||!USER)return;if(RT){SB.removeChannel(RT);RT=null}
@@ -329,9 +337,9 @@ async function initStore(){
       SB.auth.onAuthStateChange((ev,sess)=>{const u=sess?.user||null;if((u?.id||null)!==(USER?.id||null)){USER=u;onUser()}})}
     catch(e){SB=null}}
   onUser()}
-function onUser(){setTimeout(()=>{try{const n=syncAllLinks();if(n)toast(`${n} fiche${n>1?'s':''} complétée${n>1?'s':''} grâce aux fiches liées (même entreprise)`)}catch(e){console.warn(e)}},2500);
+function onUser(){setTimeout(()=>{try{cleanAllContacts();const n=syncAllLinks();if(n)toast(`${n} fiche${n>1?'s':''} complétée${n>1?'s':''} grâce aux fiches liées (même entreprise)`)}catch(e){console.warn(e)}},2500);
   if(SB&&!USER){showAuth();return}
-  hideAuth();loadLocal();
+  hideAuth();loadLocal();try{cleanAllContacts()}catch(e){console.warn(e)}
   if(SB&&USER){const loc=lsGet('radar-local-data',[]);if(loc.length){for(const p of loc)if(!S.P.has(p.id)){S.P.set(p.id,p);S.queue.add(p.id)}lsSet('radar-local-data',[])}}
   S.role=lsGet(LK()+'-role','');S.who=lsGet(LK()+'-who','me');
   render();renderStore();if(SB&&USER){pullAll().then(pushQueue);subscribe();loadRole()}}
