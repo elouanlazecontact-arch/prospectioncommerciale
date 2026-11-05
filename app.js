@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=50;
+const APP_V=51;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -587,6 +587,15 @@ function gridHtml(p,t){let sec='',shown='',out='',n=0;
     n++;out+=fieldHtml(f,f.k,getP(p,f.k),null,p)}
   return out}
 const PRESTA_O=['Oui','Non','Ne sait pas'];
+/* liens cliquables : site, LinkedIn, e-mail, téléphone */
+function linkOf(k,t,v){v=String(v||'').trim();if(!v)return null;
+  if(t==='email'||/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v))return{href:'mailto:'+v,l:'✉ Écrire',ext:false};
+  if(t==='tel'){const d=v.replace(/[^\d+]/g,'');return d.length>=10?{href:'tel:'+d,l:'📞 Appeler',ext:false}:null}
+  if(/linkedin/i.test(k)||/linkedin\.com/i.test(v)){const h=/^https?:\/\//i.test(v)?v:/linkedin\.com/i.test(v)?'https://'+v.replace(/^\/+/,''):'https://www.linkedin.com/search/results/all/?keywords='+encodeURIComponent(v);return{href:h,l:'LinkedIn ↗',ext:true}}
+  if(/^(https?:\/\/|www\.)/i.test(v)||/^[a-z0-9-]+(\.[a-z0-9-]+)*\.(fr|com|net|org|eu|io|paris|immo|biz|info|co|be|ch)(\/\S*)?$/i.test(v))return{href:/^https?:\/\//i.test(v)?v:'https://'+v,l:'↗ Ouvrir',ext:true};
+  return null}
+const linkify=h=>h.replace(/\b(https?:\/\/[^\s<]+|www\.[^\s<]+|(?:[a-z0-9-]+\.)*linkedin\.com\/[^\s<]+)/gi,m=>`<a href="${/^https?:/i.test(m)?m:'https://'+m}" target="_blank" rel="noopener">${m}</a>`).replace(/\b([\w.+-]+@[\w-]+(?:\.[\w-]+)+)\b/g,'<a href="mailto:$1">$1</a>').replace(/\b(0[1-9](?:\s\d{2}){4})\b/g,m=>`<a href="tel:${m.replace(/\s/g,'')}">${m}</a>`);
+const linkBtn=(k,t,v)=>{const L=linkOf(k,t,v);return `<a class="openlink btn btn-g btn-s" data-lk="${esc(k)}" data-lt="${esc(t||'')}" ${L?`href="${esc(L.href)}" ${L.ext?'target="_blank" rel="noopener"':''}`:'hidden'}>${L?esc(L.l):''}</a>`};
 function fieldHtml(f,path,v,def,p){
   const id='f-'+path.replace(/\./g,'-');const span=f.w===2?' span-2':'';const dk=def||f.k;
   const est=p?.est?.[path]?'<em class="est" title="Estimation automatique d’après l’effectif et le secteur : à confirmer pendant l’appel">≈ estimé</em>':'';
@@ -600,7 +609,9 @@ function fieldHtml(f,path,v,def,p){
   const type=f.t==='num'?'number':f.t==='month'?'month':f.t==='email'?'email':f.t==='tel'?'tel':'text';
   if(f.k==='ent.tva'&&v)extra+=' <button class="lnk" data-act="copyv" data-v="'+esc(v)+'">copier</button>';
   const val=f.t==='tel'?fmtTel(v||''):f.t==='mono'&&/siret|siren/.test(f.k)?fmtSiret(v||''):(v??'');
-  return `<div class="f${span}"><label for="${id}">${esc(f.l)}${extra}</label><input class="in${f.t==='mono'||f.t==='tel'?' mono':''}" id="${id}" type="${type}" ${f.t==='num'?'inputmode="numeric" min="0"':''} data-k="${path}" data-def="${dk}" value="${esc(val)}" placeholder="${esc(f.ph||'')}" autocomplete="off"></div>`}
+  const inp=`<input class="in${f.t==='mono'||f.t==='tel'?' mono':''}" id="${id}" type="${type}" ${f.t==='num'?'inputmode="numeric" min="0"':''} data-k="${path}" data-def="${dk}" value="${esc(val)}" placeholder="${esc(f.ph||'')}" autocomplete="off">`;
+  const linky=f.t==='email'||f.t==='tel'||/site|linkedin|web|url/i.test(f.k);
+  return `<div class="f${span}"><label for="${id}">${esc(f.l)}${extra}</label>${linky?`<div class="inbtn">${inp}${linkBtn(f.k,f.t,v)}</div>`:inp}</div>`}
 function chipsHtml(f,path,v,dk){
   const sel=f.t==='multi'?(Array.isArray(v)?v:(v?[v]:[])):(v?[v]:[]);
   const isSel=o=>sel.some(x=>norm(x)===norm(o));
@@ -1920,7 +1931,7 @@ function crHtml(p){const m=crModel(p);
     <div class="cr-when">${esc(m.head)}</div>
     <div class="cr-tags"><span class="pill ${p.source==='terrain'?'st-rappel':'st-contacte'}">${esc(m.canal)}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>${p.temperature?`<span class="pill">${esc(TEMPS.find(x=>x.k===p.temperature)?.l||'')}</span>`:''}</div></div>
     <button class="btn btn-p btn-s" data-act="copycr">Copier le compte rendu</button></div>
-   ${m.sections.map(s=>`<section class="cr-sec"><h4>${esc(s.h)}</h4><ul class="cr-list">${s.items.map(it=>`<li${it.a&&it.a.date&&it.a.date<iso(today())?' class="late"':''}><span>${esc(it.t)}</span>${it.sub?`<span class="cr-sub">${esc(it.sub).replace(/\n/g,'<br>')}</span>`:''}${it.a&&it.a.date&&CAL_TYPES.includes(it.a.type)?calBtns(p,it.a):''}</li>`).join('')}</ul></section>`).join('')}
+   ${m.sections.map(s=>`<section class="cr-sec"><h4>${esc(s.h)}</h4><ul class="cr-list">${s.items.map(it=>`<li${it.a&&it.a.date&&it.a.date<iso(today())?' class="late"':''}><span>${linkify(esc(it.t))}</span>${it.sub?`<span class="cr-sub">${linkify(esc(it.sub)).replace(/\n/g,'<br>')}</span>`:''}${it.a&&it.a.date&&CAL_TYPES.includes(it.a.type)?calBtns(p,it.a):''}</li>`).join('')}</ul></section>`).join('')}
    <p class="cr-foot">Notes d’origine conservées telles quelles dans Suivi → Historique.</p>
   </div>`}
 
@@ -2534,7 +2545,7 @@ document.addEventListener('input',e=>{const el=e.target;
   if((el.id==='ident-in'||(el.dataset.k==='ent.nom'&&cur()?.rne?.status!=='ok'))){clearTimeout(sugT);sugT=setTimeout(()=>suggest(el),380)}
   if((el.dataset.k==='ent.siret'||el.dataset.k==='ent.siren')&&cur()){const d=el.value.replace(/\D/g,'');const p=cur();if(((d.length===14&&luhn(d))||(d.length===9&&el.dataset.k==='ent.siren'))&&(p.rne?.status!=='ok'||p.ent?.siren!==d.slice(0,9))){setTimeout(()=>identify(p,d),50)}}
   if(el.dataset.k&&!el.classList.contains('chip-in')){const f=defOf(el.dataset.def||el.dataset.k);let v=el.value;if(f&&f.t==='num')v=v===''?'':+v;if(f&&(f.t==='tel'||/siret|siren/.test(f.k)))v=v.replace(/[^\d+]/g,'');
-    setField(el.dataset.k,v);if(el.dataset.k==='ent.nom'||el.dataset.k.startsWith('ent.'))renderList();
+    setField(el.dataset.k,v);{const ob=el.parentElement?.querySelector('.openlink');if(ob){const L=linkOf(ob.dataset.lk,ob.dataset.lt,el.value);if(L){ob.hidden=false;ob.href=L.href;ob.textContent=L.l;if(L.ext){ob.target='_blank';ob.rel='noopener'}else ob.removeAttribute('target')}else ob.hidden=true}}if(el.dataset.k==='ent.nom'||el.dataset.k.startsWith('ent.'))renderList();
     if(el.dataset.k==='ent.siret'&&v.length===14&&!cur().ent.siren){cur().ent.siren=v.slice(0,9);const s=$('#f-ent-siren');if(s)s.value=fmtSiret(cur().ent.siren)}}});
 document.addEventListener('change',e=>{const el=e.target;
   if((el.id==='exp-from'||el.id==='exp-to')&&S.exp){S.exp[el.id==='exp-from'?'from':'to']=el.value;renderLayer();return}
