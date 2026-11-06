@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=55;
+const APP_V=56;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -2175,9 +2175,10 @@ function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>St
 const proMail=()=>!!USER?.email&&!/@(outlook|hotmail|live|msn)\./i.test(USER.email);
 /* ---------- Agenda Outlook connecté (Microsoft Graph) : l'événement est créé directement, sans validation ---------- */
 const MS_SCOPES=['Calendars.ReadWrite'];let msApp=null;
+const msTenant=()=>{const t=(S.settings.msTenant||'').trim();if(t)return t;const d=String(USER?.email||'').split('@')[1]||'';return d&&!/^(gmail|hotmail|outlook|live|yahoo|icloud|orange|free|sfr|wanadoo|laposte)\./i.test(d)?d:'organizations'};
 const msRedirect=()=>new URL('auth.html',location.href).href;
 async function msInit(){const id=(S.settings.msClientId||'').trim();if(!id)return null;if(msApp&&msApp._cid===id)return msApp;
-  await loadLib('msal',null,'msal');msApp=new msal.PublicClientApplication({auth:{clientId:id,authority:'https://login.microsoftonline.com/organizations',redirectUri:msRedirect()},cache:{cacheLocation:'localStorage'}});await msApp.initialize();msApp._cid=id;return msApp}
+  await loadLib('msal',null,'msal');msApp=new msal.PublicClientApplication({auth:{clientId:id,authority:'https://login.microsoftonline.com/'+msTenant(),redirectUri:msRedirect()},cache:{cacheLocation:'localStorage'}});await msApp.initialize();msApp._cid=id;return msApp}
 const msAccount=()=>{try{return msApp?.getAllAccounts?.()[0]||null}catch{return null}};
 async function msToken(interactive=false){const app=await msInit();if(!app)throw new Error('noid');let acc=app.getAllAccounts()[0];
   if(acc){try{return(await app.acquireTokenSilent({scopes:MS_SCOPES,account:acc})).accessToken}catch(e){if(!interactive)throw e}}
