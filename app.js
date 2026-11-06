@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=52;
+const APP_V=53;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -337,7 +337,7 @@ async function initStore(){
       SB.auth.onAuthStateChange((ev,sess)=>{const u=sess?.user||null;if((u?.id||null)!==(USER?.id||null)){USER=u;onUser()}})}
     catch(e){SB=null}}
   onUser()}
-function onUser(){setTimeout(()=>{try{cleanAllContacts();const n=syncAllLinks();if(n)toast(`${n} fiche${n>1?'s':''} complétée${n>1?'s':''} grâce aux fiches liées (même entreprise)`)}catch(e){console.warn(e)}},2500);
+function onUser(){setTimeout(()=>{try{cleanAllContacts();const n=syncAllLinks();try{autoFollow()}catch(e){console.warn(e)}if(n)toast(`${n} fiche${n>1?'s':''} complétée${n>1?'s':''} grâce aux fiches liées (même entreprise)`)}catch(e){console.warn(e)}},2500);
   if(SB&&!USER){showAuth();return}
   hideAuth();loadLocal();try{cleanAllContacts()}catch(e){console.warn(e)}
   if(SB&&USER){const loc=lsGet('radar-local-data',[]);if(loc.length){for(const p of loc)if(!S.P.has(p.id)){S.P.set(p.id,p);S.queue.add(p.id)}lsSet('radar-local-data',[])}}
@@ -504,8 +504,35 @@ function emptyStart(){return `<div class="empty"><h3>Ton radar est vide</h3><spa
 function todoRow({p,a}){const c=dueClass(a);return `<button class="todo" data-act="open" data-id="${p.id}" data-tab="suivi"><span class="atype">${esc(a.type)}</span><span style="min-width:0"><div class="t">${esc(displayName(p))}</div><div class="n">${esc([a.note,p.contacts?.[0]&&[p.contacts[0].prenom,p.contacts[0].nom].filter(Boolean).join(' '),fmtTel(p.contacts?.[0]?.tel||p.contacts?.[0]?.mobile||p.ent?.tel)].filter(Boolean).join(' · '))}</div></span><span class="due ${c}">${esc(c==='late'?fmtDate(a.date):a.heure||fmtDate(a.date))}</span></button>`}
 
 /* ================= Agenda ================= */
+/* ---------- Relances automatiques : aucun prospect ne tombe dans l'oubli ---------- */
+const bizBetween=(a,b)=>{let n=0,x=new Date(a);while(iso(x)<iso(b)){x=addDays(x,1);if(x.getDay()%6)n++}return n};
+function lastTouch(p){const d=[...(p.journal||[]).map(j=>String(j.date).slice(0,10)),...(p.actions||[]).filter(a=>a.fait&&a.faitLe).map(a=>String(a.faitLe).slice(0,10))].filter(Boolean).sort();return d.at(-1)||(p.createdAt?iso(new Date(p.createdAt)):'')}
+function autoFollow(force=false){if(S.settings.autoFollow===false)return 0;const day=iso(today());const k=`radar-af-${curWs().id}-${day}`;if(!force&&lsGet(k,false))return 0;lsSet(k,true);
+  const t=today(),T=iso(t);let n=0;const mk=(p,type,note,inD=0)=>{const date=iso(inD?bizDays(t,inD):(t.getDay()%6?t:bizDays(t,0)));if(addAction(p,{type,date,heure:'',note,gen:true})){touch(p);n++}};
+  for(const p of VP()){if(p.exemple||(p._owner&&p._owner!==USER?.id)||['gagne','perdu','ko','nouveau'].includes(p.statut))continue;
+    if((p.actions||[]).some(a=>!a.fait))continue;const lt=lastTouch(p);if(!lt)continue;const gap=bizBetween(jDate(lt),t);const lf=lt.split('-').reverse().join('/');
+    if(p.statut==='devis'&&gap>=5)mk(p,'Relance',`Relance auto : devis sans réponse depuis le ${lf}`);
+    else if(p.statut==='rdv_fait'&&gap>=1)mk(p,'Mail',`Relance auto : envoyer le compte rendu / la proposition suite au RDV`);
+    else if(p.statut==='rdv'&&gap>=1&&!(p.actions||[]).some(a=>a.type==='RDV'&&!a.fait))mk(p,'Appel',`Le RDV a-t-il eu lieu ? Mets à jour le statut`);
+    else if((p.statut==='rappel'||p.statut==='contacte')&&gap>=(p.temperature==='chaud'?2:p.temperature==='froid'?10:5))mk(p,'Relance',`Relance auto : sans nouvelles depuis le ${lf}`)}
+  if(n)toast(`${n} relance${n>1?'s':''} automatique${n>1?'s':''} ajoutée${n>1?'s':''} à l’agenda (prospects sans suivi)`);return n}
+function agCard(x){const p=x.p,a=x.a;const tel=p.contacts?.find(c=>c.decideur==='Oui'&&(c.tel||c.mobile))||p.contacts?.find(c=>c.tel||c.mobile);const ph=tel?.tel||tel?.mobile||p.ent?.tel||'';
+  const late=a.date&&a.date<iso(today())?bizBetween(jDate(a.date),today()):0;
+  return `<div class="agc${a.gen?' auto':''}${late?' late':''}"><div class="agc-h"><span class="atype">${esc(a.type)}</span>${a.heure?`<b class="agc-t">${esc(a.heure.replace(':','h'))}</b>`:''}${late?`<span class="agc-late">${late} j de retard</span>`:''}${a.gen?'<span class="agc-auto" title="Relance créée automatiquement">auto</span>':''}</div>
+   <button class="agc-n" data-act="open" data-id="${p.id}" data-tab="suivi">${esc(displayName(p))}</button>
+   ${a.note?`<div class="agc-note">${esc(a.note)}</div>`:''}<div class="agc-m">${esc([p.ent?.ville,ST[p.statut]?.l].filter(Boolean).join(' · '))}</div>
+   <div class="agc-b"><button class="btn btn-p btn-s" data-act="done" data-id="${p.id}" data-a="${a.id}" title="Marquer comme fait">✓ Fait</button>${ph?`<a class="btn btn-g btn-s" href="tel:${esc(ph)}" title="${esc(fmtTel(ph))}">📞</a>`:''}<button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="1" title="Reporter au prochain jour ouvré">+1 j</button><button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="5" title="Reporter d’une semaine">+1 sem</button></div></div>`}
+function renderAgendaCols(el,acts){const t=iso(today()),tm=iso(bizDays(today(),1)),wk=iso(addDays(today(),7));
+  const C=[['En retard',x=>x.a.date&&x.a.date<t,'late'],["Aujourd'hui",x=>x.a.date===t,'now'],[`${JOURS[jDate(tm).getDay()].replace(/^./,c=>c.toUpperCase())} ${jDate(tm).getDate()}`,x=>x.a.date>t&&x.a.date<=tm,''],['Cette semaine',x=>x.a.date>tm&&x.a.date<=wk,''],['Plus tard',x=>!x.a.date||x.a.date>wk,'']];
+  const late=acts.filter(C[0][1]).length;
+  el.innerHTML=`<div class="hello ag-top"><div><h1>Agenda</h1><p>${acts.length} action${acts.length>1?'s':''} ouverte${acts.length>1?'s':''}${late?` · <b style="color:var(--bad)">${late} en retard</b>`:''}</p></div>
+    <div class="ag-tools">${late?`<button class="btn btn-p btn-s" data-act="aglate">Reporter les ${late} retards à aujourd’hui</button>`:''}<button class="btn btn-g btn-s" data-act="agauto">↻ Relances auto</button>
+    <label class="ag-sw"><input type="checkbox" id="af-on" ${S.settings.autoFollow!==false?'checked':''}> Relances automatiques</label></div></div>
+   <div class="agcols">${C.map(([l,f,c])=>{const g=acts.filter(f);return `<section class="agcol ${c}"><h3>${esc(l)} <span>${g.length}</span></h3><div class="agcol-b">${g.length?g.map(agCard).join(''):`<div class="agcol-e">${c==='late'?'Rien en retard 👍':'—'}</div>`}</div></section>`}).join('')}</div>
+   <p class="ag-help">Relances automatiques (une fois par jour) : un prospect « Contacté » ou « À rappeler » sans action prévue reçoit une relance après 5 jours ouvrés sans nouvelles (2 s’il est chaud, 10 s’il est froid). Après un devis : relance à 5 jours. Après un RDV effectué : envoi du compte rendu le lendemain. Un RDV passé sans mise à jour : vérification du statut.</p>`}
 function renderAgenda(){
-  const el=$('#agenda');if(!el)return;const t=iso(today()),tm=iso(addDays(today(),1)),wk=iso(addDays(today(),7));
+  const el=$('#agenda');if(!el)return;try{autoFollow()}catch(e){console.warn(e)}
+  if(S.mode==='poste'){const acts=allActions().filter(x=>!x.a.fait).sort((x,y)=>((x.a.date||'9')+(x.a.heure||'99'))<((y.a.date||'9')+(y.a.heure||'99'))?-1:1);return renderAgendaCols(el,acts)}const t=iso(today()),tm=iso(addDays(today(),1)),wk=iso(addDays(today(),7));
   const acts=allActions().filter(x=>!x.a.fait).sort((x,y)=>((x.a.date||'9')+(x.a.heure||''))<((y.a.date||'9')+(y.a.heure||''))?-1:1);
   const groups=[['En retard',x=>x.a.date&&x.a.date<t,'late'],["Aujourd'hui · "+longDate(today(),false),x=>x.a.date===t],['Demain · '+longDate(addDays(today(),1),false),x=>x.a.date===tm],...[2,3,4,5,6,7].map(n=>{const d=addDays(today(),n),k=iso(d);const L=longDate(d,false);return[L.charAt(0).toUpperCase()+L.slice(1),x=>x.a.date===k]}),['Plus tard',x=>x.a.date>wk],['Sans date',x=>!x.a.date]];
   el.innerHTML=`<div class="hello"><div><h1>Agenda</h1><p>${acts.length} action${acts.length>1?'s':''} ouverte${acts.length>1?'s':''}. Coche pour terminer, touche pour ouvrir la fiche.</p></div></div>
@@ -877,6 +904,9 @@ const ACT={
  wsmenu:()=>{lsSet('radar-ws-tip',true);S.menu=false;S.wsMenu=true;S.wsEdit=null;renderLayer()},
  wsx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.wsMenu=false;S.wsEdit=null;renderLayer()},
  wsgo:b=>wsSwitch(b.dataset.v),
+ agmove:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions.find(x=>x.id===b.dataset.a);if(!a)return;const base=a.date&&a.date>iso(today())?jDate(a.date):today();a.date=iso(bizDays(base,+b.dataset.v));touch(p);renderAgenda();toast(`${a.type} reporté au ${fmtDate(a.date)}`)},
+ aglate:()=>{const t=today();const T=iso(t.getDay()%6?t:bizDays(t,0));let n=0;for(const {p,a} of allActions())if(!a.fait&&a.date&&a.date<iso(today())){a.date=T;touch(p);n++}renderAgenda();toast(`${n} action${n>1?'s':''} reportée${n>1?'s':''} à aujourd’hui`)},
+ agauto:()=>{const n=autoFollow(true);if(!n)toast('Aucune relance à créer : tous les prospects en cours ont une action prévue');renderAgenda()},
  golink:b=>{const q=S.P.get(b.dataset.id);if(!q)return;if(wsOf(q)!==curWs().id)wsSwitch(wsOf(q));openFiche(q.id,'ent')},
  wstipx:()=>{lsSet('radar-ws-tip',true);render()},
  wsnew:()=>{const used=wsList().map(w=>w.c||WS_COLORS[0]);S.wsEdit={name:'',c:WS_COLORS.find(c=>!used.includes(c))||WS_COLORS[1]};renderLayer();setTimeout(()=>$('#ws-name')?.focus(),30)},
@@ -942,7 +972,7 @@ function addAction(p,a){p.actions=p.actions||[];if(!a.date&&!a.type)return false
   if(p.actions.some(x=>!x.fait&&x.type===a.type&&x.date===a.date))return false;
   // Une nouvelle relance remplace les rappels ouverts plus anciens
   if(['Rappel','Appel','Visite','Relance'].includes(a.type))p.actions.filter(x=>!x.fait&&['Rappel','Appel','Visite','Relance'].includes(x.type)&&x.date&&a.date&&x.date<=a.date).forEach(x=>{x.fait=true;x.faitLe=new Date().toISOString();x.auto=true});
-  p.actions.push({id:rid(),type:a.type||'Rappel',date:a.date||'',heure:a.heure||'',note:a.note||'',fait:false,createdAt:Date.now()});return true}
+  p.actions.push({id:rid(),type:a.type||'Rappel',date:a.date||'',heure:a.heure||'',note:a.note||'',fait:false,createdAt:Date.now(),...(a.gen?{gen:true}:{})});return true}
 
 /* ================= Session d'appels ================= */
 function startSession(){const t=iso(today());
@@ -2570,6 +2600,7 @@ document.addEventListener('input',e=>{const el=e.target;
     if(el.dataset.k==='ent.siret'&&v.length===14&&!cur().ent.siren){cur().ent.siren=v.slice(0,9);const s=$('#f-ent-siren');if(s)s.value=fmtSiret(cur().ent.siren)}}});
 document.addEventListener('change',e=>{const el=e.target;
   if((el.id==='exp-from'||el.id==='exp-to')&&S.exp){S.exp[el.id==='exp-from'?'from':'to']=el.value;renderLayer();return}
+  if(el.id==='af-on'){S.settings.autoFollow=el.checked;saveSettings();toast(el.checked?'Relances automatiques activées':'Relances automatiques désactivées');return}
   if(el.id==='who-sel'){S.who=el.value;lsSet(LK()+'-who',S.who);if(S.sel&&!vis(cur()||{}))S.sel=null;S.filter='all';render();toast(el.value==='me'?'Tes fiches':el.value==='all'?'Fiches de toute l’équipe':'Fiches de '+memberName(el.value));return}if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
   if(el.dataset.fpk!=null&&S.imp){S.imp.pick=S.imp.pick||{};S.imp.pick[el.dataset.fpk]=el.value;return}
   if(el.dataset.fp!=null&&S.imp){const i=+el.dataset.fp;S.imp.skip=S.imp.skip||[];S.imp.skip=el.checked?S.imp.skip.filter(x=>x!==i):[...S.imp.skip,i];renderLayer();return}
