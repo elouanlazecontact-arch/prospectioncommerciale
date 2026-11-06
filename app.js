@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=56;
+const APP_V=57;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -385,7 +385,7 @@ function matches(p,q){if(!q)return true;const s=norm([p.ent?.nom,p.ent?.enseigne
   return norm(q).split(/\s+/).every(w=>s.includes(w.replace(/\s/g,'')))}
 function filtered(){const t=iso(today());
   return VP().filter(p=>matches(p,S.q)).filter(p=>{
-    if(S.filter==='all')return true;if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
+    if(S.filter==='all')return true;if(S.filter==='todo')return untreated(p);if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
     if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
    .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:(a.createdAt||0)-(b.createdAt||0)})}
 function allActions(){const out=[];for(const p of VP())for(const a of (p.actions||[]))out.push({p,a});return out}
@@ -556,18 +556,36 @@ async function regSugFetch(q){const k=q.toLowerCase();if(REGQ.has(k))return;cons
 async function regCreate(r,{open=true}={}){const p=blank(S.mode==='poste'?'tel':'terrain');applyRe(p,r,{});const e=pickEtab(r,{});if(e?.latitude)p.geo={lat:+e.latitude,lon:+e.longitude};
   p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Créée depuis la recherche',texte:''});
   S.P.set(p.id,p);touch(p);if(open){S.q='';if($('#q'))$('#q').value='';openFiche(p.id,'ent')}findPhone(p,{silent:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{});return p}
+/* « À traiter » : aucune note, aucun appel / visite, statut jamais changé */
+const SYS_J=/^(import|créée|cr[ée]ee|complétée|fiche test|ajout)/i;
+function untreated(p){return p.statut==='nouveau'&&!(p.journal||[]).some(j=>j.canal==='tel'||j.canal==='terrain'||(String(j.texte||'').trim()&&!SYS_J.test(j.issue||'')&&!/^[\d\s]+$/.test(j.texte)))&&!(p.actions||[]).some(a=>!a.fait)}
+const initials=n=>String(n||'?').replace(/\b(sas|sarl|sa|scp|selarl|cabinet|etude|société|societe)\b/gi,'').trim().split(/[\s-]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';
+function rowHtml(p){const a=nextAction(p);const c=p.contacts?.find(x=>x.decideur==='Oui')||p.contacts?.[0];const st=ST[p.statut];
+  return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
+   ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="av" style="--c:${st?.c||'var(--ink-3)'}">${esc(initials(displayName(p)))}${p.temperature?`<i class="tdot" data-t="${p.temperature}"></i>`:''}</span>`}
+   <span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(st?.l||'')}</span>
+   <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
+function foldState(){if(!S.fold)S.fold=lsGet('radar-fold',{todo:true,clos:true});return S.fold}
+function groupedRows(L){const t=iso(today());const G=[
+   ['due','🔔 À faire aujourd’hui',p=>{const a=nextAction(p);return a&&a.date&&a.date<=t}],
+   ['plan','📅 Planifiés',p=>!!nextAction(p)],
+   ['cours','💬 En cours, sans action prévue',p=>!['gagne','perdu','ko'].includes(p.statut)&&!untreated(p)],
+   ['clos','🗂️ Clos (signés, perdus, pas intéressés)',p=>['gagne','perdu','ko'].includes(p.statut)],
+   ['todo','📥 À traiter',p=>true]];
+  const used=new Set(),out=[];for(const [k,l,f] of G){const g=L.filter(p=>!used.has(p.id)&&(k==='todo'?untreated(p):k==='plan'||k==='due'?!untreated(p)&&f(p):f(p)));g.forEach(p=>used.add(p.id));if(g.length)out.push([k,l,g])}
+  /* le dossier « À traiter » vient en premier, replié par défaut */
+  out.sort((a,b)=>(a[0]==='todo'?-1:0)-(b[0]==='todo'?-1:0));const F=foldState();
+  return out.map(([k,l,g])=>{const closed=!!F[k];return `<section class="fold${k==='todo'?' fold-todo':''}"><button class="fold-h" data-act="fold" data-v="${k}" aria-expanded="${!closed}"><span class="fold-ar">${closed?'▸':'▾'}</span><span class="fold-l">${l}</span><span class="fold-n">${g.length}</span></button>${closed?(k==='todo'?`<div class="fold-hint">Sociétés jamais appelées, sans note ni statut (imports, fiches créées). <button class="lnk" data-act="fold" data-v="todo">Ouvrir le dossier</button> · <button class="lnk" data-act="sesstodo">Lancer une session d’appels sur ces ${g.length} fiches</button></div>`:''):g.map(rowHtml).join('')}</section>`}).join('')}
 function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
-  const F=[['all','Tous'],['due','À traiter'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
-  el.innerHTML=`<div class="list-head"><div class="lh-acts"><button class="btn btn-loc btn-s" data-act="view" data-v="around">📍 Autour de moi</button><button class="btn btn-g btn-s" data-act="importopen" title="Colle une liste de sociétés, des notes ou des SIRET">+ Coller une liste</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer un fichier</button></div>
+  const F=[['all','Tous'],['due','À faire'],['todo','Jamais traitées'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
+  el.innerHTML=`<div class="list-head"><div class="lh-acts lh-compact"><button class="btn btn-g btn-s" data-act="importopen" title="Colle une liste de sociétés, des notes ou des SIRET">＋ Coller une liste</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer</button><button class="btn btn-g btn-s" data-act="view" data-v="around" title="Entreprises autour de moi">📍</button></div>
    ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
-   <div class="filters">${F.map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}</div></div>
+   <div class="filters">${F.filter(([k])=>['all','due','todo','chaud','batch','rneko','terrain'].includes(k)).map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}<select class="fsel${STATUTS.some(x=>x.k===S.filter)?' on':''}" id="fstat" aria-label="Filtrer par statut"><option value="">Statut…</option>${STATUTS.map(x=>`<option value="${x.k}" ${S.filter===x.k?'selected':''}>${esc(x.l)} (${VP().filter(p=>p.statut===x.k).length})</option>`).join('')}</select></div></div>
    ${regSugHtml()}
-   <div class="rows">${L.length?L.map(p=>{const a=nextAction(p);const c=p.contacts?.[0];return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
-     ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="tdot" data-t="${p.temperature||''}"></span>`}<span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(ST[p.statut]?.l||'')}</span>
-     <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}<span>${p.ent?.tel?'📞 '+esc(fmtTel(p.ent.tel))+' · ':S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'📞 recherche… · ':''}${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}).join('')
+   <div class="rows">${L.length?(S.filter==='all'&&!S.q&&!S.selMode?groupedRows(L):L.map(rowHtml).join(''))
    :VP().length?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
 }
 
@@ -922,6 +940,8 @@ const ACT={
  wsmenu:()=>{lsSet('radar-ws-tip',true);S.menu=false;S.wsMenu=true;S.wsEdit=null;renderLayer()},
  wsx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.wsMenu=false;S.wsEdit=null;renderLayer()},
  wsgo:b=>wsSwitch(b.dataset.v),
+ fold:b=>{const F=foldState();F[b.dataset.v]=!F[b.dataset.v];lsSet('radar-fold',F);renderList()},
+ sesstodo:()=>{const ids=filtered().filter(untreated).map(p=>p.id);if(ids.length)startSession(ids)},
  agmove:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions.find(x=>x.id===b.dataset.a);if(!a)return;const base=a.date&&a.date>iso(today())?jDate(a.date):today();a.date=iso(bizDays(base,+b.dataset.v));touch(p);if(a.msId&&msOn())graphSave(p,a).catch(()=>{});renderAgenda();toast(`${a.type} reporté au ${fmtDate(a.date)}`)},
  aglate:()=>{const t=today();const T=iso(t.getDay()%6?t:bizDays(t,0));let n=0;for(const {p,a} of allActions())if(!a.fait&&a.date&&a.date<iso(today())){a.date=T;touch(p);n++}renderAgenda();toast(`${n} action${n>1?'s':''} reportée${n>1?'s':''} à aujourd’hui`)},
  agauto:()=>{const n=autoFollow(true);if(!n)toast('Aucune relance à créer : tous les prospects en cours ont une action prévue');renderAgenda()},
@@ -1002,7 +1022,7 @@ function addAction(p,a){p.actions=p.actions||[];if(!a.date&&!a.type)return false
   p.actions.push({id:rid(),type:a.type||'Rappel',date:a.date||'',heure:a.heure||'',note:a.note||'',fait:false,createdAt:Date.now(),...(a.gen?{gen:true}:{})});return true}
 
 /* ================= Session d'appels ================= */
-function startSession(){const t=iso(today());
+function startSession(ids){const t=iso(today());if(Array.isArray(ids)&&ids.length){const q=ids.filter(id=>{const p=S.P.get(id);return p&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))});const rest=ids.filter(id=>!q.includes(id));const Q=[...q,...rest];S.session={q:Q,i:0};openFiche(Q[0],'ent');toast(`Session : ${Q.length} fiche${Q.length>1?'s':''} à traiter${rest.length?` (${rest.length} sans numéro en fin de liste)`:''}`);return}
   const due=VP().map(p=>({p,a:nextAction(p)})).filter(x=>x.a&&['Appel','Rappel','Relance'].includes(x.a.type)&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1).map(x=>x.p.id);
   const fresh=VP().filter(p=>p.statut==='nouveau'&&!due.includes(p.id)&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))).map(p=>p.id);
   const q=[...due,...fresh];if(!q.length){toast('Aucun appel à passer : pas de rappel dû ni de fiche « À qualifier » avec numéro.');return}
@@ -2651,6 +2671,7 @@ document.addEventListener('input',e=>{const el=e.target;
 document.addEventListener('change',e=>{const el=e.target;
   if((el.id==='exp-from'||el.id==='exp-to')&&S.exp){S.exp[el.id==='exp-from'?'from':'to']=el.value;renderLayer();return}
   if(el.id==='af-on'){S.settings.autoFollow=el.checked;saveSettings();toast(el.checked?'Relances automatiques activées':'Relances automatiques désactivées');return}
+  if(el.id==='fstat'){S.filter=el.value||'all';renderList();return}
   if(el.id==='who-sel'){S.who=el.value;lsSet(LK()+'-who',S.who);if(S.sel&&!vis(cur()||{}))S.sel=null;S.filter='all';render();toast(el.value==='me'?'Tes fiches':el.value==='all'?'Fiches de toute l’équipe':'Fiches de '+memberName(el.value));return}if(el.id==='imp-in'&&el.files[0]){const f=el.files[0];el.value='';importBackup(f)}
   if(el.dataset.fpk!=null&&S.imp){S.imp.pick=S.imp.pick||{};S.imp.pick[el.dataset.fpk]=el.value;return}
   if(el.dataset.fp!=null&&S.imp){const i=+el.dataset.fp;S.imp.skip=S.imp.skip||[];S.imp.skip=el.checked?S.imp.skip.filter(x=>x!==i):[...S.imp.skip,i];renderLayer();return}
