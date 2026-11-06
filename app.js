@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=54;
+const APP_V=55;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -526,7 +526,7 @@ function renderAgendaCols(el,acts){const t=iso(today()),tm=iso(bizDays(today(),1
   const C=[['En retard',x=>x.a.date&&x.a.date<t,'late'],["Aujourd'hui",x=>x.a.date===t,'now'],[`${JOURS[jDate(tm).getDay()].replace(/^./,c=>c.toUpperCase())} ${jDate(tm).getDate()}`,x=>x.a.date>t&&x.a.date<=tm,''],['Cette semaine',x=>x.a.date>tm&&x.a.date<=wk,''],['Plus tard',x=>!x.a.date||x.a.date>wk,'']];
   const late=acts.filter(C[0][1]).length;
   el.innerHTML=`<div class="hello ag-top"><div><h1>Agenda</h1><p>${acts.length} action${acts.length>1?'s':''} ouverte${acts.length>1?'s':''}${late?` · <b style="color:var(--bad)">${late} en retard</b>`:''}</p></div>
-    <div class="ag-tools">${late?`<button class="btn btn-p btn-s" data-act="aglate">Reporter les ${late} retards à aujourd’hui</button>`:''}<button class="btn btn-g btn-s" data-act="agauto">↻ Relances auto</button>
+    <div class="ag-tools">${late?`<button class="btn btn-p btn-s" data-act="aglate">Reporter les ${late} retards à aujourd’hui</button>`:''}${msOn()?'<span class="ms-ok" title="RDV et rappels inscrits directement dans Outlook">📅 Outlook connecté</span>':'<button class="btn btn-g btn-s" data-act="mshelp">📅 Connecter Outlook</button>'}<button class="btn btn-g btn-s" data-act="agauto">↻ Relances auto</button>
     <label class="ag-sw"><input type="checkbox" id="af-on" ${S.settings.autoFollow!==false?'checked':''}> Relances automatiques</label></div></div>
    <div class="agcols">${C.map(([l,f,c])=>{const g=acts.filter(f);return `<section class="agcol ${c}"><h3>${esc(l)} <span>${g.length}</span></h3><div class="agcol-b">${g.length?g.map(agCard).join(''):`<div class="agcol-e">${c==='late'?'Rien en retard 👍':'—'}</div>`}</div></section>`}).join('')}</div>
    <p class="ag-help">Relances automatiques (une fois par jour) : un prospect « Contacté » ou « À rappeler » sans action prévue reçoit une relance après 5 jours ouvrés sans nouvelles (2 s’il est chaud, 10 s’il est froid). Après un devis : relance à 5 jours. Après un RDV effectué : envoi du compte rendu le lendemain. Un RDV passé sans mise à jour : vérification du statut.</p>`}
@@ -758,6 +758,7 @@ function msHelpHtml(){const ru=msRedirect();const mail=`Bonjour,\n\nPour gagner 
   <li>Dans la fenêtre Microsoft, connecte-toi et <b>accepte</b>. C’est fini.</li>
  </ol>
  <p class="fsub"><b>Si tu ne peux pas créer l’inscription</b> ou si Microsoft affiche « Approbation de l’administrateur requise », Data Links bloque les nouvelles applications : envoie ce message à ton service informatique.</p>
+ <div class="msbox"><label for="ms-id">ID d’application (client)</label><div class="ident-row"><input class="in mono" id="ms-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="${esc(S.settings.msClientId||'')}" autocomplete="off" style="flex:1;min-width:220px"><button class="btn btn-p" data-act="mslogin">Connecter mon agenda</button></div><span id="ms-r" class="hint"></span></div>
  <textarea class="in" rows="7" readonly style="font-size:12.5px">${esc(mail)}</textarea>
  <div class="ident-row"><button class="btn btn-g btn-s" data-act="copyv" data-v="${esc(mail)}">Copier le message</button><button class="btn btn-p" data-act="mshx">Fermer</button></div></div></div>`}
 function gkHelpHtml(){return `<div class="modal" data-act="gkhx"><div class="gk"><h2>Activer la recherche Google</h2>
@@ -938,7 +939,7 @@ const ACT={
  mshx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.msHelp=false;renderLayer()},
  mslogin:async()=>{const v=($('#ms-id')?.value||S.settings.msClientId||'').trim();const o=$('#ms-r');if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)){if(o)o.textContent='Colle d’abord l’« ID d’application (client) » (format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Clique sur « Guide » pour le créer.';return}
    S.settings.msClientId=v;saveSettings();if(o)o.textContent='Fenêtre Microsoft ouverte : connecte-toi avec ton compte Data Links et accepte.';
-   try{await msToken(true);const acc=msAccount();S.settings.msUser=acc?.username||'compte Microsoft';saveSettings();toast('✓ Agenda Outlook connecté : les RDV et rappels s’inscriront directement');renderLayer()}
+   try{await msToken(true);const acc=msAccount();S.settings.msUser=acc?.username||'compte Microsoft';saveSettings();toast('✓ Agenda Outlook connecté : les RDV et rappels s’inscriront directement');S.msHelp=false;renderLayer();if(S.view==='agenda')renderAgenda()}
    catch(e){const m=String(e?.errorMessage||e?.message||e);if(o)o.innerHTML=/AADSTS90094|AADSTS65001|admin|approbation|consent/i.test(m)?'<b>Data Links demande l’accord de l’administrateur.</b> Envoie le message préparé dans le Guide à ton service informatique.':/AADSTS50011|redirect/i.test(m)?'<b>Adresse de retour incorrecte</b> : dans Azure, ajoute exactement '+esc(msRedirect())+' en « Application monopage (SPA) ».':/popup|blocked|user_cancelled/i.test(m)?'Fenêtre fermée ou bloquée : autorise les pop-ups pour Radar et réessaie.':'Échec : '+esc(m.slice(0,200))}},
  msout:async()=>{try{const app=await msInit();const acc=msAccount();if(app&&acc)await app.clearCache({account:acc})}catch{}S.settings.msUser='';saveSettings();renderLayer();toast('Agenda Outlook déconnecté')},
  mstest:async()=>{const o=$('#ms-r');if(o)o.textContent='Création d’un événement test…';const d=bizDays(today(),1);const fake={id:'test',ent:{nom:'Test Radar'},contacts:[],journal:[],actions:[]};
