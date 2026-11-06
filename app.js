@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=53;
+const APP_V=54;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -731,7 +731,7 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
+  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.msHelp)L.innerHTML=msHelpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
 function applyWs(){const w=curWs();const r=document.documentElement;
   if(w.c){r.style.setProperty('--accent',w.c);r.style.setProperty('--accent-2',w.c);r.style.setProperty('--accent-soft',`color-mix(in srgb, ${w.c} 16%, var(--surface, #fff))`)}else['--accent','--accent-2','--accent-soft'].forEach(k=>r.style.removeProperty(k));
   const sm=$('.brand small');if(sm)sm.innerHTML=`<button class="ws-btn" data-act="wsmenu" title="Changer d’espace de travail">${esc(w.name)} <span aria-hidden="true">▾</span></button>`;
@@ -747,6 +747,19 @@ function wsHtml(){const L=wsList(),c=curWs();const ed=S.wsEdit;
    :`<button class="btn btn-p" data-act="wsnew">+ Nouvel espace</button>`}
   <div class="ident-row" style="justify-content:flex-end"><button class="btn btn-g" data-act="wsx">Fermer</button></div></div></div>`}
 function wsSwitch(id){if(!wsList().some(w=>w.id===id))return;S.ws=id;lsSet(LK()+'-ws',id);S.sel=null;S.filter='all';S.q='';if($('#q'))$('#q').value='';S.session=null;S.wsMenu=false;S.wsEdit=null;applyWs();renderLayer();render();toast(`Espace « ${curWs().name} »`)}
+function msHelpHtml(){const ru=msRedirect();const mail=`Bonjour,\n\nPour gagner du temps en prospection, j’utilise une petite application (Radar) qui inscrit mes rendez-vous et rappels directement dans mon agenda Outlook.\nPeux-tu accorder le consentement administrateur à l’application « Radar » (ID d’application : ${S.settings.msClientId||'à compléter'}) ?\nElle demande uniquement la permission Microsoft Graph déléguée « Calendars.ReadWrite » (lire et écrire dans mon propre calendrier), rien d’autre.\n\nMerci !\nElouan`;
+ return `<div class="modal" data-act="mshx"><div class="gk"><h2>Connecter Radar à ton agenda Outlook</h2>
+ <p class="fsub">À faire une seule fois. Ensuite, chaque RDV pris et chaque rappel demandé s’inscrit directement dans ton agenda, sans fenêtre à valider.</p>
+ <ol>
+  <li>Ouvre <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">portal.azure.com → Inscriptions d’applications</a> avec ton compte Data Links, puis <b>+ Nouvelle inscription</b>.</li>
+  <li>Nom : <b>Radar</b>. Types de comptes : <b>« Comptes dans un annuaire organisationnel (tout locataire Microsoft Entra ID – multilocataire) »</b>.</li>
+  <li>URI de redirection : choisis <b>« Application monopage (SPA) »</b> et colle : <code>${esc(ru)}</code> <button class="lnk" data-act="copyv" data-v="${esc(ru)}">copier</button>. Clique sur <b>Inscrire</b>.</li>
+  <li>Copie l’<b>« ID d’application (client) »</b> affiché, colle-le dans Radar (Options → Agenda Outlook connecté) et clique sur <b>Connecter mon agenda</b>.</li>
+  <li>Dans la fenêtre Microsoft, connecte-toi et <b>accepte</b>. C’est fini.</li>
+ </ol>
+ <p class="fsub"><b>Si tu ne peux pas créer l’inscription</b> ou si Microsoft affiche « Approbation de l’administrateur requise », Data Links bloque les nouvelles applications : envoie ce message à ton service informatique.</p>
+ <textarea class="in" rows="7" readonly style="font-size:12.5px">${esc(mail)}</textarea>
+ <div class="ident-row"><button class="btn btn-g btn-s" data-act="copyv" data-v="${esc(mail)}">Copier le message</button><button class="btn btn-p" data-act="mshx">Fermer</button></div></div></div>`}
 function gkHelpHtml(){return `<div class="modal" data-act="gkhx"><div class="gk"><h2>Activer la recherche Google</h2>
  <p class="fsub">Google ne laisse aucune appli lire ses fiches sans une clé personnelle. Une fois la clé collée ici, chaque recherche de numéro passe par Google Maps (1 000 recherches gratuites par mois).</p>
  <ol>
@@ -775,6 +788,10 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
   <label for="tt-key" style="text-transform:none;letter-spacing:0;font-weight:600;margin-top:6px">Clé TomTom (facultatif)</label><input class="in mono" id="tt-key" placeholder="Laisse vide si tu n'en as pas" value="${esc(S.settings.tomtomKey||'')}" autocomplete="off">
   <div style="display:flex;gap:6px;align-items:center;margin-top:6px"><button class="btn btn-g btn-s" data-act="keytest">Tester mes clés</button><span id="keytest-r" class="hint"></span></div></div>
  <div class="f"><span class="lab">Mes horaires de travail</span><div class="hrs">${workHours().map(([a,b],i)=>`<span><input class="in mono" type="time" id="wh-${i}a" value="${a}"> – <input class="in mono" type="time" id="wh-${i}b" value="${b}"></span>`).join('<em>et</em>')}</div><small class="hint">Utilisés pour proposer les créneaux de RDV et de rappel.</small></div>
+ <div class="f msbox"><span class="lab">Agenda Outlook connecté (sans validation)</span>
+  ${msOn()?`<div class="ms-ok">✓ Connecté : <b>${esc(S.settings.msUser)}</b>. Les RDV et rappels demandés s’inscrivent directement dans ton agenda.</div><div class="ident-row"><button class="btn btn-g btn-s" data-act="mstest">Tester (crée un événement test)</button><button class="btn btn-q btn-s" data-act="msout">Déconnecter</button></div>`
+   :`<div class="ident-row"><input class="in mono" id="ms-id" placeholder="ID d’application (client) Microsoft" value="${esc(S.settings.msClientId||'')}" autocomplete="off" style="flex:1;min-width:220px"><button class="btn btn-p btn-s" data-act="mslogin">Connecter mon agenda</button><button class="btn btn-q btn-s" data-act="mshelp">Guide (10 min)</button></div>`}
+  <span id="ms-r" class="hint"></span></div>
  <div class="f"><span class="lab">Agenda (RDV et rappels)</span><div class="chips">${[['m365','Outlook pro (Microsoft 365)'],['ics','Outlook (application Windows, fichier)'],...(proMail()?[]:[['live','Outlook.com perso']])].map(([k,l])=>`<button class="chip" data-act="calpick" data-v="${k}" aria-pressed="${(S.settings.cal||'m365')===k}">${l}</button>`).join('')}</div>
   <label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-auto" ${S.settings.calAuto!==false?'checked':''}> Ouvrir l'agenda automatiquement quand je prends un RDV</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" id="cal-rappel" ${S.settings.calRappel!==false?'checked':''}> Ouvrir l'agenda automatiquement quand on me demande de rappeler</label></div>
  <div style="display:flex;flex-direction:column;gap:8px">
@@ -904,7 +921,7 @@ const ACT={
  wsmenu:()=>{lsSet('radar-ws-tip',true);S.menu=false;S.wsMenu=true;S.wsEdit=null;renderLayer()},
  wsx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.wsMenu=false;S.wsEdit=null;renderLayer()},
  wsgo:b=>wsSwitch(b.dataset.v),
- agmove:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions.find(x=>x.id===b.dataset.a);if(!a)return;const base=a.date&&a.date>iso(today())?jDate(a.date):today();a.date=iso(bizDays(base,+b.dataset.v));touch(p);renderAgenda();toast(`${a.type} reporté au ${fmtDate(a.date)}`)},
+ agmove:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions.find(x=>x.id===b.dataset.a);if(!a)return;const base=a.date&&a.date>iso(today())?jDate(a.date):today();a.date=iso(bizDays(base,+b.dataset.v));touch(p);if(a.msId&&msOn())graphSave(p,a).catch(()=>{});renderAgenda();toast(`${a.type} reporté au ${fmtDate(a.date)}`)},
  aglate:()=>{const t=today();const T=iso(t.getDay()%6?t:bizDays(t,0));let n=0;for(const {p,a} of allActions())if(!a.fait&&a.date&&a.date<iso(today())){a.date=T;touch(p);n++}renderAgenda();toast(`${n} action${n>1?'s':''} reportée${n>1?'s':''} à aujourd’hui`)},
  agauto:()=>{const n=autoFollow(true);if(!n)toast('Aucune relance à créer : tous les prospects en cours ont une action prévue');renderAgenda()},
  golink:b=>{const q=S.P.get(b.dataset.id);if(!q)return;if(wsOf(q)!==curWs().id)wsSwitch(wsOf(q));openFiche(q.id,'ent')},
@@ -917,6 +934,15 @@ const ACT={
    if(ed.id){const w=L.find(x=>x.id===ed.id);w.name=n;w.c=ed.c===WS_COLORS[0]&&w.id==='main'?'':ed.c}else{const id='ws_'+rid();L.push({id,name:n,c:ed.c});S.settings.ws=L;saveSettings();S.wsEdit=null;wsSwitch(id);return}
    S.settings.ws=L;saveSettings();S.wsEdit=null;applyWs();renderLayer()},
  wsdel:b=>{if(wsCount(b.dataset.v))return;S.settings.ws=wsList().filter(w=>w.id!==b.dataset.v);saveSettings();if(S.ws===b.dataset.v)wsSwitch(wsList()[0].id);else renderLayer()},
+ mshelp:()=>{S.menu=false;S.msHelp=true;renderLayer()},
+ mshx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.msHelp=false;renderLayer()},
+ mslogin:async()=>{const v=($('#ms-id')?.value||S.settings.msClientId||'').trim();const o=$('#ms-r');if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)){if(o)o.textContent='Colle d’abord l’« ID d’application (client) » (format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Clique sur « Guide » pour le créer.';return}
+   S.settings.msClientId=v;saveSettings();if(o)o.textContent='Fenêtre Microsoft ouverte : connecte-toi avec ton compte Data Links et accepte.';
+   try{await msToken(true);const acc=msAccount();S.settings.msUser=acc?.username||'compte Microsoft';saveSettings();toast('✓ Agenda Outlook connecté : les RDV et rappels s’inscriront directement');renderLayer()}
+   catch(e){const m=String(e?.errorMessage||e?.message||e);if(o)o.innerHTML=/AADSTS90094|AADSTS65001|admin|approbation|consent/i.test(m)?'<b>Data Links demande l’accord de l’administrateur.</b> Envoie le message préparé dans le Guide à ton service informatique.':/AADSTS50011|redirect/i.test(m)?'<b>Adresse de retour incorrecte</b> : dans Azure, ajoute exactement '+esc(msRedirect())+' en « Application monopage (SPA) ».':/popup|blocked|user_cancelled/i.test(m)?'Fenêtre fermée ou bloquée : autorise les pop-ups pour Radar et réessaie.':'Échec : '+esc(m.slice(0,200))}},
+ msout:async()=>{try{const app=await msInit();const acc=msAccount();if(app&&acc)await app.clearCache({account:acc})}catch{}S.settings.msUser='';saveSettings();renderLayer();toast('Agenda Outlook déconnecté')},
+ mstest:async()=>{const o=$('#ms-r');if(o)o.textContent='Création d’un événement test…';const d=bizDays(today(),1);const fake={id:'test',ent:{nom:'Test Radar'},contacts:[],journal:[],actions:[]};
+   try{const a={id:'t'+rid(),type:'Rappel',date:iso(d),heure:'09:00',note:'Événement test Radar : tu peux le supprimer'};await graphSave(fake,a);if(o)o.innerHTML='✓ Événement « Rappeler Test Radar » créé le '+esc(fmtDate(a.date))+' à 9h dans ton agenda Outlook. Tu peux le supprimer.'}catch(e){if(o)o.textContent='Échec : '+(e?.message||e)}},
  gkeyhelp:()=>{S.gkHelp=true;renderLayer()},
  gkhx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.gkHelp=false;renderLayer()},
  gksave:async()=>{const v=($('#gk-in')?.value||'').trim();const o=$('#gk-r');if(!/^AIza[\w-]{30,}$/.test(v)){if(o)o.textContent='Ce n’est pas une clé Google valide : elle commence par « AIza ».';return}S.settings.gKey=v;saveSettings();if(o)o.textContent='Test en cours…';
@@ -2146,7 +2172,29 @@ function icsOf(i,uid){const f=s=>s.replace(/[-:]/g,'').slice(0,15);const e=s=>St
   return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Data Links//Radar//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH',...VTZ,'BEGIN:VEVENT',`UID:${uid}@radar-datalinks`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').slice(0,15)}Z`,
     ...(i.allday?[`DTSTART;VALUE=DATE:${i.start.replace(/-/g,'')}`,`DTEND;VALUE=DATE:${i.end.replace(/-/g,'')}`,'TRANSP:TRANSPARENT']:[`DTSTART;TZID=Europe/Paris:${f(i.start)}`,`DTEND;TZID=Europe/Paris:${f(i.end)}`]),`SUMMARY:${e(i.title)}`,i.lieu?`LOCATION:${e(i.lieu)}`:'',`DESCRIPTION:${e(i.body)}`,i.html?`X-ALT-DESC;FMTTYPE=text/html:${e('<html><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt">'+i.html+'</body></html>')}`:'','BEGIN:VALARM',i.allday?'TRIGGER:PT9H':i.title.startsWith('RDV')?'TRIGGER:-PT30M':'TRIGGER:-PT5M','ACTION:DISPLAY','DESCRIPTION:Rappel','END:VALARM','END:VEVENT','END:VCALENDAR'].filter(Boolean).map(fold).join('\r\n')}
 const proMail=()=>!!USER?.email&&!/@(outlook|hotmail|live|msn)\./i.test(USER.email);
-function addToCal(p,a,mode){mode=mode||S.settings.cal||'m365';if(mode==='live'&&proMail())mode='m365';const i=rdvInfo(p,a);
+/* ---------- Agenda Outlook connecté (Microsoft Graph) : l'événement est créé directement, sans validation ---------- */
+const MS_SCOPES=['Calendars.ReadWrite'];let msApp=null;
+const msRedirect=()=>new URL('auth.html',location.href).href;
+async function msInit(){const id=(S.settings.msClientId||'').trim();if(!id)return null;if(msApp&&msApp._cid===id)return msApp;
+  await loadLib('msal',null,'msal');msApp=new msal.PublicClientApplication({auth:{clientId:id,authority:'https://login.microsoftonline.com/organizations',redirectUri:msRedirect()},cache:{cacheLocation:'localStorage'}});await msApp.initialize();msApp._cid=id;return msApp}
+const msAccount=()=>{try{return msApp?.getAllAccounts?.()[0]||null}catch{return null}};
+async function msToken(interactive=false){const app=await msInit();if(!app)throw new Error('noid');let acc=app.getAllAccounts()[0];
+  if(acc){try{return(await app.acquireTokenSilent({scopes:MS_SCOPES,account:acc})).accessToken}catch(e){if(!interactive)throw e}}
+  if(!interactive)throw new Error('login');const r=await app.loginPopup({scopes:MS_SCOPES,prompt:'select_account',redirectUri:msRedirect()});app.setActiveAccount(r.account);return(await app.acquireTokenSilent({scopes:MS_SCOPES,account:r.account})).accessToken}
+const msOn=()=>!!(S.settings.msClientId&&S.settings.msUser);
+function graphEvent(i,a){const ev={subject:i.title,body:{contentType:'HTML',content:i.html||esc(i.body).replace(/\n/g,'<br>')},location:{displayName:i.lieu||''},isReminderOn:true,transactionId:('radar-'+a.id).slice(0,60)};
+  if(i.allday){ev.isAllDay=true;ev.start={dateTime:i.start+'T00:00:00',timeZone:'Europe/Paris'};ev.end={dateTime:i.end+'T00:00:00',timeZone:'Europe/Paris'};ev.reminderMinutesBeforeStart=-540;ev.showAs='free'}
+  else{ev.start={dateTime:i.start,timeZone:'Europe/Paris'};ev.end={dateTime:i.end,timeZone:'Europe/Paris'};ev.reminderMinutesBeforeStart=a.type==='RDV'?30:5}
+  if(ev.reminderMinutesBeforeStart<0)delete ev.reminderMinutesBeforeStart;return ev}
+async function graphSave(p,a){const tok=await msToken(false);const i=rdvInfo(p,a);const ev=graphEvent(i,a);
+  const url=a.msId?`https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(a.msId)}`:'https://graph.microsoft.com/v1.0/me/events';
+  let r=await fetch(url,{method:a.msId?'PATCH':'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json',Prefer:'outlook.timezone="Europe/Paris"'},body:JSON.stringify(a.msId?(({transactionId,...x})=>x)(ev):ev)});
+  if(r.status===404&&a.msId){delete a.msId;return graphSave(p,a)}
+  if(!r.ok){const j=await r.json().catch(()=>null);throw new Error(j?.error?.message||('Erreur '+r.status))}const j=await r.json().catch(()=>({}));if(j.id)a.msId=j.id;a.cal=true;touch(p);return j}
+function addToCal(p,a,mode){if(!mode&&msOn()){const what=a.type==='RDV'?'RDV':a.type.toLowerCase();
+    graphSave(p,a).then(()=>{toast(`📅 ${what.charAt(0).toUpperCase()+what.slice(1)} ajouté directement à ton agenda Outlook (${fmtDate(a.date)}${a.heure?' à '+a.heure.replace(':','h'):''})`);if(S.sel===p.id)renderNotesOnly()})
+      .catch(e=>{console.warn(e);toast(/login|interaction|consent/i.test(String(e?.message||e?.errorCode||''))?'Reconnecte ton agenda Outlook (Options → Agenda) : la page Outlook s’ouvre en attendant.':'Agenda Outlook connecté indisponible ('+(e?.message||'erreur')+') : la page Outlook s’ouvre en attendant.');addToCal(p,a,S.settings.cal||'m365')});return}
+  mode=mode||S.settings.cal||'m365';if(mode==='live'&&proMail())mode='m365';const i=rdvInfo(p,a);
   const what=a.type==='RDV'?'le RDV':a.type==='Visite'?'la visite':a.type==='Relance'?'la relance':'le rappel';
   if(mode==='ics'){downloadFile(`${a.type}-${displayName(p).replace(/[^\w-]+/g,'_')}-${a.date}.ics`,icsOf(i,a.id),'text/calendar;charset=utf-8');toast(`Fichier agenda téléchargé : ouvre-le, Outlook affiche ${what}, clique « Enregistrer et fermer »`);}
   else{const w=window.open(outlookUrl(i,mode==='live'?'outlook.live.com':'outlook.office.com'),'_blank');try{if(w)w.opener=null}catch{}if(!w)toast(`Ton navigateur a bloqué la fenêtre Outlook : utilise le bouton « Ajouter à Outlook » de ${what}.`);else toast(`Outlook s\u2019ouvre avec ${what} prérempli : clique Enregistrer`)}
@@ -2393,7 +2441,7 @@ const FCOLS_E=[['site','Site web'],['forme','Forme juridique'],['naf','Code NAF'
 const FCOLS=[['','Ignorer'],['siret','SIRET (établissement)'],['siren','SIREN (entreprise)'],['sir','SIRET ou SIREN'],['nom','Raison sociale'],['enseigne','Nom commercial'],['tel','Standard (téléphone)'],['mobile','Mobile'],['contact','Contact (nom complet)'],['prenom','Prénom'],['cnom','Nom du contact'],['fonction','Fonction'],['email','Email'],['adresse','Adresse'],['cp','Code postal'],['ville','Ville'],['note','Notes / commentaire'],...FCOLS_X,...FCOLS_E,...[1,2,3,4,5,6,7,8].flatMap(n=>[['nom','Nom'],['prenom','Prénom'],['statut','Rôle'],['fonction','Fonction'],['prio','Priorité'],['surplace','Sur place'],['tel','Ligne directe'],['mobile','Mobile'],['email','E-mail'],['linkedin','LinkedIn'],['civ','Civilité'],['note','Note']].map(([f,l])=>[`c${n}:${f}`,`Contact ${n} · ${l}`]))];
 const FHDR=[['site',/site\s*(web|internet)?$|^web|^url$/],['statut',/^statut(\s*prospect)?$|pipeline|etape/],['temp',/temperature/],['etab',/type\s*(d')?etablissement/],['',/statut\s*etablissement/],['forme',/forme\s*juridique/],['naf',/code\s*naf|^naf$|^ape$/],['activite',/activite|libelle\s*naf/],['effectif',/effectif/],['categorie',/categorie/],['creaetab',/creation\s*(de\s*l')?etablissement/],['creation',/creation/],['dirigeants',/dirigeants?\s*\(?rne|^dirigeants$/],['entnote',/presence|ciblage|immeuble|adresse du siege/],['',/annuaire|lien|fiabilit|latitude|longitude|^ess$|^sigle$|nb dirigeants|nb contacts|annee|secteur|^ca\b|resultat|convention|etablissements|profil/],['telsrc',/source.*(numero|tel)/],['siret',/siret/],['siren',/siren/],['sir',/n°\s*(d')?entreprise|identifiant|immatricul/],['tel',/t[ée]l|phone|standard|fixe|num[ée]ro(?!.*(siret|siren))/],['mobile',/mobile|portable|gsm|cell/],['email',/mail|courriel/],['nom',/raison|soci[ée]t[ée]|entreprise|d[ée]nomination|client|compte|^nom$|company/],['enseigne',/enseigne|commercial/],['contact',/contact|interlocut|dirigeant|responsable/],['prenom',/pr[ée]nom/],['cnom',/^nom\s*(du)?\s*contact|nom de famille/],['fonction',/fonction|qualit|poste|titre|r[ôo]le/],['adresse',/adresse|rue|voie/],['cp',/code\s*postal|^cp$|postal/],['ville',/ville|commune|localit/],['note',/note|comment|remarque|observ|info/]];
 let fLibs={};
-const LOCAL_LIB={xlsx:'lib/xlsx.full.min.js',excel:'lib/exceljs.min.js',tiles:'lib/tiles.js'};
+const LOCAL_LIB={xlsx:'lib/xlsx.full.min.js',excel:'lib/exceljs.min.js',tiles:'lib/tiles.js',msal:'lib/msal-browser.min.js'};
 const addScript=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>{s.remove();rej(new Error('lib'))};document.head.appendChild(s)});
 function loadLib(key,url,glob){if(window[glob])return Promise.resolve(window[glob]);if(fLibs[key])return fLibs[key];
   fLibs[key]=(async()=>{for(const src of [LOCAL_LIB[key],url].filter(Boolean)){try{await addScript(src);if(window[glob])return window[glob]}catch{}}fLibs[key]=null;throw new Error('lib')})();return fLibs[key]}
