@@ -737,3 +737,15 @@ button.dk-t:hover{border-color:var(--accent);box-shadow:var(--shadow);transform:
 .wsconf{display:flex;flex-direction:column;gap:6px;padding:10px 12px;margin:-2px 0 6px;border-radius:var(--r-s);background:var(--hot-soft);font-size:13px}
 .wsconf-b{display:flex;flex-wrap:wrap;gap:6px}
 .ws-danger{background:var(--bad);color:#fff}
+
+/* v62 : priorité et mails */
+.prio{display:inline-grid;place-items:center;min-width:26px;height:18px;padding:0 5px;border-radius:6px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;margin-right:6px;flex:none}
+.prio[data-l="hi"]{background:var(--ok-soft);color:var(--ok)}.prio[data-l="mid"]{background:var(--warm-soft);color:var(--warn)}.prio[data-l="lo"]{background:var(--sunk);color:var(--ink-3)}
+.prio-line{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-s);padding:6px 10px}
+.mailbtn{width:100%;justify-content:center;margin-top:10px}
+.mailm{max-width:680px;width:min(680px,calc(100vw - 24px));display:flex;flex-direction:column;gap:10px}
+.mailm textarea#ml-body{font:inherit;font-size:13.5px;line-height:1.5;resize:vertical;min-height:240px}
+.mailk{display:flex;flex-wrap:wrap;gap:6px}
+.mlsig{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:var(--r-s);background:var(--warm-soft)}
+.mlsig label{font-size:12.5px;font-weight:600}
+.mlb{display:flex;flex-wrap:wrap;gap:8px}

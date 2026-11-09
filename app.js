@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=61;
+const APP_V=62;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -159,7 +159,11 @@ const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const fromIso=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
-const bizDays=(d,n)=>{let x=new Date(d);let k=0;while(k<n){x=addDays(x,1);if(x.getDay()%6)k++;}if(n===0)while(!(x.getDay()%6))x=addDays(x,1);return x};
+/* Jours fériés français (fixes + Pâques, Ascension, Pentecôte) : jamais de rappel ni de créneau ces jours-là */
+const FERIES={};function feries(y){if(FERIES[y])return FERIES[y];const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;
+  const E=new Date(y,mo-1,da);const S_=new Set(['01-01','05-01','05-08','07-14','08-15','11-01','11-11','12-25']);for(const n of [1,39,50]){const x=addDays(E,n);S_.add(pad(x.getMonth()+1)+'-'+pad(x.getDate()))}return FERIES[y]=S_}
+const offDay=x=>!(x.getDay()%6)||feries(x.getFullYear()).has(pad(x.getMonth()+1)+'-'+pad(x.getDate()));
+const bizDays=(d,n)=>{let x=new Date(d);let k=0;while(k<n){x=addDays(x,1);if(!offDay(x))k++;}if(n===0)while(offDay(x))x=addDays(x,1);return x};
 const rid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[’`]/g,"'");
 const getP=(o,p)=>p.split('.').reduce((a,k)=>a==null?undefined:a[k],o);
@@ -524,7 +528,7 @@ function agCard(x){const p=x.p,a=x.a;const tel=p.contacts?.find(c=>c.decideur===
   return `<div class="agc${a.gen?' auto':''}${late?' late':''}"><div class="agc-h"><span class="atype">${esc(a.type)}</span>${a.heure?`<b class="agc-t">${esc(a.heure.replace(':','h'))}</b>`:''}${late?`<span class="agc-late">${late} j de retard</span>`:''}${a.gen?'<span class="agc-auto" title="Relance créée automatiquement">auto</span>':''}${a.retry?`<span class="agc-retry" title="Speech pas encore fait">${esc(a.retry)}</span>`:''}</div>
    <button class="agc-n" data-act="open" data-id="${p.id}" data-tab="suivi">${esc(displayName(p))}</button>
    ${a.note?`<div class="agc-note">${esc(a.note)}</div>`:''}<div class="agc-m">${esc([p.ent?.ville,ST[p.statut]?.l].filter(Boolean).join(' · '))}</div>
-   <div class="agc-b"><button class="btn btn-p btn-s" data-act="done" data-id="${p.id}" data-a="${a.id}" title="Marquer comme fait">✓ Fait</button>${ph?`<a class="btn btn-g btn-s" href="tel:${esc(ph)}" title="${esc(fmtTel(ph))}">📞</a>`:''}<button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="1" title="Reporter au prochain jour ouvré">+1 j</button><button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="5" title="Reporter d’une semaine">+1 sem</button></div></div>`}
+   <div class="agc-b"><button class="btn btn-p btn-s" data-act="done" data-id="${p.id}" data-a="${a.id}" title="Marquer comme fait">✓ Fait</button>${a.type==='Mail'?`<button class="btn btn-g btn-s" data-act="mailopen" data-id="${p.id}" title="Préparer le mail">✉️</button>`:''}${ph?`<a class="btn btn-g btn-s" href="tel:${esc(ph)}" title="${esc(fmtTel(ph))}">📞</a>`:''}<button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="1" title="Reporter au prochain jour ouvré">+1 j</button><button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="5" title="Reporter d’une semaine">+1 sem</button></div></div>`}
 function renderAgendaCols(el,acts){const t=iso(today()),tm=iso(bizDays(today(),1)),wk=iso(addDays(today(),7));
   const C=[['En retard',x=>x.a.date&&x.a.date<t,'late'],["Aujourd'hui",x=>x.a.date===t,'now'],[`${JOURS[jDate(tm).getDay()].replace(/^./,c=>c.toUpperCase())} ${jDate(tm).getDate()}`,x=>x.a.date>t&&x.a.date<=tm,''],['Cette semaine',x=>x.a.date>tm&&x.a.date<=wk,''],['Plus tard',x=>!x.a.date||x.a.date>wk,'']];
   const late=acts.filter(C[0][1]).length;
@@ -567,7 +571,7 @@ function rowHtml(p){const a=nextAction(p);const c=p.contacts?.find(x=>x.decideur
   return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
    ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="av" style="--c:${st?.c||'var(--ink-3)'}">${esc(initials(displayName(p)))}${p.temperature?`<i class="tdot" data-t="${p.temperature}"></i>`:''}</span>`}
    <span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(st?.l||'')}</span>
-   <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
+   <span class="sub">${untreated(p)?prioBadge(p):''}${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
 function foldState(){if(!S.fold)S.fold=lsGet('radar-fold',{todo:true,clos:true});return S.fold}
 function retryAct(p){return (p.actions||[]).find(a=>!a.fait&&a.retry)}
 function moreRows(g,k){const lim=(S.more||{})[k]||80;return g.slice(0,lim).map(rowHtml).join('')+(g.length>lim?`<button class="more-rows" data-act="morerows" data-v="${k}">Afficher les ${Math.min(200,g.length-lim)} suivantes · ${g.length-lim} restantes</button>`:'')}
@@ -579,11 +583,12 @@ function groupedRows(L){const t=iso(today());const G=[
    ['clos','🗂️ Clos (signés, perdus, pas intéressés)',p=>['gagne','perdu','ko'].includes(p.statut)],
    ['todo','📥 À traiter',p=>true]];
   const used=new Set(),out=[];for(const [k,l,f] of G){const g=L.filter(p=>!used.has(p.id)&&(k==='todo'?untreated(p):k==='plan'||k==='due'?!untreated(p)&&f(p):f(p)));g.forEach(p=>used.add(p.id));if(g.length)out.push([k,l,g])}
+  for(const x of out)if(x[0]==='todo')x[2].sort(byPrio);
   /* le dossier « À traiter » vient en premier, replié par défaut */
   out.sort((a,b)=>(a[0]==='todo'?-1:0)-(b[0]==='todo'?-1:0));const F=foldState();
   return out.map(([k,l,g])=>{const closed=!!F[k];return `<section class="fold${k==='todo'?' fold-todo':''}"><button class="fold-h" data-act="fold" data-v="${k}" aria-expanded="${!closed}"><span class="fold-ar">${closed?'▸':'▾'}</span><span class="fold-l">${l}</span><span class="fold-n">${g.length}</span></button>${closed?(k==='todo'?`<div class="fold-hint">Sociétés jamais appelées, sans note ni statut (imports, fiches créées). <button class="lnk" data-act="fold" data-v="todo">Ouvrir le dossier</button> · <button class="lnk" data-act="sesstodo">Lancer une session d’appels sur ces ${g.length} fiches</button></div>`:''):moreRows(g,k)}</section>`}).join('')}
 function renderList(){
-  const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
+  const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();if(S.filter==='todo')L.sort(byPrio);
   const F=[['all','Tous'],['due','À faire'],['todo','Jamais traitées'],['retry','À rappeler'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div class="lh-acts lh-compact"><button class="btn btn-g btn-s" data-act="importopen" title="Colle une liste de sociétés, des notes ou des SIRET">＋ Coller une liste</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer</button><button class="btn btn-g btn-s" data-act="view" data-v="around" title="Entreprises autour de moi">📍</button></div>
    ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
@@ -610,6 +615,7 @@ function renderFiche0(){
       <div class="ring" title="Qualification de la fiche">${ringSvg(q)}<b class="num" id="ringv">${q}%</b><small>qualifiée</small></div></div>
     <div class="fbar"><div class="stsel">${STATUTS.map(s=>`<button data-act="statut" data-v="${s.k}" aria-pressed="${p.statut===s.k}" ${p.statut===s.k?`class="st-${s.k}" style="--c:${s.c}"`:''}>${esc(s.l)}</button>`).join('')}</div>
      <div class="temp" role="group" aria-label="Température">${TEMPS.map(t=>`<button data-act="temp" data-v="${t.k}" aria-pressed="${p.temperature===t.k}">${t.l}</button>`).join('')}</div></div>
+    ${untreated(p)?(()=>{const r=prio(p);return `<div class="prio-line"><span class="prio" data-l="${prioLvl(r.s)}">${r.s}</span><span><b>Priorité ${r.s}/100</b> · ${esc(r.why.join(' · '))}</span></div>`})():''}
     ${ex?`<div class="warnbox"><b>Hors cible ?</b><span>${esc(ex)}</span></div>`:''}
     ${(()=>{const d=dupOf(p.ent?.siret||p.ent?.siren,p.id);return d?`<div class="warnbox"><b>Doublon</b><span>Ce SIRET est déjà dans la fiche « ${esc(displayName(d))} ».</span><button class="btn btn-p btn-s" data-act="dupopen">Fusionner dans la fiche existante</button></div>`:''})()}
     ${S.mode==='terrain'?(()=>{const d=lsGet('radar-draft-'+p.id,'');const n=(p.journal||[]).length;return `<button class="qnote" data-act="sheet"><span class="qn-t">📝 Notes rapides${n?` <small>· ${n} note${n>1?'s':''} déjà enregistrée${n>1?'s':''}</small>`:''}</span><span class="qn-d">${d?'Brouillon : '+esc(d.slice(0,90))+(d.length>90?'…':''):'Tape ou dicte tes notes en vrac (« dg mr martin, 12 postes, canon fin 06/27, rapl jeudi 14h ») : tout se range tout seul dans la fiche.'}</span><span class="qn-b">Écrire / analyser →</span></button>`})():''}
@@ -711,7 +717,7 @@ function suiviHtml(p){
   const na=S.newAct||{type:'Rappel',date:iso(bizDays(today(),1)),heure:'',note:''};
   return `<div style="display:flex;flex-direction:column;gap:14px">
    <div class="panel"><h3 class="sec-t">Actions à venir <span class="lbl">${acts.filter(a=>!a.fait).length} ouverte(s)</span></h3>
-    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}${CAL_TYPES.includes(a.type)&&!a.fait&&a.date?calBtns(p,a):''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
+    <div class="acts">${acts.length?acts.map(a=>`<div class="act${a.fait?' done':''}"><button class="check" role="checkbox" aria-checked="${!!a.fait}" data-act="done" data-id="${p.id}" data-a="${a.id}" aria-label="Terminer">${a.fait?'✓':''}</button><div style="min-width:0"><div class="act-t"><span class="atype">${esc(a.type)}</span>${esc(fmtDate(a.date)||'Sans date')}${a.heure?' · '+esc(a.heure):''}</div>${a.note?`<div class="act-n">${esc(a.note)}</div>`:''}${CAL_TYPES.includes(a.type)&&!a.fait&&a.date?calBtns(p,a):''}${a.type==='Mail'&&!a.fait?`<button class="btn btn-g btn-s" data-act="mailopen" data-id="${p.id}">✉️ Préparer le mail</button>`:''}</div><button class="btn btn-q btn-s" data-act="dela" data-a="${a.id}" aria-label="Supprimer l'action">✕</button></div>`).join(''):`<span style="color:var(--ink-3);font-size:13px">Aucune action. Ajoute-en une ou écris « rappeler jeudi 14h » dans tes notes.</span>`}</div>
     <div class="addact"><div class="chips">${ATYPES.map(t=>`<button class="chip" data-act="natype" data-v="${t}" aria-pressed="${na.type===t}">${t}</button>`).join('')}</div>
      <div class="f"><label for="na-date">Date</label><input class="in" type="date" id="na-date" value="${esc(na.date)}"></div>
      <div class="f"><label for="na-heure">Heure</label><input class="in" type="time" id="na-heure" value="${esc(na.heure)}"></div>
@@ -743,6 +749,7 @@ function notesHtml(p){
    <button class="btn btn-p" data-act="analyze" ${S.aiBusy?'disabled':''}>${S.aiBusy?'Analyse en cours…':'Analyser et remplir la fiche'}</button>
    ${S.aiMsg||S.aiBusy?`<div class="ai" data-s="${S.aiBusy?'busy':''}">${S.aiBusy?'<span class="spin"></span>':''}<span>${esc(S.aiMsg)}</span></div>`:''}
    ${S.ask?askHtml():`<div><div class="lbl" style="margin-bottom:6px">Issue ${m==='poste'?'de l’appel':'de la visite'}</div><div class="outs">${outs.map(o=>`<button class="out ${o.cls||''}" data-act="out" data-v="${o.k}">${esc(o.l)}${o.key&&m==='poste'?`<kbd>Alt ${o.key}</kbd>`:''}</button>`).join('')}</div></div>`}
+   <button class="btn btn-g mailbtn" data-act="mailopen" data-id="${p.id}">✉️ Préparer un mail</button>
   </div>`}
 function askHtml(){const a=S.ask;const o=OUT[S.mode].find(x=>x.k===a.k);
   return `<div class="ask"><b>${esc(o.l)} : quand ?</b><div class="quick">${(o.k==='rdv'?[['Demain',1],['+2 j',2],['+3 j',3],['+1 sem.',5]]:[['Demain',1],['+2 j',2],['+1 sem.',5],['+1 mois',21]]).map(([l,n])=>`<button class="chip" data-act="askq" data-v="${n}">${l}</button>`).join('')}</div>
@@ -756,7 +763,7 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.msHelp)L.innerHTML=msHelpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else L.innerHTML=''}
+  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.msHelp)L.innerHTML=msHelpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else if(S.mail)L.innerHTML=mailHtml();else L.innerHTML=''}
 function applyWs(){const w=curWs();const r=document.documentElement;
   if(w.c){r.style.setProperty('--accent',w.c);r.style.setProperty('--accent-2',w.c);r.style.setProperty('--accent-soft',`color-mix(in srgb, ${w.c} 16%, var(--surface, #fff))`)}else['--accent','--accent-2','--accent-soft'].forEach(k=>r.style.removeProperty(k));
   const sm=$('.brand small');if(sm)sm.innerHTML=`<button class="ws-btn" data-act="wsmenu" title="Changer d’espace de travail">${esc(w.name)} <span aria-hidden="true">▾</span></button>`;
@@ -951,7 +958,7 @@ const ACT={
  wsgo:b=>wsSwitch(b.dataset.v),
  morerows:b=>{S.more=S.more||{};S.more[b.dataset.v]=((S.more[b.dataset.v])||80)+200;renderList()},
  fold:b=>{const F=foldState();F[b.dataset.v]=!F[b.dataset.v];lsSet('radar-fold',F);renderList()},
- sesstodo:()=>{const ids=filtered().filter(untreated).map(p=>p.id);if(ids.length)startSession(ids)},
+ sesstodo:()=>{const ids=filtered().filter(untreated).sort(byPrio).map(p=>p.id);if(ids.length)startSession(ids)},
  agmove:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions.find(x=>x.id===b.dataset.a);if(!a)return;const base=a.date&&a.date>iso(today())?jDate(a.date):today();a.date=iso(bizDays(base,+b.dataset.v));touch(p);if(a.msId&&msOn())graphSave(p,a).catch(()=>{});renderAgenda();toast(`${a.type} reporté au ${fmtDate(a.date)}`)},
  aglate:()=>{const t=today();const T=iso(t.getDay()%6?t:bizDays(t,0));let n=0;for(const {p,a} of allActions())if(!a.fait&&a.date&&a.date<iso(today())){a.date=T;touch(p);n++}renderAgenda();toast(`${n} action${n>1?'s':''} reportée${n>1?'s':''} à aujourd’hui`)},
  agauto:()=>{const n=autoFollow(true);if(!n)toast('Aucune relance à créer : tous les prospects en cours ont une action prévue');renderAgenda()},
@@ -1051,7 +1058,7 @@ function nextInSession(){const s=S.session;if(!s)return;if(s.i>=s.q.length-1){S.
 
 
 /* ---------- Horaires de travail ---------- */
-const workDay=d=>{let x=new Date(d+'T12:00');while([0,6].includes(x.getDay()))x=addDays(x,1);return iso(x)};
+const workDay=d=>{let x=new Date(d+'T12:00');while(offDay(x))x=addDays(x,1);return iso(x)};
 const DEF_HOURS=[['09:00','12:30'],['14:00','17:15']];
 const hm=s=>{const [h,m]=String(s||'').split(':').map(Number);return (h||0)*60+(m||0)};const mh=n=>`${pad(Math.floor(n/60))}:${pad(n%60)}`;
 function workHours(){const h=S.settings.hours;return Array.isArray(h)&&h.length&&h.every(x=>x[0]&&x[1]&&hm(x[0])<hm(x[1]))?h:DEF_HOURS}
@@ -2779,6 +2786,92 @@ function remStart(){setInterval(remScan,20e3);setTimeout(remScan,3e3);setTimeout
   navigator.serviceWorker?.addEventListener('message',e=>{if(e.data?.type==='fiche'&&e.data.id)remGo(e.data.id)});
   const m=(location.hash||'').match(/^#fiche=([\w-]+)/);if(m){history.replaceState(null,'',location.pathname+location.search);remGo(m[1])}}
 function remGo(id,n=0){if(S.P?.has(id))openFiche(id,'suivi');else if(n<40)setTimeout(()=>remGo(id,n+1),400)}
+
+/* ================= Priorité des fiches à traiter ================= */
+const PRIO_SECT=[[/avocat|notair|huissier|commissaire de justice|juridique|mandataire judiciaire|\b69 ?\.?10/,'juridique'],[/expert[- ]?compta|comptab|commissaire aux comptes|\b69 ?\.?20/,'expertise comptable'],
+ [/medic|medecin|dentist|dentaire|kine|infirm|sante|orthophon|osteo|podolog|radiolog|ophtalm|psycholog|sage[- ]femme|\b86 ?\.?\d/,'santé'],[/veterin|\b75 ?\.?00/,'vétérinaire'],
+ [/architect|\b71 ?\.?11/,'architecture'],[/agence immo|immobili|\b68 ?\.?31/,'immobilier'],[/assuranc|courtier|agent general|\b66 ?\.?22/,'assurance'],
+ [/conseil|consult|\b70 ?\.?22|recrut|ressources humaines|\brh\b|interim|\b78 ?\.?\d/,'conseil / RH']];
+function sectOf(p){const s=norm([p.ent?.secteur,p.ent?.activite,p.ent?.naf,p.ent?.nom,p.ent?.enseigne].filter(Boolean).join(' '));for(const [re,l] of PRIO_SECT)if(re.test(s))return l;return''}
+function monthsTo(ym){const m=String(ym||'').match(/^(\d{4})-(\d{2})/);if(!m)return null;const d=new Date();return (+m[1]-d.getFullYear())*12+(+m[2]-1-d.getMonth())}
+function prioCps(){const now=Date.now();if(!S._pcps||now-S._pcps.t>5000){const set=new Set();for(const p of S.P.values())if(['rdv','rdv_fait','devis','gagne'].includes(p.statut)&&p.ent?.cp)set.add(p.ent.cp);S._pcps={t:now,set,k:[...set].sort().join()}}return S._pcps}
+const PRC=new WeakMap();
+function prio(p){const cp=prioCps();let c=PRC.get(p);if(c&&c.u===p.updatedAt&&c.k===cp.k)return c.r;
+  let s=0;const why=[];const C=p.contacts||[];const dec=C.find(c=>c.decideur==='Oui');
+  const tel=p.ent?.tel||C.some(c=>c.tel||c.mobile);if(tel){s+=25;why.push('joignable')}else why.push('pas de numéro');
+  if(dec&&(dec.tel||dec.mobile)){s+=10;why.push('ligne directe du décideur')}else if(dec&&(dec.nom||dec.prenom)){s+=5;why.push('décideur connu')}
+  const sec=sectOf(p);if(sec){s+=25;why.push('secteur cible ('+sec+')')}
+  if(excluded(p)){s-=40;why.push('hors cible probable')}
+  const n=parseInt(String(p.ent?.effectif??'').match(/\d+/)?.[0]||'',10);if(n){const e=n>=250?5:n>=50?15:n>=6?20:10;s+=e;why.push(String(p.ent.effectif).replace(/\s*\+$/,'+')+' salariés')}
+  const m=[monthsTo(p.impr?.finContrat),monthsTo(p.tel?.finEngagement)].filter(x=>x!=null).sort((a,b)=>Math.abs(a)-Math.abs(b))[0];
+  if(m!=null){if(m<0){s+=8;why.push('contrat échu')}else if(m<=6){s+=20;why.push(`fin de contrat dans ${m||'<1'} mois`)}else if(m<=12){s+=12;why.push(`fin de contrat dans ${m} mois`)}}
+  if(p.temperature==='chaud'){s+=10;why.push('chaud')}else if(p.temperature==='tiede')s+=5;
+  if(p.ent?.cp&&cp.set.has(p.ent.cp)){s+=5;why.push('près d’un RDV ou client')}
+  const r={s:Math.max(0,Math.min(100,s)),why};PRC.set(p,{u:p.updatedAt,k:cp.k,r});return r}
+const prioLvl=s=>s>=70?'hi':s>=45?'mid':'lo';
+const byPrio=(a,b)=>prio(b).s-prio(a).s||(a.createdAt||0)-(b.createdAt||0);
+function prioBadge(p){const r=prio(p);return `<span class="prio" data-l="${prioLvl(r.s)}" title="Priorité ${r.s}/100 : ${esc(r.why.join(' · '))}">${r.s}</span>`}
+
+/* ================= Mails tout prêts ================= */
+function mailContact(p){const C=p.contacts||[];return C.find(c=>c.decideur==='Oui'&&c.email)||C.find(c=>c.email)||C.find(c=>c.decideur==='Oui')||C[0]||null}
+function mailHello(p,c){const sec=sectOf(p);if(c?.nom){const civ=sec==='juridique'?'Maître':c.civ==='Mme'?'Madame':c.civ==='M.'?'Monsieur':'';return `Bonjour ${civ?civ+' '+c.nom:[c.prenom,c.nom].filter(Boolean).join(' ')},`}return 'Bonjour,'}
+const PITCH={juridique:'sécuriser les dossiers clients (sauvegarde, cybersécurité), fiabiliser les postes et la téléphonie, et simplifier l’impression et la gestion documentaire du cabinet',
+ 'expertise comptable':'protéger les données clients, garantir la continuité pendant les périodes fiscales et simplifier la dématérialisation (facture électronique, GED, impression)',
+ santé:'protéger les données de santé des patients, assurer la continuité du cabinet et simplifier l’informatique et la téléphonie au quotidien',
+ vétérinaire:'assurer la continuité de la clinique (postes, réseau, sauvegarde), protéger les données et simplifier la téléphonie',
+ architecture:'disposer de postes performants, d’un stockage et d’un partage de plans fiables, et d’une impression grand format maîtrisée',
+ immobilier:'travailler en mobilité (téléphonie, accès à distance), sécuriser les données clients et maîtriser les coûts d’impression',
+ assurance:'sécuriser les données clients, fiabiliser la téléphonie et le réseau, et simplifier la gestion documentaire de l’agence',
+ 'conseil / RH':'sécuriser les données candidats et clients, faciliter le travail hybride (Microsoft 365, téléphonie, accès à distance) et réduire les interruptions'};
+const NEEDL={'Parc informatique':'votre parc informatique','Réseau / Wi-Fi':'votre réseau et le Wi-Fi','Cybersécurité':'la cybersécurité','Sauvegarde / PRA':'la sauvegarde de vos données','Téléphonie / standard':'votre téléphonie et le standard','Mobiles / opérateur':'vos lignes mobiles','Internet / fibre':'votre accès internet / fibre','Impression / copieurs':'l’impression et vos copieurs','Gestion documentaire':'la gestion documentaire','Infogérance / support':'le support informatique au quotidien','Microsoft 365 / cloud':'Microsoft 365 et le cloud','Serveur':'votre serveur','IA / automatisation':'l’automatisation et l’IA'};
+function mailFacts(p){const L=[];const n=p.besoins?.sel||[];if(n.length)L.push('les sujets évoqués : '+n.map(x=>NEEDL[x]||x.toLowerCase()).join(', '));
+  const i=p.impr||{};if(i.nb||i.marques?.length||i.finContrat)L.push('côté impression : '+[i.nb&&i.nb+' copieur'+(i.nb>1?'s':''),(i.marques||[]).join(' / '),i.finContrat&&'contrat jusqu’à '+fmtMonth(i.finContrat)].filter(Boolean).join(', '));
+  const t=p.tel||{};if((t.operateur||[]).length||t.finEngagement)L.push('côté téléphonie : '+[(t.operateur||[]).join(' / '),t.finEngagement&&'engagement jusqu’à '+fmtMonth(t.finEngagement)].filter(Boolean).join(', '));
+  const it=p.it||{};if(it.postes||it.prestataire)L.push('côté informatique : '+[it.postes&&it.postes+' postes',it.prestataire&&'prestataire actuel '+it.prestataire].filter(Boolean).join(', '));
+  return L}
+function mailSlots(n){const out=[];const H=[[10,0],[14,30],[11,0]];let d=today();for(let i=0;out.length<n&&i<15;i++){d=bizDays(d,1);const [h,m]=H[out.length%H.length];out.push(`${JOURS[d.getDay()]} ${d.getDate()} ${MOISL[d.getMonth()]} à ${h}h${pad(m)}`)}return out}
+function mailSig(){const s=S.settings.sig;if(s&&s.trim())return s.trim();return [curWs().name,USER?.email].filter(Boolean).join('\n')}
+function mailDefaultK(p){const t=iso(today());const rdv=(p.actions||[]).find(a=>!a.fait&&a.type==='RDV'&&a.date>=t);if(rdv)return'rdvconf';if(p.statut==='rdv_fait')return'apres';if(p.statut==='devis')return'devis';
+  const last=(p.journal||[]).filter(j=>j.issue).at(-1)?.issue||'';if(/NRP|Répondeur|Barrage|Pas le temps/i.test(last))return'nrp';if(/Mail préparé/i.test(last))return'relance';return'doc'}
+const MAIL_K=[['doc','Présentation après appel'],['rdvconf','Confirmation de RDV'],['nrp','Injoignable : proposer un créneau'],['apres','Merci après RDV'],['devis','Relance devis'],['relance','Relance sans réponse']];
+function mailBuild(p,k){const brand=curWs().name,c=mailContact(p),hi=mailHello(p,c),sec=sectOf(p),pitch=PITCH[sec]||'simplifier et sécuriser l’informatique, la téléphonie et l’impression, avec un interlocuteur unique et des interventions rapides';
+  const F=mailFacts(p),sl=mailSlots(3),sig=mailSig(),soc=displayName(p);const bul=a=>a.map(x=>'• '+x).join('\n');
+  const rdv=(p.actions||[]).filter(a=>!a.fait&&a.type==='RDV').sort((a,b)=>(a.date+a.heure)<(b.date+b.heure)?-1:1)[0];
+  const lieu=rdv?.note?.replace(/^RDV\s*/,'')||'';const when=rdv?`${JOURS[jDate(rdv.date).getDay()]} ${jDate(rdv.date).getDate()} ${MOISL[jDate(rdv.date).getMonth()]}${rdv.heure?' à '+rdv.heure.replace(':','h'):''}`:'';
+  const T={
+  doc:{s:`${brand} – suite à notre échange`,b:`${hi}\n\nMerci pour votre temps lors de notre échange téléphonique.\n\nComme convenu, voici en quelques mots ce que ${brand} peut apporter à ${soc} : ${pitch}.${F.length?`\n\nCe que j’ai noté de notre échange :\n${bul(F)}`:''}\n\nLe plus simple serait d’en parler 30 minutes, en visio ou dans vos locaux. Je vous propose :\n${bul(sl)}\n\nSi aucun de ces créneaux ne vous convient, indiquez-moi simplement vos disponibilités.\n\nBien cordialement,\n${sig}`},
+  rdvconf:{s:`Confirmation de notre rendez-vous${when?' – '+when:''}`,b:`${hi}\n\nJe vous confirme notre rendez-vous${when?' du '+when:''}${lieu?' ('+lieu+')':''}.\n\nNous ferons le point sur votre environnement actuel et vos priorités${F.length?`, notamment :\n${bul(F)}`:'.'}\n\nEn cas d’empêchement, n’hésitez pas à me prévenir pour que nous trouvions un autre créneau.\n\nÀ très bientôt,\n${sig}`},
+  nrp:{s:`${brand} – un échange de 15 minutes ?`,b:`${hi}\n\nJ’ai essayé de vous joindre par téléphone sans succès, je me permets donc de vous écrire.\n\nJe suis chez ${brand} : nous aidons des structures comme ${soc} à ${pitch}.\n\nAuriez-vous 15 minutes pour un premier échange ? Je vous propose :\n${bul(sl.slice(0,2))}\n\nVous pouvez aussi me répondre directement avec le moment qui vous arrange.\n\nBien cordialement,\n${sig}`},
+  apres:{s:`Merci pour notre rendez-vous – prochaines étapes`,b:`${hi}\n\nMerci pour votre accueil et pour le temps accordé lors de notre rendez-vous.${F.length?`\n\nPour résumer ce que nous avons vu :\n${bul(F)}`:''}\n\nProchaine étape : je reviens vers vous avec une proposition adaptée à ${soc}. N’hésitez pas à me transmettre d’ici là tout élément utile (factures actuelles, contrats, inventaire).\n\nBien cordialement,\n${sig}`},
+  devis:{s:`Votre proposition ${brand} – avez-vous pu la consulter ?`,b:`${hi}\n\nJe reviens vers vous au sujet de la proposition transmise pour ${soc}.\n\nAvez-vous pu en prendre connaissance ? Je peux vous apporter des précisions ou l’ajuster si besoin, par téléphone ou lors d’un court échange :\n${bul(sl.slice(0,2))}\n\nBien cordialement,\n${sig}`},
+  relance:{s:`Re : ${brand} – suite à notre échange`,b:`${hi}\n\nJe me permets de revenir vers vous suite à mon précédent message.\n\nUn échange de 15 minutes vous conviendrait-il ? Je vous propose :\n${bul(sl.slice(0,2))}\n\nBien cordialement,\n${sig}`}};
+  return {to:c?.email||p.ent?.email||'',subject:T[k].s,body:T[k].b}}
+function mailHtml(){const M=S.mail,p=S.P.get(M.pid);if(!p)return'';const C=[...(p.contacts||[]).filter(c=>c.email).map(c=>[c.email,[c.prenom,c.nom].filter(Boolean).join(' ')||c.email]),...(p.ent?.email?[[p.ent.email,'E-mail générique']]:[])];
+  return `<div class="modal" data-act="mailx"><div class="gk mailm"><h2>✉️ Mail · ${esc(displayName(p))}</h2>
+   <div class="chips mailk">${MAIL_K.map(([k,l])=>`<button class="chip" data-act="mailk" data-v="${k}" aria-pressed="${M.k===k}">${esc(l)}</button>`).join('')}</div>
+   <div class="f"><label for="ml-to">À</label>${C.length>1?`<select class="in" id="ml-to">${C.map(([e,l])=>`<option value="${esc(e)}" ${e===M.to?'selected':''}>${esc(l)} · ${esc(e)}</option>`).join('')}</select>`:`<input class="in" id="ml-to" value="${esc(M.to)}" placeholder="adresse e-mail du contact">`}</div>
+   <div class="f"><label for="ml-subj">Objet</label><input class="in" id="ml-subj" value="${esc(M.subject)}"></div>
+   <div class="f"><label for="ml-body">Message <small>(modifiable)</small></label><textarea class="in" id="ml-body" rows="14">${esc(M.body)}</textarea></div>
+   ${S.settings.sig?'':`<div class="mlsig"><label for="ml-sig">Ta signature (enregistrée pour les prochains mails)</label><textarea class="in" id="ml-sig" rows="3" placeholder="Prénom Nom&#10;Ingénieur d’Affaires – ${esc(curWs().name)}&#10;06 xx xx xx xx"></textarea><button class="btn btn-g btn-s" data-act="mailsig">Enregistrer la signature</button></div>`}
+   <div class="mlb"><button class="btn btn-p" data-act="mailgo" data-v="outlook">Ouvrir dans Outlook</button><button class="btn btn-g" data-act="mailgo" data-v="mailto">Ma messagerie</button><button class="btn btn-g" data-act="mailgo" data-v="copy">Copier le texte</button><button class="btn btn-q" data-act="mailx">Fermer</button></div>
+   <small class="hint">Rien n’est envoyé sans toi : Outlook s’ouvre avec le mail prêt, tu relis et tu cliques Envoyer.</small></div></div>`}
+function mailRead(){const M=S.mail;if(!M)return;const g=id=>$(id)?.value;if($('#ml-to'))M.to=g('#ml-to');if($('#ml-subj'))M.subject=g('#ml-subj');if($('#ml-body'))M.body=g('#ml-body')}
+function mailOpen(pid,k){const p=S.P.get(pid);if(!p)return;k=k||mailDefaultK(p);S.mail={pid,k,...mailBuild(p,k)};renderLayer()}
+Object.assign(ACT,{
+ mailopen:b=>mailOpen(b.dataset.id||S.sel,b.dataset.v),
+ mailx:(b,e)=>{if(b.classList.contains('modal')&&e.target!==b)return;S.mail=null;renderLayer()},
+ mailk:b=>{const p=S.P.get(S.mail.pid);const to=$('#ml-to')?.value;S.mail={...S.mail,k:b.dataset.v,...mailBuild(p,b.dataset.v)};if(to)S.mail.to=to;renderLayer()},
+ mailsig:()=>{const v=$('#ml-sig')?.value.trim();if(!v){toast('Écris ta signature d’abord');return}mailRead();const old=mailSig();S.settings.sig=v;saveSettings();if(S.mail.body.includes(old))S.mail.body=S.mail.body.replace(old,v);renderLayer();toast('Signature enregistrée')},
+ mailgo:async b=>{mailRead();const M=S.mail,p=S.P.get(M.pid);if(!p)return;const v=b.dataset.v;
+   if(v==='copy'){try{await navigator.clipboard.writeText(`Objet : ${M.subject}\n\n${M.body}`);toast('Mail copié : colle-le dans ta messagerie')}catch{toast('Copie impossible : sélectionne le texte à la main')}}
+   else{const url=v==='outlook'?`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(M.to)}&subject=${encodeURIComponent(M.subject)}&body=${encodeURIComponent(M.body)}`:`mailto:${encodeURIComponent(M.to)}?subject=${encodeURIComponent(M.subject)}&body=${encodeURIComponent(M.body)}`;
+     if(v==='outlook'){const w=window.open(url,'_blank');try{if(w)w.opener=null}catch{}if(!w){toast('Fenêtre bloquée par le navigateur : utilise « Copier le texte »');return}}else location.href=url}
+   p.journal=p.journal||[];p.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'mail',issue:'Mail préparé : '+(MAIL_K.find(x=>x[0]===M.k)||['',''])[1],texte:M.subject+(M.to?' → '+M.to:'')});
+   let n=0;for(const a of p.actions||[])if(!a.fait&&a.type==='Mail'){a.fait=true;a.faitLe=new Date().toISOString();n++}
+   if(M.k==='doc'||M.k==='nrp')addAction(p,{type:'Relance',date:iso(bizDays(today(),3)),heure:'',note:'Relancer le mail : '+M.subject});
+   markManual(p,'mail');touch(p);S.mail=null;renderLayer();if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList();try{renderAgenda()}catch{}
+   toast(`Mail noté dans l’historique${n?' · action Mail cochée':''}${M.k==='doc'||M.k==='nrp'?' · relance prévue dans 3 jours ouvrés':''}`)}
+});
 
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
