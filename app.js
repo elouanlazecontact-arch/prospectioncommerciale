@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=59;
+const APP_V=60;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -382,13 +382,14 @@ function excluded(p){const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.activite,p.
   if(/\b(banque|bnp|credit agricole|societe generale|lcl|caisse d'epargne|bred|cic|la poste)\b/.test(s))return'Banque / agence bancaire : décision IT au siège.';
   if(/\b(pharmacie|speedy|franchise|franchis|midas|norauto|carglass)\b/.test(s)||p.ent?.groupe==='Oui')return'Franchise ou réseau : la décision IT se prend au siège.';
   return''}
-function matches(p,q){if(!q)return true;const s=norm([p.ent?.nom,p.ent?.enseigne,p.ent?.ville,p.ent?.cp,p.ent?.siret,p.ent?.siren,p.ent?.tel,p.ent?.secteur,...(p.contacts||[]).flatMap(c=>[c.prenom,c.nom,c.tel,c.mobile,c.email])].join(' ')).replace(/\s/g,'');
+const SQC=new WeakMap();
+function matches(p,q){if(!q)return true;let c=SQC.get(p);if(!c||c.u!==p.updatedAt){c={u:p.updatedAt,s:norm([p.ent?.nom,p.ent?.enseigne,p.ent?.ville,p.ent?.cp,p.ent?.siret,p.ent?.siren,p.ent?.tel,p.ent?.secteur,...(p.contacts||[]).flatMap(c=>[c.prenom,c.nom,c.tel,c.mobile,c.email])].join(' ')).replace(/\s/g,'')};SQC.set(p,c)}const s=c.s;
   return norm(q).split(/\s+/).every(w=>s.includes(w.replace(/\s/g,'')))}
 function filtered(){const t=iso(today());
   return VP().filter(p=>matches(p,S.q)).filter(p=>{
     if(S.filter==='all')return true;if(S.filter==='todo')return untreated(p);if(S.filter==='retry')return !!retryAct(p);if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
     if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
-   .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:(a.createdAt||0)-(b.createdAt||0)})}
+   .map(p=>{const n=nextAction(p);return[p,n?.date?n.date+(n.heure||''):'~']}).sort((x,y)=>x[1]<y[1]?-1:x[1]>y[1]?1:(x[0].createdAt||0)-(y[0].createdAt||0)).map(x=>x[0])}
 function allActions(){const out=[];for(const p of VP())for(const a of (p.actions||[]))out.push({p,a});return out}
 function monthRdv(){const d=new Date();const m=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;return VP().filter(p=>p.rdvPrisLe&&p.rdvPrisLe.startsWith(m)).length}
 function todayJournal(c){const t=iso(today());let n=0;for(const p of VP())for(const j of (p.journal||[]))if(j.date?.startsWith(t)&&j.canal===c&&j.issue)n++;return n}
@@ -473,19 +474,20 @@ function renderToday(){
   el.innerHTML=`
   <div class="hello"><div><h1>${h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir'}${''} — ${esc(JOURS[new Date().getDay()])} ${new Date().getDate()} ${MOIS[new Date().getMonth()]}</h1>
     <p>${acts.length?`${acts.length} action${acts.length>1?'s':''} à traiter${late?`, dont ${late} en retard`:''}.`:'Rien en retard. Bonne journée pour prospecter.'}</p></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-loc" data-act="view" data-v="around">📍 Autour de moi · 50 m</button>${S.mode==='poste'?`<button class="btn btn-p" data-act="session">Lancer la session d'appels</button>`:`<button class="btn btn-p" data-act="new">+ Nouvelle visite</button>`}<button class="btn btn-g" data-act="new">${S.mode==='poste'?'+ Nouveau prospect':'+ Saisie rapide'}</button><button class="btn btn-g" data-act="expquick" title="Télécharge l’Excel de ta journée">📤 Exporter ma session du jour</button><button class="btn btn-q" data-act="xlsx" title="Choisir la période et les comptes">Autre export…</button></div></div>
+    <div class="hacts">${S.mode==='poste'?`<button class="btn btn-p" data-act="session">📞 Lancer la session d’appels${acts.length?` <span class="hcount">${acts.length}</span>`:''}</button>`:`<button class="btn btn-p" data-act="new">+ Nouvelle visite</button>`}<button class="btn btn-g" data-act="new">${S.mode==='poste'?'+ Nouveau prospect':'+ Saisie rapide'}</button><button class="btn btn-g" data-act="view" data-v="around">📍 Autour de moi</button><span class="hsplit"><button class="btn btn-g" data-act="expquick" title="Télécharge l’Excel de ta journée">📤 Export du jour</button><button class="btn btn-g" data-act="xlsx" title="Autre période, autres comptes" aria-label="Autre export">▾</button></span></div></div>
   ${!lsGet('radar-ws-tip',false)?`<div class="banner ws-tip"><span>🗂️ <b>Nouveau : espaces de travail.</b> Tu travailles pour plusieurs entreprises (ex. Data Links et Becloud) ? Crée un espace par activité : fiches, agenda, stats et exports complètement séparés. Clique sur le nom en haut à gauche (« ${esc(curWs().name)} ▾ ») pour changer d’espace.</span><span style="display:flex;gap:6px"><button class="btn btn-p btn-s" data-act="wsmenu">Créer un espace</button><button class="btn btn-q btn-s" data-act="wstipx">OK</button></span></div>`:''}
   ${exemples?`<div class="banner"><span>Les fiches marquées « exemple » montrent comment l'outil se remplit. Supprime-les quand tu veux.</span><button class="btn btn-g btn-s" data-act="delex">Supprimer les exemples</button></div>`:''}
+  ${(()=>{const nR=P.filter(p=>retryAct(p)).length,nT=P.filter(untreated).length,c=todayJournal(S.mode==='poste'?'tel':'terrain');return `<div class="dk">
+    <div class="dk-t main"><span class="k">RDV pris ce mois</span><span class="v num">${rdv}<small> / ${obj}</small></span><div class="bar"><i style="width:${Math.min(100,rdv/obj*100)}%"></i></div><span class="s">${rdv>=obj?'Objectif atteint 🎯':`Encore ${obj-rdv} · ${daysLeft} j ouvrés`}</span></div>
+    <div class="dk-t"><span class="k">${S.mode==='poste'?'Appels':'Visites'} aujourd’hui</span><span class="v num">${c}</span><span class="s">${S.mode==='poste'?'issues saisies':'passages terrain'}</span></div>
+    <button class="dk-t ${late?'alert':''}" data-act="view" data-v="agenda"><span class="k">En retard</span><span class="v num">${late}</span><span class="s">${late?'à rattraper →':'tout est à jour'}</span></button>
+    <button class="dk-t ${nR?'warm':''}" data-act="filter" data-v="retry"><span class="k">📞 À rappeler</span><span class="v num">${nR}</span><span class="s">speech à faire →</span></button>
+    <button class="dk-t" data-act="filter" data-v="todo"><span class="k">📥 À traiter</span><span class="v num">${nT}</span><span class="s">jamais appelées →</span></button>
+  </div>`})()}
   ${S.mode==='terrain'?`<div class="card qn-card"><h2>📝 Notes rapides → fiche</h2><p class="qn-help">Colle ou tape tes notes prises à la va-vite : la fiche est créée, l’entreprise cherchée au registre et chaque info rangée automatiquement.</p>
     <input class="in" id="qn-nom" placeholder="Nom de l’entreprise ou SIRET (facultatif)" value="${esc(lsGet('radar-qn-nom',''))}" autocomplete="off">
     <textarea class="in" id="qn-txt" rows="4" placeholder="ex. cabinet dupont, vu la secrétaire mme durand, dg absent, 8 pc sous w10, copieur canon en loc fin 06/27, rapl jeudi 14h">${esc(lsGet('radar-qn-txt',''))}</textarea>
     <button class="btn btn-p" data-act="qncreate">Créer la fiche et analyser</button></div>`:''}
-  <div class="kpis">
-    <div class="kpi main"><span class="k">RDV pris ce mois</span><span class="v num">${rdv}<small> / ${obj}</small></span><div class="bar"><i style="width:${Math.min(100,rdv/obj*100)}%"></i></div><span class="s">${rdv>=obj?'Objectif atteint 🎯':`Encore ${obj-rdv} · ${daysLeft} jours ouvrés restants`}</span></div>
-    <div class="kpi"><span class="k">Appels aujourd'hui</span><span class="v num">${todayJournal('tel')}</span><span class="s">issues d'appel saisies</span></div>
-    <div class="kpi"><span class="k">Visites aujourd'hui</span><span class="v num">${todayJournal('terrain')}</span><span class="s">passages terrain</span></div>
-    <div class="kpi ${late?'alert':''}"><span class="k">En retard</span><span class="v num">${late}</span><span class="s">${late?'à rattraper en priorité':'tout est à jour'}</span></div>
-  </div>
   <div class="two">
     <div class="card"><h2>À faire maintenant <button class="btn btn-q btn-s" data-act="view" data-v="agenda">Tout l'agenda →</button></h2>
       ${acts.length?acts.slice(0,12).map(todoRow).join(''):P.length?`<div class="empty" style="padding:14px">Aucune action prévue aujourd'hui.</div>`:emptyStart()}
@@ -568,6 +570,7 @@ function rowHtml(p){const a=nextAction(p);const c=p.contacts?.find(x=>x.decideur
    <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
 function foldState(){if(!S.fold)S.fold=lsGet('radar-fold',{todo:true,clos:true});return S.fold}
 function retryAct(p){return (p.actions||[]).find(a=>!a.fait&&a.retry)}
+function moreRows(g,k){const lim=(S.more||{})[k]||80;return g.slice(0,lim).map(rowHtml).join('')+(g.length>lim?`<button class="more-rows" data-act="morerows" data-v="${k}">Afficher les ${Math.min(200,g.length-lim)} suivantes · ${g.length-lim} restantes</button>`:'')}
 function groupedRows(L){const t=iso(today());const G=[
    ['retry','📞 À rappeler · speech à faire',p=>!!retryAct(p)],
    ['due','🔔 À faire aujourd’hui',p=>{const a=nextAction(p);return a&&a.date&&a.date<=t}],
@@ -578,7 +581,7 @@ function groupedRows(L){const t=iso(today());const G=[
   const used=new Set(),out=[];for(const [k,l,f] of G){const g=L.filter(p=>!used.has(p.id)&&(k==='todo'?untreated(p):k==='plan'||k==='due'?!untreated(p)&&f(p):f(p)));g.forEach(p=>used.add(p.id));if(g.length)out.push([k,l,g])}
   /* le dossier « À traiter » vient en premier, replié par défaut */
   out.sort((a,b)=>(a[0]==='todo'?-1:0)-(b[0]==='todo'?-1:0));const F=foldState();
-  return out.map(([k,l,g])=>{const closed=!!F[k];return `<section class="fold${k==='todo'?' fold-todo':''}"><button class="fold-h" data-act="fold" data-v="${k}" aria-expanded="${!closed}"><span class="fold-ar">${closed?'▸':'▾'}</span><span class="fold-l">${l}</span><span class="fold-n">${g.length}</span></button>${closed?(k==='todo'?`<div class="fold-hint">Sociétés jamais appelées, sans note ni statut (imports, fiches créées). <button class="lnk" data-act="fold" data-v="todo">Ouvrir le dossier</button> · <button class="lnk" data-act="sesstodo">Lancer une session d’appels sur ces ${g.length} fiches</button></div>`:''):g.map(rowHtml).join('')}</section>`}).join('')}
+  return out.map(([k,l,g])=>{const closed=!!F[k];return `<section class="fold${k==='todo'?' fold-todo':''}"><button class="fold-h" data-act="fold" data-v="${k}" aria-expanded="${!closed}"><span class="fold-ar">${closed?'▸':'▾'}</span><span class="fold-l">${l}</span><span class="fold-n">${g.length}</span></button>${closed?(k==='todo'?`<div class="fold-hint">Sociétés jamais appelées, sans note ni statut (imports, fiches créées). <button class="lnk" data-act="fold" data-v="todo">Ouvrir le dossier</button> · <button class="lnk" data-act="sesstodo">Lancer une session d’appels sur ces ${g.length} fiches</button></div>`:''):moreRows(g,k)}</section>`}).join('')}
 function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
   const F=[['all','Tous'],['due','À faire'],['todo','Jamais traitées'],['retry','À rappeler'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
@@ -588,13 +591,14 @@ function renderList(){
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.filter(([k])=>['all','due','todo','retry','chaud','batch','rneko','terrain'].includes(k)).map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}<select class="fsel${STATUTS.some(x=>x.k===S.filter)?' on':''}" id="fstat" aria-label="Filtrer par statut"><option value="">Statut…</option>${STATUTS.map(x=>`<option value="${x.k}" ${S.filter===x.k?'selected':''}>${esc(x.l)} (${VP().filter(p=>p.statut===x.k).length})</option>`).join('')}</select></div></div>
    ${regSugHtml()}
-   <div class="rows">${L.length?(S.filter==='all'&&!S.q&&!S.selMode?groupedRows(L):L.map(rowHtml).join(''))
+   <div class="rows">${L.length?(S.filter==='all'&&!S.q&&!S.selMode?groupedRows(L):moreRows(L,'flat'))
    :VP().length?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
 }
 
 /* ================= Fiche ================= */
 function ringSvg(v){const r=25,c=2*Math.PI*r;return `<svg viewBox="0 0 58 58"><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--sunk)" stroke-width="5"/><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-v/100)}" style="transition:stroke-dashoffset .5s"/></svg>`}
-function renderFiche(){
+function renderFiche(){renderFiche0();const b=$('.stsel [aria-pressed="true"]');if(b){const r=b.parentElement;r.scrollLeft=Math.max(0,b.offsetLeft-r.offsetLeft-40)}}
+function renderFiche0(){
   const el=$('#fiche');if(!el)return;const p=cur();
   if(!p){el.innerHTML=`<div class="placeholder"><div><h3>Choisis un prospect</h3><span>ou crée-en un nouveau. Raccourcis : <kbd>N</kbd> nouveau, <kbd>J</kbd>/<kbd>K</kbd> suivant/précédent, <kbd>/</kbd> recherche, <kbd>?</kbd> aide.</span><button class="btn btn-p" data-act="new">+ Nouveau prospect</button></div></div>`;return}
   const q=qualif(p),ex=excluded(p);const sub=[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
@@ -604,7 +608,7 @@ function renderFiche(){
     <div class="fhead-top"><div class="fname"><input id="f-ent-nom" data-k="ent.nom" value="${esc(p.ent?.nom||'')}" placeholder="Tape le nom : suggestions du registre" autocomplete="off">
       <div class="fmeta" id="fmeta">${fmetaHtml(p,sub)}</div></div>
       <div class="ring" title="Qualification de la fiche">${ringSvg(q)}<b class="num" id="ringv">${q}%</b><small>qualifiée</small></div></div>
-    <div class="fbar"><div class="stsel">${STATUTS.map(s=>`<button data-act="statut" data-v="${s.k}" aria-pressed="${p.statut===s.k}" ${p.statut===s.k?`class="st-${s.k}"`:''}>${esc(s.l)}</button>`).join('')}</div>
+    <div class="fbar"><div class="stsel">${STATUTS.map(s=>`<button data-act="statut" data-v="${s.k}" aria-pressed="${p.statut===s.k}" ${p.statut===s.k?`class="st-${s.k}" style="--c:${s.c}"`:''}>${esc(s.l)}</button>`).join('')}</div>
      <div class="temp" role="group" aria-label="Température">${TEMPS.map(t=>`<button data-act="temp" data-v="${t.k}" aria-pressed="${p.temperature===t.k}">${t.l}</button>`).join('')}</div></div>
     ${ex?`<div class="warnbox"><b>Hors cible ?</b><span>${esc(ex)}</span></div>`:''}
     ${(()=>{const d=dupOf(p.ent?.siret||p.ent?.siren,p.id);return d?`<div class="warnbox"><b>Doublon</b><span>Ce SIRET est déjà dans la fiche « ${esc(displayName(d))} ».</span><button class="btn btn-p btn-s" data-act="dupopen">Fusionner dans la fiche existante</button></div>`:''})()}
@@ -835,8 +839,9 @@ function menuHtml(){const other=S.mode==='poste'?['mobile.html','Radar Terrain (
 function openFiche(id,tab){S.sel=id;S.confirmDel=false;S.ask=null;S.aiMsg='';S.newAct=null;if(tab)S.tab=tab;else if(!TABS.some(t=>t.id===S.tab))S.tab='ent';
   const fromList=S.mode==='poste'&&S.view==='list'&&$('#list');
   if(S.view!=='list')S.view='list';
-  if(fromList){renderList();renderFiche();renderNotesOnly();const fc=$('#fiche')?.closest('.col');if(fc)fc.scrollTop=0}
+  if(fromList){markSel(id);renderFiche();renderNotesOnly();const fc=$('#fiche')?.closest('.col');if(fc)fc.scrollTop=0}
   else{render();if(S.mode==='poste')$('.row[aria-current="true"]')?.scrollIntoView({block:'nearest'})}}
+function markSel(id){if(S.selMode){renderList();return}const r=$(`#list .row[data-id="${CSS.escape(id)}"]`);if(!r){renderList();return}$$('#list .row[aria-current="true"]').forEach(x=>x.setAttribute('aria-current','false'));r.setAttribute('aria-current','true')}
 function newProspect(){const p=blank(S.mode==='poste'?'tel':'terrain');S.P.set(p.id,p);touch(p);S.tab='ent';openFiche(p.id,'ent');setTimeout(()=>$('#ident-in')?.focus(),30)}
 function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?'<button>Annuler</button>':''}`;
   if(undo)t.querySelector('button').onclick=()=>{undo();t.remove()};$('#toast').append(t);setTimeout(()=>t.remove(),undo?7000:3200)}
@@ -944,6 +949,7 @@ const ACT={
  wsmenu:()=>{lsSet('radar-ws-tip',true);S.menu=false;S.wsMenu=true;S.wsEdit=null;renderLayer()},
  wsx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.wsMenu=false;S.wsEdit=null;renderLayer()},
  wsgo:b=>wsSwitch(b.dataset.v),
+ morerows:b=>{S.more=S.more||{};S.more[b.dataset.v]=((S.more[b.dataset.v])||80)+200;renderList()},
  fold:b=>{const F=foldState();F[b.dataset.v]=!F[b.dataset.v];lsSet('radar-fold',F);renderList()},
  sesstodo:()=>{const ids=filtered().filter(untreated).map(p=>p.id);if(ids.length)startSession(ids)},
  agmove:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions.find(x=>x.id===b.dataset.a);if(!a)return;const base=a.date&&a.date>iso(today())?jDate(a.date):today();a.date=iso(bizDays(base,+b.dataset.v));touch(p);if(a.msId&&msOn())graphSave(p,a).catch(()=>{});renderAgenda();toast(`${a.type} reporté au ${fmtDate(a.date)}`)},
@@ -2668,7 +2674,7 @@ async function fimpRun(){const st=S.fimp;if(!st?.rows||st.run)return;const recs=
 /* ================= Événements ================= */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){if(b.tagName==='A'&&b.dataset.act!=='closem')return;f(b,e)}});
 document.addEventListener('input',e=>{const el=e.target;
-  if(el.id==='q'){S.q=el.value;if(S.view!=='list'){S.view='list';if(S.mode==='terrain')S.sel=null;render();$('#q').focus()}else if(S.mode==='terrain'&&S.sel){S.sel=null;render();$('#q').focus()}else renderList();return}
+  if(el.id==='q'){S.q=el.value;if(S.view!=='list'){S.view='list';if(S.mode==='terrain')S.sel=null;render();$('#q').focus()}else if(S.mode==='terrain'&&S.sel){S.sel=null;render();$('#q').focus()}else{clearTimeout(timers.q);timers.q=setTimeout(renderList,90)}return}
   if(el.id==='note-in'&&S.sel){lsSet('radar-draft-'+S.sel,el.value);return}
   if(el.id==='imp-text'&&S.imp&&!S.imp.busy){S.imp.text=el.value;S.imp.skip=[];clearTimeout(S.impT);S.impT=setTimeout(()=>{const pos=el.selectionStart;renderLayer();const t=$('#imp-text');if(t){t.focus();t.setSelectionRange(pos,pos)}},450);return}
   if(el.id==='qn-nom'||el.id==='qn-txt'){lsSet(el.id==='qn-nom'?'radar-qn-nom':'radar-qn-txt',el.value);return}
