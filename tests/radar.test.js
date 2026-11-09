@@ -13,11 +13,13 @@ const server = http.createServer((req, res) => {
 });
 
 const results = []; let cur = '';
+const iso0 = d => new Date(Date.now() + d * 864e5).toISOString().slice(0, 10);
 const ok = (cond, msg) => { results.push({ t: cur, ok: !!cond, msg }); };
 
-async function page(b, file, vp) {
+async function page(b, file, vp, mocks = {}) {
   const ctx = await b.newContext({ viewport: vp || { width: 1440, height: 900 } });
   await ctx.route('**/*', r => { const u = r.request().url();
+    for (const [k, v] of Object.entries(mocks)) if (u.includes(k)) return r.fulfill({ body: JSON.stringify(v), contentType: 'application/json', headers: { 'access-control-allow-origin': '*' } });
     if (u.includes('config.js')) return r.fulfill({ body: 'window.RADAR_CONFIG={}', contentType: 'text/javascript' });
     if (u.startsWith('http://127.0.0.1')) return r.continue(); return r.abort(); });
   const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
@@ -141,6 +143,18 @@ const T = {
       const G = dupGroups2(); ACT.dupopen2(); ACT.dupgo(); return { g: G.length, strong: G.filter(g => g.strong).length, left: S.P.size, tel: [...S.P.values()].find(p => p.ent.siret)?.ent.tel } });
     ok(r.g === 2, `2 groupes trouvés (SIRET identique, même téléphone + nom proche) — standard partagé entre 2 SIREN ignoré (${r.g})`);
     ok(r.strong === 1 && r.left === 5 && r.tel === '0147223344', 'seul le groupe sûr est fusionné par défaut, sans perte d’info'); await ctx.close();
+  },
+  async 'Recherche multi-sources (INPI + BODACC)'(b) {
+    const { pg, ctx, errs } = await page(b, 'pc.html', null, {
+      ratios_inpi_bce: { results: [{ date_cloture_exercice: '2024-12-31', chiffre_d_affaires: 1850000, resultat_net: 142000, marge_ebe: 12.4 }, { date_cloture_exercice: '2023-12-31', chiffre_d_affaires: 1520000 }] },
+      'bodacc-datadila': { results: [{ dateparution: iso0(-60), familleavis: 'modification', familleavis_lib: 'Modifications diverses', listepersonnes: JSON.stringify({ personne: { capital: { montantCapital: '10000' }, formeJuridique: 'Société par actions simplifiée', administration: 'Président : nomination de Mme Durand' } }) },
+        { dateparution: iso0(-200), familleavis: 'collective', familleavis_lib: 'Procédures collectives', jugement: JSON.stringify({ nature: 'Jugement d’ouverture d’une procédure de redressement judiciaire' }) }] } });
+    const r = await pg.evaluate(async () => { const p = blank('tel'); p.ent = { nom: 'Test', siren: '833987195', tel: '0147223344', secteur: 'Avocats' }; S.P.set(p.id, p); const before = prio(p).s; await enrichMore(p, true);
+      return { ca: p.ent.ca, evol: p.ent.caEvol, cap: p.ent.capital, forme: p.ent.forme, src: p.cpl.src.join(), sig: bodaccSignals(p).length, after: prio(p).s, before } });
+    ok(r.ca === '1,9 M€ (2024)' && r.evol.startsWith('+22 %'), 'CA et évolution récupérés des comptes INPI');
+    ok(r.cap === '10 k€' && r.forme === 'SAS', 'capital et forme récupérés du BODACC');
+    ok(r.src.includes('inpi') && r.src.includes('bodacc'), 'sources affichées'); ok(r.sig >= 2, 'signaux : changement de dirigeant, procédure collective');
+    ok(r.after < r.before, 'une procédure collective fait baisser la priorité'); ok(!errs.length, 'aucune erreur JS'); await ctx.close();
   },
   async 'Fluidité (400 fiches)'(b) {
     const { pg, ctx } = await page(b, 'pc.html');

@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=64;
+const APP_V=65;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -42,6 +42,9 @@ const TABS=[
   {k:'ent.installe',l:'Installé à cette adresse',t:'text',reg:true},
   {k:'ent.ca',l:'Chiffre d’affaires',t:'text',reg:true},
   {k:'ent.resultat',l:'Résultat net',t:'text',reg:true},
+  {k:'ent.caEvol',l:'Évolution du CA',t:'text',reg:true},
+  {k:'ent.capital',l:'Capital social',t:'text',reg:true},
+  {k:'ent.sante',l:'Santé financière',t:'text',w:2,reg:true},
   {k:'ent.convention',l:'Convention collective',t:'text',w:2,reg:true},
   {k:'ent.holding',l:'Dirigeants personnes morales (holding)',t:'text',w:2,reg:true},
  ]},
@@ -639,7 +642,8 @@ function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.inn
   const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
   if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
-  return `${t.id==='ent'?briefHtml(p)+identHtml(p):''}<div class="panel"><div class="grid">${gridHtml(p,t)}</div></div>`}
+  if(t.id==='ent'&&/^\d{9}$/.test(sirenOf(p))&&!(p.cpl?.at&&p.cpl.siren===sirenOf(p)&&p.cpl.at>iso(addDays(today(),-30))))setTimeout(()=>enrichSoon(p),0);
+  return `${t.id==='ent'?briefHtml(p)+identHtml(p):''}<div class="panel"><div class="grid">${gridHtml(p,t)}</div>${t.id==='ent'?sourcesHtml(p):''}</div>`}
 function gridHtml(p,t){let sec='',shown='',out='',n=0;
   for(const f of t.fields){if(f.sec)sec=f.sec;if(f.k==='ent.nom'||f.hidden||(f.reg&&!filled(getP(p,f.k))))continue;
     if(sec!==shown){if(n&&sec)out+=`<div class="gsec">${esc(sec)}</div>`;shown=sec}
@@ -1700,7 +1704,8 @@ function briefData(p){const e=estimates(p);const sec=p.ent?.secteur||'';const si
   if(p.ent?.etab==='Établissement secondaire')sig.push(['🏢','Site secondaire d’une entreprise multi-sites : la décision IT / achats peut se prendre au siège. Demande qui décide.']);
   if(false)sig.push(['🏢',`${p.ent.nbEtabs} établissements ouverts${p.ent.etab?' · celui-ci : '+p.ent.etab.toLowerCase():''} : interconnexion, téléphonie et parc à harmoniser.`]);
   if(p.ent?.holding)sig.push(['🧩',`Dirigée par une société (${p.ent.holding}) : la décision peut se prendre au niveau de la holding.`]);
-  if(p.ent?.ca)sig.push(['💶',`CA ${p.ent.ca}${p.ent.resultat?' · résultat '+p.ent.resultat:''}`]);
+  sig.push(...bodaccSignals(p));
+  if(p.ent?.ca)sig.push(['💶',`CA ${p.ent.ca}${p.ent.caEvol?' ('+p.ent.caEvol.split(' (')[0]+' sur un an)':''}${p.ent.resultat?' · résultat '+p.ent.resultat:''}`]);
   if(p.ent?.categorie==='PME'||!p.ent?.categorie)sig.push(['🧾','Facture électronique : réception obligatoire depuis le 1er sept. 2026, émission obligatoire au 1er sept. 2027 pour les PME et TPE. Argument scan / GED / dématérialisation.']);
   return{e,sig,angles:ANGLES[sec]||[],logi:LOGI[sec]||''}}
 function briefHtml(p){if(!p.ent?.nom&&!p.ent?.enseigne)return'';const b=briefData(p);const open=S.briefOpen!==false;
@@ -1722,8 +1727,8 @@ function applyRe(p,r,hint={}){
   if(isGroup(r)){for(const k of ['ca','resultat','categorie','holding'])if(p.ent[k]!=null){delete p.ent[k];ch.push('ent.'+k)}
     const ef=patch.set['ent.effectif'];if(hint.soft&&(p.rne?.v||0)<3){if(ef)p.ent.effectif=ef;else if(e&&!e.est_siege)delete p.ent.effectif;if(p.est)for(const k of Object.keys(p.est)){setP(p,k,'');delete p.est[k]}}}
   if(e?.latitude&&!p.geo)p.geo={lat:+e.latitude,lon:+e.longitude};
-  p.rne={status:'ok',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:4,tranche:etabTranche(r,e),annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
-  ch.push(...applyEstimates(p));touch(p);markFlash(ch);
+  p.rne={status:'ok',src:r._ods?'ods':'re',siren:r.siren,at:iso(today()),actif:r.etat_administratif!=='C',v:4,tranche:etabTranche(r,e),annee:e?.annee_tranche_effectif_salarie||r.annee_tranche_effectif_salarie||'',installe:e?.date_creation||'',creation:r.date_creation||''};delete p.rneCands;
+  ch.push(...applyEstimates(p));touch(p);markFlash(ch);setTimeout(()=>enrichSoon(p,true),0);
   return{r,e,ch,before}}
 async function applyRne(p,num,hint={}){const res=await reSearch(num);const r=res.find(x=>x.siren===String(num).slice(0,9))||res[0];
   if(!r)throw{fr:'Ce numéro n’existe pas au registre. Vérifie les chiffres.'};return applyRe(p,r,hint)}
@@ -2803,6 +2808,7 @@ function prio(p){const cp=prioCps();let c=PRC.get(p);if(c&&c.u===p.updatedAt&&c.
   if(dec&&(dec.tel||dec.mobile)){s+=10;why.push('ligne directe du décideur')}else if(dec&&(dec.nom||dec.prenom)){s+=5;why.push('décideur connu')}
   const sec=sectOf(p);if(sec){s+=25;why.push('secteur cible ('+sec+')')}
   if(excluded(p)){s-=40;why.push('hors cible probable')}
+  if((p.bodacc||[]).some(x=>x.f==='collective'&&x.d>=iso(addDays(today(),-1095)))){s-=25;why.push('procédure collective')}
   const n=parseInt(String(p.ent?.effectif??'').match(/\d+/)?.[0]||'',10);if(n){const e=n>=250?5:n>=50?15:n>=6?20:10;s+=e;why.push(String(p.ent.effectif).replace(/\s*\+$/,'+')+' salariés')}
   const m=[monthsTo(p.impr?.finContrat),monthsTo(p.tel?.finEngagement)].filter(x=>x!=null).sort((a,b)=>Math.abs(a)-Math.abs(b))[0];
   if(m!=null){if(m<0){s+=8;why.push('contrat échu')}else if(m<=6){s+=20;why.push(`fin de contrat dans ${m||'<1'} mois`)}else if(m<=12){s+=12;why.push(`fin de contrat dans ${m} mois`)}}
@@ -2860,6 +2866,7 @@ function mailRead(){const M=S.mail;if(!M)return;const g=id=>$(id)?.value;if($('#
 function mailOpen(pid,k){const p=S.P.get(pid);if(!p)return;k=k||mailDefaultK(p);S.mail={pid,k,...mailBuild(p,k)};renderLayer()}
 Object.assign(ACT,{
  actog:b=>{S.settings.autocorr=!acOn();saveSettings();b.textContent='correction auto '+(acOn()?'activée':'désactivée');toast(acOn()?'Correction automatique activée':'Correction automatique désactivée')},
+ cplre:()=>{const p=cur();if(!p)return;enrichSoon(p,true);toast('Recherche relancée dans le registre, les comptes INPI et le BODACC')},
  statper:b=>{S.statPer=b.dataset.v;renderStats()},
  mailopen:b=>mailOpen(b.dataset.id||S.sel,b.dataset.v),
  mailx:(b,e)=>{if(b.classList.contains('modal')&&e.target!==b)return;S.mail=null;renderLayer()},
@@ -2992,6 +2999,59 @@ Object.assign(ACT,{
    S.dupUi=false;S._dg=null;render();toast(`${n} fiche${n>1?'s':''} fusionnée${n>1?'s':''} (aucune info perdue)`,()=>{for(const p of backup){S.P.set(p.id,p);touch(p)}S._dg=null;render()})}
 });
 document.addEventListener('change',e=>{const el=e.target;if(el.dataset?.dupi==null)return;S.dupPick=S.dupPick||new Set();const i=+el.dataset.dupi;el.checked?S.dupPick.add(i):S.dupPick.delete(i);renderLayer()});
+
+/* ================= Recherche multi-sources : on combine ce que chaque base publique sait =================
+   1. Annuaire des entreprises / recherche-entreprises (INSEE SIRENE + RNE : identité, dirigeants, finances)
+   2. Comptes annuels déposés à l'INPI (data.economie.gouv.fr) : CA, résultat, évolution, rentabilité, endettement
+   3. BODACC (annonces légales) : capital, changement de dirigeant, cession, procédure collective, dépôt des comptes
+   4. Overture Maps (téléphone, site) via la recherche de numéro existante
+   Ce sont les mêmes sources officielles que Pappers ou Societe.com, interrogées directement et gratuitement. */
+const SRC_L={re:'Annuaire des entreprises (INSEE · RNE)',ods:'Base SIRENE (INSEE)',inpi:'Comptes annuels (INPI)',bodacc:'Annonces légales (BODACC)',overture:'Overture Maps (téléphone, site)',google:'Google',here:'HERE'};
+const sirenOf=p=>String(p.rne?.siren||p.ent?.siren||p.ent?.siret||'').replace(/\D/g,'').slice(0,9);
+async function getJ(u,ms=9000){const r=await fetch(u,{signal:AbortSignal.timeout(ms)});if(!r.ok)throw new Error(r.status);return r.json()}
+async function inpiFin(siren){const j=await getJ('https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/ratios_inpi_bce/records?where='+encodeURIComponent(`siren="${siren}"`)+'&order_by=date_cloture_exercice%20desc&limit=6');
+  const seen=new Set();return (j.results||[]).filter(x=>x.chiffre_d_affaires!=null&&!seen.has(x.date_cloture_exercice)&&seen.add(x.date_cloture_exercice))}
+async function bodaccOf(siren){const j=await getJ('https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?where='+encodeURIComponent(`registre="${siren}"`)+'&order_by=dateparution%20desc&limit=20&select=dateparution,familleavis,familleavis_lib,listepersonnes,modificationsgenerales,jugement,acte,depot,url_complete');return j.results||[]}
+const jparse=s=>{try{return typeof s==='string'?JSON.parse(s):s||{}}catch{return{}}};
+function bodaccItems(L){return L.map(x=>{const per=jparse(x.listepersonnes).personne||{};const mod=jparse(x.modificationsgenerales);const jug=jparse(x.jugement);const dep=jparse(x.depot);const act=jparse(x.acte);
+  let t=x.familleavis_lib||'Annonce';const adm=String(per.administration||'');
+  if(x.familleavis==='collective')t=(jug.nature||'Procédure collective')+(jug.complementJugement?' – '+String(jug.complementJugement).slice(0,120):'');
+  else if(x.familleavis==='depot')t='Dépôt des comptes'+(dep.dateCloture?' (exercice clos le '+fmtD(dep.dateCloture)+')':'');
+  else if(x.familleavis==='vente')t='Vente / cession'+(act.descriptif?' – '+String(act.descriptif).slice(0,120):'');
+  else if(x.familleavis==='modification')t=(mod.descriptif?String(mod.descriptif).replace(/^./,c=>c.toUpperCase()):'Modification')+(adm?' : '+adm.slice(0,160):'');
+  else if(x.familleavis==='radiation')t='Radiation du registre';
+  else if(x.familleavis==='creation'||x.familleavis==='immatriculation')t='Immatriculation'+(act.descriptif?' – '+String(act.descriptif).slice(0,100):'');
+  return{d:x.dateparution,f:x.familleavis,t,u:x.url_complete||'',cap:per.capital?.montantCapital,forme:per.formeJuridique,adm}})}
+const fmtD=d=>{const x=jDate(String(d).slice(0,10));return x?`${x.getDate()} ${MOIS[x.getMonth()]} ${x.getFullYear()}`:String(d)};
+async function enrichMore(p,force){const siren=sirenOf(p);if(!/^\d{9}$/.test(siren))return 0;const t=iso(today());
+  if(!force&&p.cpl?.at&&p.cpl.siren===siren&&p.cpl.at>iso(addDays(today(),-30)))return 0;
+  const [fin,bod]=await Promise.allSettled([inpiFin(siren),bodaccOf(siren)]);let n=0;const src=new Set(p.cpl?.src||[]);
+  if(p.rne?.status==='ok')src.add(p.rne.src||'re');p.ent=p.ent||{};
+  if(fin.status==='fulfilled'&&fin.value.length&&!isGroupP(p)){const [a,b]=fin.value;const y=String(a.date_cloture_exercice).slice(0,4);src.add('inpi');
+    const cur=String(p.ent.ca||'').match(/\((\d{4})\)/)?.[1]||'';if(!p.ent.ca||cur<y){p.ent.ca=`${eur(a.chiffre_d_affaires)} (${y})`;if(a.resultat_net!=null)p.ent.resultat=`${eur(a.resultat_net)} (${y})`;n++}
+    if(b&&b.chiffre_d_affaires>0){const ev=Math.round((a.chiffre_d_affaires/b.chiffre_d_affaires-1)*100);const s=`${ev>0?'+':''}${ev} % (${String(b.date_cloture_exercice).slice(0,4)} → ${y})`;if(p.ent.caEvol!==s){p.ent.caEvol=s;n++}}
+    const sante=[a.marge_ebe!=null&&`marge EBE ${Math.round(a.marge_ebe)} %`,a.autonomie_financiere!=null&&`autonomie financière ${Math.round(a.autonomie_financiere)} %`,a.ratio_de_liquidite!=null&&`liquidité ${Math.round(a.ratio_de_liquidite)} %`].filter(Boolean).join(' · ');
+    if(sante&&p.ent.sante!==sante){p.ent.sante=sante+` (${y})`;n++}}
+  if(bod.status==='fulfilled'){const L=bodaccItems(bod.value);if(L.length){src.add('bodacc');const old=JSON.stringify(p.bodacc||[]);p.bodacc=L.slice(0,8);if(JSON.stringify(p.bodacc)!==old)n++;
+    const c=L.find(x=>x.cap);if(c&&!p.ent.capital){p.ent.capital=eur(+c.cap);n++}
+    const fj=L.find(x=>x.forme)?.forme;if(fj&&!p.ent.forme){const m=['SASU','SAS','SARL','EURL','SA','SCP','SELARL','SCI'].find(k=>new RegExp('\\b'+k+'\\b','i').test(fj)||(k==='SAS'&&/actions simplifiée/i.test(fj))||(k==='SARL'&&/responsabilité limitée/i.test(fj))||(k==='SA'&&/^société anonyme/i.test(fj)));if(m){p.ent.forme=m;n++}}}}
+  for(const x of [p.ent.telSource,p.ent.siteSource,p.ent.emailSource]){const v=String(x||'');if(/overture/i.test(v))src.add('overture');else if(/google/i.test(v))src.add('google');else if(/here/i.test(v))src.add('here');else if(/osm|openstreetmap/i.test(v))src.add('OpenStreetMap')}
+  const ne=[fin,bod].filter(x=>x.status==='rejected').length;p.cpl={at:ne===2?'':t,siren,src:[...src],err:ne};PRC.delete(p);touch(p);if(S.sel===p.id&&S.tab==='ent')renderFiche();return n}
+const isGroupP=p=>p.ent?.categorie==='Grande entreprise'&&p.ent?.groupe==='Oui';
+const CPLQ=[];let cplBusy=false;
+function enrichSoon(p,force){if(!p||CPLQ.includes(p.id))return;S.cplTried=S.cplTried||new Set();if(!force&&S.cplTried.has(p.id))return;S.cplTried.add(p.id);CPLQ.push(p.id);if(force)S.cplForce=(S.cplForce||new Set()).add(p.id);cplPump()}
+async function cplPump(){if(cplBusy)return;cplBusy=true;try{while(CPLQ.length){const id=CPLQ.shift();const p=S.P.get(id);if(!p)continue;try{await enrichMore(p,S.cplForce?.delete(id))}catch{}}}finally{cplBusy=false}}
+function sourcesHtml(p){const c=p.cpl;const nm=encodeURIComponent(displayName(p)),sir=sirenOf(p),q=encodeURIComponent((p.ent?.nom||displayName(p))+' '+(p.ent?.ville||''));
+  const B=(p.bodacc||[]).slice(0,5);
+  return `<div class="srcbox">${c?.src?.length?`<div class="srcl"><b>Sources combinées</b>${c.src.map(s=>`<span class="srcc">${esc(SRC_L[s]||s)}</span>`).join('')}<button class="lnk" data-act="cplre" title="Relancer la recherche dans toutes les sources">↻ actualiser</button></div>`:sir?`<div class="srcl"><b>Sources</b><span class="hint">Recherche en cours dans les comptes INPI et le BODACC…</span></div>`:''}
+   ${B.length?`<div class="bod"><div class="lbl">Annonces légales (BODACC)</div>${B.map(x=>`<a class="bodi${x.f==='collective'||x.f==='radiation'?' bad':''}" href="${esc(x.u||'https://www.bodacc.fr')}" target="_blank" rel="noopener"><span class="num">${esc(fmtD(x.d))}</span>${esc(x.t)}</a>`).join('')}</div>`:''}
+   <div class="srcl"><b>Voir aussi</b>${sir?`<a href="https://www.pappers.fr/entreprise/${sir}" target="_blank" rel="noopener">Pappers ↗</a><a href="https://www.societe.com/cgi-bin/search?champs=${sir}" target="_blank" rel="noopener">Societe.com ↗</a><a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${sir}" target="_blank" rel="noopener">Annuaire des entreprises ↗</a><a href="https://www.infogreffe.fr/recherche-entreprise-dirigeants/resultats-entreprise-dirigeants?phrase=${sir}" target="_blank" rel="noopener">Infogreffe ↗</a>`:`<a href="https://www.pappers.fr/recherche?q=${nm}" target="_blank" rel="noopener">Pappers ↗</a><a href="https://annuaire-entreprises.data.gouv.fr/rechercher?terme=${nm}" target="_blank" rel="noopener">Annuaire des entreprises ↗</a>`}<a href="https://www.linkedin.com/search/results/companies/?keywords=${nm}" target="_blank" rel="noopener">LinkedIn ↗</a><a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google ↗</a></div></div>`}
+function bodaccSignals(p){const out=[];const now=iso(today());const ago=m=>iso(addDays(today(),-30*m));
+  for(const x of p.bodacc||[]){if(x.f==='collective'&&x.d>=ago(36)){out.push(['⚠️',`${x.t} (BODACC, ${fmtD(x.d)}) : prudence sur la solvabilité, vérifie avant de proposer un engagement.`]);break}}
+  const v=(p.bodacc||[]).find(x=>x.f==='vente'&&x.d>=ago(24));if(v)out.push(['🔁',`Fonds cédé le ${fmtD(v.d)} : nouveau propriétaire, les contrats (copieurs, télécom, informatique) sont souvent remis à plat.`]);
+  const d=(p.bodacc||[]).find(x=>x.f==='modification'&&x.d>=ago(18)&&/nomination|changement|démission|gérant|président|directeur/i.test(x.adm||x.t));if(d)out.push(['👤',`Changement de dirigeant publié le ${fmtD(d.d)} : nouvel interlocuteur, bonne fenêtre pour te présenter.`]);
+  const ev=String(p.ent?.caEvol||'').match(/^([+−-]?\d+) %/);if(ev){const n=+ev[1].replace('−','-');if(n>=10)out.push(['📈',`Chiffre d’affaires en hausse de ${n} % : entreprise en croissance, besoins d’équipement et de structuration.`]);else if(n<=-15)out.push(['📉',`Chiffre d’affaires en baisse de ${-n} % : mets l’accent sur les économies (copieurs, télécom).`])}
+  return out}
 
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
