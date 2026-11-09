@@ -123,6 +123,25 @@ const T = {
     await pg.fill('#note-in', ''); await pg.keyboard.type('le reseau '); await pg.keyboard.press('Backspace');
     ok(await pg.$eval('#note-in', e => e.value) === 'Le reseau', 'retour arrière = mot d’origine'); await ctx.close();
   },
+  async 'Statistiques'(b) {
+    const { pg, ctx, errs } = await page(b, 'pc.html');
+    const r = await pg.evaluate(() => { const iss = ['Répondeur / NRP', 'Barrage', 'Pas le temps', 'Échange sans suite', 'RDV pris · 12 nov.', 'Pas intéressé'];
+      for (let i = 0; i < 60; i++) { const p = blank('tel'); p.ent = { nom: 'S' + i, secteur: i % 2 ? 'Avocats' : 'Garage' }; const d = iso(bizDays(today(), -(i % 10)));
+        p.journal = [{ id: rid(), date: d + 'T' + pad(9 + i % 8) + ':10:00', canal: 'tel', issue: iss[i % 6] }]; if (i % 6 === 4) p.rdvPrisLe = Date.now(); S.P.set(p.id, p) }
+      const D = statsData('30'); S.view = 'stats'; render(); return { n: D.n, reach: D.reach, rdv: D.rdv, cells: $$('.st-c').length, ins: $$('.st-ins li').length } });
+    ok(r.n === 60 && r.reach === 40 && r.rdv === 10, `chiffres justes (${r.n} appels, ${r.reach} décrochés, ${r.rdv} RDV)`);
+    ok(r.cells === 45 && r.ins >= 2, 'carte des créneaux et conseils affichés'); ok(!errs.length, 'aucune erreur JS'); await ctx.close();
+  },
+  async 'Doublons : détection et fusion'(b) {
+    const { pg, ctx } = await page(b, 'pc.html');
+    const r = await pg.evaluate(() => { const mk = (n, e) => { const p = blank('tel'); p.ent = { nom: n, ...e }; S.P.set(p.id, p); return p };
+      mk('Cabinet Durand', { siret: '84768975900011' }); mk('Cabinet Durand SARL', { siret: '84768975900011', tel: '0147223344' });
+      mk('Etude Martin', { tel: '0147000001', cp: '75017' }); mk('Etude Martin Notaires', { tel: '0147000001', cp: '75017' });
+      mk('Société A', { siren: '111111111', tel: '0147000009' }); mk('Société B', { siren: '222222222', tel: '0147000009' });
+      const G = dupGroups2(); ACT.dupopen2(); ACT.dupgo(); return { g: G.length, strong: G.filter(g => g.strong).length, left: S.P.size, tel: [...S.P.values()].find(p => p.ent.siret)?.ent.tel } });
+    ok(r.g === 2, `2 groupes trouvés (SIRET identique, même téléphone + nom proche) — standard partagé entre 2 SIREN ignoré (${r.g})`);
+    ok(r.strong === 1 && r.left === 5 && r.tel === '0147223344', 'seul le groupe sûr est fusionné par défaut, sans perte d’info'); await ctx.close();
+  },
   async 'Fluidité (400 fiches)'(b) {
     const { pg, ctx } = await page(b, 'pc.html');
     const r = await pg.evaluate(() => { for (let i = 0; i < 400; i++) { const p = blank('tel'); p.ent = { nom: 'Societe ' + i, tel: '01' + String(47000000 + i).padStart(8, '0') }; p.manual = i % 2; S.P.set(p.id, p) }

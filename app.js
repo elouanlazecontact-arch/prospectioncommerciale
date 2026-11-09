@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=63;
+const APP_V=64;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -417,13 +417,14 @@ function render(){applyWs();
   if(S.view==='today')m.innerHTML=`<div class="today"><div class="today-in" id="today"></div></div>`,renderToday();
   else if(S.view==='agenda')m.innerHTML=`<div class="today"><div class="today-in" id="agenda"></div></div>`,renderAgenda();
   else if(S.view==='team')m.innerHTML=`<div class="today"><div class="today-in wide" id="team"></div></div>`,renderTeam();
+  else if(S.view==='stats')m.innerHTML=`<div class="today"><div class="today-in" id="stats"></div></div>`,renderStats();
   else if(S.view==='around'){m.innerHTML=`<div class="today"><div class="today-in" id="around"></div></div>`;renderAround();if(!S.gpsTried&&!A().pos&&S.mode==='terrain'){S.gpsTried=true;setTimeout(tryGps,150)}}
   else if(S.mode==='poste'){m.innerHTML=`<div class="cols"><aside class="col col-list" id="list"></aside><section class="col col-fiche" id="fiche"></section><aside class="col col-notes" id="notes"></aside></div>`;renderList();renderFiche();renderNotesOnly()}
   else{ if(S.sel&&cur()){m.innerHTML=`<section class="mono-col col-fiche" id="fiche"></section>`;renderFiche()}else{m.innerHTML=`<div class="mono-col col-list" id="list"></div>`;renderList()} }
   renderLayer();
 }
 function renderSoft(selChanged){
-  if(S.view==='today')renderToday();else if(S.view==='agenda')renderAgenda();else if(S.view==='team')renderTeam();else if(S.view==='around'){}else{renderList();
+  if(S.view==='today')renderToday();else if(S.view==='agenda')renderAgenda();else if(S.view==='team')renderTeam();else if(S.view==='stats')renderStats();else if(S.view==='around'){}else{renderList();
     if(selChanged&&!$('#fiche')?.contains(document.activeElement))renderFiche();
     if(S.sel&&!cur()){S.sel=null;render()}}
 }
@@ -483,7 +484,7 @@ function renderToday(){
   ${exemples?`<div class="banner"><span>Les fiches marquées « exemple » montrent comment l'outil se remplit. Supprime-les quand tu veux.</span><button class="btn btn-g btn-s" data-act="delex">Supprimer les exemples</button></div>`:''}
   ${(()=>{const nR=P.filter(p=>retryAct(p)).length,nT=P.filter(untreated).length,c=todayJournal(S.mode==='poste'?'tel':'terrain');return `<div class="dk">
     <div class="dk-t main"><span class="k">RDV pris ce mois</span><span class="v num">${rdv}<small> / ${obj}</small></span><div class="bar"><i style="width:${Math.min(100,rdv/obj*100)}%"></i></div><span class="s">${rdv>=obj?'Objectif atteint 🎯':`Encore ${obj-rdv} · ${daysLeft} j ouvrés`}</span></div>
-    <div class="dk-t"><span class="k">${S.mode==='poste'?'Appels':'Visites'} aujourd’hui</span><span class="v num">${c}</span><span class="s">${S.mode==='poste'?'issues saisies':'passages terrain'}</span></div>
+    <button class="dk-t" data-act="view" data-v="stats"><span class="k">${S.mode==='poste'?'Appels':'Visites'} aujourd’hui</span><span class="v num">${c}</span><span class="s">📊 mes statistiques →</span></button>
     <button class="dk-t ${late?'alert':''}" data-act="view" data-v="agenda"><span class="k">En retard</span><span class="v num">${late}</span><span class="s">${late?'à rattraper →':'tout est à jour'}</span></button>
     <button class="dk-t ${nR?'warm':''}" data-act="filter" data-v="retry"><span class="k">📞 À rappeler</span><span class="v num">${nR}</span><span class="s">speech à faire →</span></button>
     <button class="dk-t" data-act="filter" data-v="todo"><span class="k">📥 À traiter</span><span class="v num">${nT}</span><span class="s">jamais appelées →</span></button>
@@ -591,7 +592,7 @@ function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();if(S.filter==='todo')L.sort(byPrio);
   const F=[['all','Tous'],['due','À faire'],['todo','Jamais traitées'],['retry','À rappeler'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div class="lh-acts lh-compact"><button class="btn btn-g btn-s" data-act="importopen" title="Colle une liste de sociétés, des notes ou des SIRET">＋ Coller une liste</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer</button><button class="btn btn-g btn-s" data-act="view" data-v="around" title="Entreprises autour de moi">📍</button></div>
-   ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
+   ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups2().reduce((t,g)=>t+g.ps.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="dupopen2">⚠ ${d} doublon${d>1?'s':''} : vérifier et fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.filter(([k])=>['all','due','todo','retry','chaud','batch','rneko','terrain'].includes(k)).map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}<select class="fsel${STATUTS.some(x=>x.k===S.filter)?' on':''}" id="fstat" aria-label="Filtrer par statut"><option value="">Statut…</option>${STATUTS.map(x=>`<option value="${x.k}" ${S.filter===x.k?'selected':''}>${esc(x.l)} (${VP().filter(p=>p.statut===x.k).length})</option>`).join('')}</select></div></div>
@@ -763,7 +764,7 @@ function renderNotesOnly(){const p=cur();
   else renderLayer()}
 function renderLayer(){const L=$('#layer');
   if(S.mode==='terrain'&&S.sheet&&cur()){const keep=$('#note-in')?.value;L.innerHTML=`<div class="sheet-bg" data-act="sheetx"></div><div class="sheet" role="dialog" aria-label="Notes et issue"><div class="grab"></div>${notesHtml(cur())}</div>`;if(keep!=null)$('#note-in').value=keep}
-  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.msHelp)L.innerHTML=msHelpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else if(S.mail)L.innerHTML=mailHtml();else L.innerHTML=''}
+  else if(S.fimpOpen)L.innerHTML=fimpHtml();else if(S.importing)L.innerHTML=importHtml();else if(S.help)L.innerHTML=helpHtml();else if(S.wsMenu)L.innerHTML=wsHtml();else if(S.msHelp)L.innerHTML=msHelpHtml();else if(S.gkHelp)L.innerHTML=gkHelpHtml();else if(S.menu)L.innerHTML=menuHtml();else if(S.exp)L.innerHTML=expHtml();else if(S.mail)L.innerHTML=mailHtml();else if(S.dupUi)L.innerHTML=dupHtml();else L.innerHTML=''}
 function applyWs(){const w=curWs();const r=document.documentElement;
   if(w.c){r.style.setProperty('--accent',w.c);r.style.setProperty('--accent-2',w.c);r.style.setProperty('--accent-soft',`color-mix(in srgb, ${w.c} 16%, var(--surface, #fff))`)}else['--accent','--accent-2','--accent-soft'].forEach(k=>r.style.removeProperty(k));
   const sm=$('.brand small');if(sm)sm.innerHTML=`<button class="ws-btn" data-act="wsmenu" title="Changer d’espace de travail">${esc(w.name)} <span aria-hidden="true">▾</span></button>`;
@@ -2859,6 +2860,7 @@ function mailRead(){const M=S.mail;if(!M)return;const g=id=>$(id)?.value;if($('#
 function mailOpen(pid,k){const p=S.P.get(pid);if(!p)return;k=k||mailDefaultK(p);S.mail={pid,k,...mailBuild(p,k)};renderLayer()}
 Object.assign(ACT,{
  actog:b=>{S.settings.autocorr=!acOn();saveSettings();b.textContent='correction auto '+(acOn()?'activée':'désactivée');toast(acOn()?'Correction automatique activée':'Correction automatique désactivée')},
+ statper:b=>{S.statPer=b.dataset.v;renderStats()},
  mailopen:b=>mailOpen(b.dataset.id||S.sel,b.dataset.v),
  mailx:(b,e)=>{if(b.classList.contains('modal')&&e.target!==b)return;S.mail=null;renderLayer()},
  mailk:b=>{const p=S.P.get(S.mail.pid);const to=$('#ml-to')?.value;S.mail={...S.mail,k:b.dataset.v,...mailBuild(p,b.dataset.v)};if(to)S.mail.to=to;renderLayer()},
@@ -2911,6 +2913,85 @@ document.addEventListener('keydown',e=>{const a=S.ac;if(!a)return;const el=e.tar
   if(e.key==='Backspace'&&el===a.el&&el.selectionStart===a.pos&&el.selectionEnd===a.pos&&!e.ctrlKey&&!e.altKey&&!e.metaKey){e.preventDefault();S.ac=null;S.acIgnore=S.acIgnore||new Set();S.acIgnore.add(a.orig.toLowerCase());
     S.acBusy=true;try{el.setSelectionRange(a.ws,a.pos);if(!document.execCommand('insertText',false,a.orig)){el.setRangeText(a.orig,a.ws,a.pos,'end');el.dispatchEvent(new Event('input',{bubbles:true}))}}finally{S.acBusy=false}return}
   if(e.key.length===1||e.key==='Backspace'||e.key==='Enter')S.ac=null},true);
+
+/* ================= Statistiques de prospection ================= */
+const ISSUE_OF=s=>{s=String(s||'');for(const o of OUT.poste)if(s.startsWith(o.l))return o.l;if(/^RDV pris/.test(s))return'RDV pris';if(/r[ée]pondeur|nrp/i.test(s))return'Répondeur / NRP';return s.split(' · ')[0]||'Autre'};
+function statsFrom(per){const t=today();if(per==='7')return iso(addDays(t,-6));if(per==='30')return iso(addDays(t,-29));if(per==='mois')return iso(t).slice(0,8)+'01';return'0000'}
+function statsData(per){const from=statsFrom(per),P=VP().filter(p=>!p.exemple);const calls=[],byIss={},grid={},sect={},days={};let visits=0,mails=0,dur=0,durN=0;
+  for(const p of P){const sec=sectOf(p)||'autres secteurs';for(const j of p.journal||[]){const d=String(j.date||'');if(d.slice(0,10)<from)continue;
+    if(j.canal==='terrain'&&j.issue){visits++;continue}if(j.canal==='mail'){mails++;continue}if(j.canal!=='tel'||!j.issue)continue;
+    const iss=ISSUE_OF(j.issue),reach=!NOREACH.test(j.issue)&&iss!=='Faux numéro',rdv=iss==='RDV pris';calls.push(1);byIss[iss]=(byIss[iss]||0)+1;
+    const dt=jDate(d.slice(0,10)),h=+d.slice(11,13)||0,wd=dt?dt.getDay():0;if(wd>=1&&wd<=5&&h>=8&&h<=18){const k=wd+'-'+h;const g=grid[k]||(grid[k]={n:0,r:0});g.n++;if(reach)g.r++}
+    const s=sect[sec]||(sect[sec]={n:0,r:0,rdv:0});s.n++;if(reach)s.r++;if(rdv)s.rdv++;
+    const dd=days[d.slice(0,10)]||(days[d.slice(0,10)]={n:0,r:0,rdv:0});dd.n++;if(reach)dd.r++;if(rdv)dd.rdv++;
+    if(j.duree&&/^\d+:\d\d$/.test(j.duree)){const [m,s2]=j.duree.split(':').map(Number);dur+=m*60+s2;durN++}}}
+  const n=calls.length,reach=Object.entries(byIss).filter(([k])=>!NOREACH.test(k)&&k!=='Faux numéro').reduce((t,[,v])=>t+v,0);
+  const rdv=P.filter(p=>p.rdvPrisLe&&iso(new Date(p.rdvPrisLe))>=from).length;
+  return{from,n,reach,rdv,byIss,grid,sect,days,visits,mails,dur:durN?Math.round(dur/durN):0}}
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+function statsInsights(D){const L=[];const obj=S.settings.objectif||20;
+  if(D.n<10){L.push('Encore peu d’appels sur la période : les tendances deviendront fiables à partir d’une trentaine d’appels.');return L}
+  let best=null;for(const [k,g] of Object.entries(D.grid))if(g.n>=5&&(!best||g.r/g.n>best.g.r/best.g.n))best={k,g};
+  if(best){const [wd,h]=best.k.split('-').map(Number);L.push(`Meilleur créneau : <b>${JOURS[wd]} ${h}h–${h+1}h</b> (${pct(best.g.r,best.g.n)} % de décroché sur ${best.g.n} appels).`)}
+  const ss=Object.entries(D.sect).filter(([,s])=>s.n>=5).sort((a,b)=>b[1].r/b[1].n-a[1].r/a[1].n);if(ss.length>1)L.push(`Secteur le plus joignable : <b>${esc(ss[0][0])}</b> (${pct(ss[0][1].r,ss[0][1].n)} % de décroché) ; le moins : ${esc(ss.at(-1)[0])} (${pct(ss.at(-1)[1].r,ss.at(-1)[1].n)} %).`);
+  if(D.rdv){const per=Math.round(D.n/D.rdv);const days=Math.max(1,Object.keys(D.days).length);L.push(`Il te faut en moyenne <b>${per} appels pour 1 RDV</b>. Pour ${obj} RDV par mois, vise environ <b>${Math.ceil(per*obj/20)} appels par jour</b> de phoning (moyenne actuelle : ${Math.round(D.n/days)} par jour d’appels).`)}
+  else L.push(`Aucun RDV encore sur la période : ${pct(D.reach,D.n)} % de tes appels aboutissent à un interlocuteur. Les mails « Injoignable » et le créneau ci-dessus peuvent faire monter ce taux.`);
+  const nt=(D.byIss['Pas le temps']||0)+(D.byIss['Barrage']||0);if(nt>=5)L.push(`${nt} appels bloqués (barrage ou « pas le temps ») : ils sont tous dans le dossier « 📞 À rappeler ».`);
+  return L}
+function renderStats(){const el=$('#stats');if(!el)return;const per=S.statPer||'30';const D=statsData(per);const obj=S.settings.objectif||20;
+  const iss=Object.entries(D.byIss).sort((a,b)=>b[1]-a[1]),imax=Math.max(1,...iss.map(x=>x[1]));
+  const H=[9,10,11,12,13,14,15,16,17],WD=[1,2,3,4,5];
+  const dk=Object.keys(D.days).sort();const span=[];if(dk.length){let d=jDate(per==='tout'?dk[0]:D.from);const end=today();while(d<=end){if(d.getDay()%6)span.push(iso(d));d=addDays(d,1)}if(span.length>60)span.splice(0,span.length-60)}
+  const dmax=Math.max(1,...span.map(k=>D.days[k]?.n||0));
+  const sec=Object.entries(D.sect).sort((a,b)=>b[1].n-a[1].n);
+  el.innerHTML=`<div class="hello"><div><h1>Mes statistiques</h1><p>${D.n} appel${D.n>1?'s':''} · ${esc(curWs().name)}${isAdmin()&&S.who&&S.who!=='me'?' · '+esc(S.who==='all'?'toute l’équipe':memberName(S.who)):''}</p></div>
+    <div class="st-seg">${[['7','7 jours'],['30','30 jours'],['mois','Ce mois'],['tout','Tout']].map(([k,l])=>`<button data-act="statper" data-v="${k}" aria-pressed="${per===k}">${l}</button>`).join('')}</div></div>
+   <div class="dk">
+    <div class="dk-t"><span class="k">Appels</span><span class="v num">${D.n}</span><span class="s">${D.dur?`durée moy. ${Math.floor(D.dur/60)} min ${pad(D.dur%60)}`:'issues saisies'}</span></div>
+    <div class="dk-t"><span class="k">Décroché</span><span class="v num">${pct(D.reach,D.n)}<small> %</small></span><span class="s">${D.reach} interlocuteur${D.reach>1?'s':''} joint${D.reach>1?'s':''}</span></div>
+    <div class="dk-t main"><span class="k">RDV pris</span><span class="v num">${D.rdv}</span><span class="s">${D.n?`${pct(D.rdv,D.n)} % des appels · ${pct(D.rdv,D.reach)} % des décrochés`:'—'}</span></div>
+    <div class="dk-t"><span class="k">Appels pour 1 RDV</span><span class="v num">${D.rdv?Math.round(D.n/D.rdv):'—'}</span><span class="s">objectif ${obj} RDV / mois</span></div>
+    <div class="dk-t"><span class="k">Mails · visites</span><span class="v num">${D.mails}<small> · ${D.visits}</small></span><span class="s">mails préparés · passages terrain</span></div>
+   </div>
+   <div class="card st-ins"><h2>Ce que disent tes chiffres</h2><ul>${statsInsights(D).map(x=>`<li>${x}</li>`).join('')}</ul></div>
+   <div class="two">
+    <div class="card"><h2>Appels par jour <span class="lbl">barre pleine = décroché</span></h2>
+     ${span.length?`<div class="st-days">${span.map(k=>{const d=D.days[k]||{n:0,r:0,rdv:0};const dt=jDate(k);return `<div class="st-day" title="${JOURS[dt.getDay()]} ${dt.getDate()} ${MOIS[dt.getMonth()]} : ${d.n} appel${d.n>1?'s':''}, ${d.r} décroché${d.r>1?'s':''}${d.rdv?', '+d.rdv+' RDV':''}"><div class="st-col" style="height:${d.n/dmax*100}%"><i style="height:${d.n?d.r/d.n*100:0}%"></i></div>${d.rdv?'<b class="stx-rdv">RDV</b>':''}<small>${dt.getDate()}</small></div>`}).join('')}</div>`:'<div class="empty" style="padding:14px">Aucun appel sur la période.</div>'}</div>
+    <div class="card"><h2>Issues des appels</h2>${iss.length?`<div class="st-iss">${iss.map(([k,v])=>`<div class="st-ir" title="${v} appel${v>1?'s':''} · ${pct(v,D.n)} %"><span>${esc(k)}</span><div class="st-bar"><i style="width:${v/imax*100}%"></i></div><b class="num">${v}</b><small class="num">${pct(v,D.n)} %</small></div>`).join('')}</div>`:'<div class="empty" style="padding:14px">—</div>'}</div>
+   </div>
+   <div class="two">
+    <div class="card"><h2>Quand ça décroche <span class="lbl">% de décroché par créneau</span></h2>
+     <div class="st-heat" style="grid-template-columns:44px repeat(${H.length},minmax(0,1fr))"><span></span>${H.map(h=>`<span class="st-hh">${h}h</span>`).join('')}
+      ${WD.map(w=>`<span class="st-hd">${JOURS[w].slice(0,3)}.</span>${H.map(h=>{const g=D.grid[w+'-'+h];const r=g?g.r/g.n:0;return `<span class="st-c${!g?' none':g.n<3?' few':''}" style="--a:${g&&g.n>=3?(.12+.88*r).toFixed(2):0}" title="${JOURS[w]} ${h}h–${h+1}h : ${g?`${g.n} appel${g.n>1?'s':''}, ${pct(g.r,g.n)} % décroché`:'aucun appel'}">${g&&g.n>=3?pct(g.r,g.n):g?'·':''}</span>`}).join('')}`).join('')}</div>
+     <small class="hint">Chiffre affiché à partir de 3 appels sur le créneau. Plus la case est foncée, plus on te répond.</small></div>
+    <div class="card"><h2>Par secteur</h2>${sec.length?`<table class="st-tab"><thead><tr><th>Secteur</th><th>Appels</th><th>Décroché</th><th>RDV</th></tr></thead><tbody>${sec.map(([k,s])=>`<tr><td>${esc(k)}</td><td class="num">${s.n}</td><td class="num">${pct(s.r,s.n)} %</td><td class="num">${s.rdv}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">—</div>'}</div>
+   </div>`}
+/* ================= Doublons : détection élargie + aperçu avant fusion ================= */
+function dupGroups2(){let mx=0;for(const p of S.P.values())if((p.updatedAt||0)>mx)mx=p.updatedAt;const tok=S.P.size+':'+mx+':'+S.ws+':'+S.who;if(S._dg&&S._dg.tok===tok)return S._dg.g;
+  const P=VP().filter(p=>!p.exemple);const par=new Map(P.map(p=>[p.id,p.id]));const f=x=>{while(par.get(x)!==x){par.set(x,par.get(par.get(x)));x=par.get(x)}return x};
+  const why=new Map();const bk=new Map();
+  for(const p of P){const o=sirOf(p);const ks=[];if(o.siren)ks.push('n'+o.siren);for(const t of telsOf(p))ks.push('t'+t);for(const m of mailsOf(p))ks.push('m'+m);for(const k of ks){const kk=okey(p)+'|'+k;if(!bk.has(kk))bk.set(kk,[]);bk.get(kk).push(p)}}
+  for(const L of bk.values()){if(L.length<2||L.length>12)continue;for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++){const a=L[i],b=L[j];if(f(a.id)===f(b.id))continue;const w=sameCompany(a,b);if(!w)continue;
+    if(/t[ée]l[ée]phone|e-mail/.test(w)&&!(nmKey(displayName(a)).slice(0,5)===nmKey(displayName(b)).slice(0,5)||nameScore(displayName(a),displayName(b))>=0.6))continue;
+    par.set(f(a.id),f(b.id));why.set(a.id+'|'+b.id,w)}}
+  const G=new Map();for(const p of P){const r=f(p.id);if(!G.has(r))G.set(r,[]);G.get(r).push(p)}
+  const g=[...G.values()].filter(x=>x.length>1).map(ps=>{const ws=[...why.entries()].filter(([k])=>ps.some(p=>k.startsWith(p.id+'|'))).map(([,v])=>v);const strong=ws.every(w=>/SIRET|SIREN/.test(w));
+    ps.sort((a,b)=>richness(b)-richness(a)||(a.createdAt||0)-(b.createdAt||0));return{ps,why:[...new Set(ws)].join(', ')||'même SIRET',strong}});
+  S._dg={tok,g};return g}
+function dupHtml(){const G=dupGroups2();S.dupPick=S.dupPick||new Set(G.map((g,i)=>g.strong?i:-1).filter(i=>i>=0));const n=G.filter((g,i)=>S.dupPick.has(i)).reduce((t,g)=>t+g.ps.length-1,0);
+  return `<div class="modal" data-act="dupx"><div class="gk dupm"><h2>Doublons à fusionner</h2>
+   <p class="fsub">${G.length} groupe${G.length>1?'s':''} de fiches qui semblent être la même entreprise. La fiche la plus complète est gardée et récupère tout le reste (contacts, notes, historique, rappels) : rien n’est perdu. Les rapprochements par téléphone ou e-mail seuls sont décochés par défaut : vérifie-les.</p>
+   <div class="dupl">${G.map((g,i)=>`<label class="dupg${g.strong?'':' weak'}"><input type="checkbox" data-dupi="${i}" ${S.dupPick.has(i)?'checked':''}><span><b>${esc(displayName(g.ps[0]))}</b> <small>garde cette fiche</small><br>${g.ps.slice(1).map(p=>`<span class="dupo">+ ${esc(displayName(p))}${p.ent?.ville?' · '+esc(p.ent.ville):''}${p.statut!=='nouveau'?' · '+esc(ST[p.statut]?.l||''):''}</span>`).join('')}<em>${esc(g.why)}</em></span></label>`).join('')||'<div class="empty">Aucun doublon détecté 👍</div>'}</div>
+   <div class="mlb"><button class="btn btn-p" data-act="dupgo" ${n?'':'disabled'}>Fusionner ${n} fiche${n>1?'s':''}</button><button class="btn btn-g btn-s" data-act="dupall" data-v="1">Tout cocher</button><button class="btn btn-q btn-s" data-act="dupall" data-v="0">Tout décocher</button><button class="btn btn-q" data-act="dupx">Fermer</button></div></div></div>`}
+Object.assign(ACT,{
+ dupopen2:()=>{S.dupPick=null;S.dupUi=true;renderLayer()},
+ dupx:(b,e)=>{if(b.classList.contains('modal')&&e.target!==b)return;S.dupUi=false;renderLayer()},
+ dupall:b=>{const G=dupGroups2();S.dupPick=new Set(b.dataset.v==='1'?G.map((_,i)=>i):[]);renderLayer()},
+ dupgo:()=>{const G=dupGroups2().filter((_,i)=>S.dupPick?.has(i));const backup=[];let n=0;
+   for(const {ps} of G){const k=ps[0];backup.push(structuredClone(k));for(const o of ps.slice(1)){if(!S.P.has(o.id))continue;backup.push(o);mergeInto(k,o);removeProspect(o.id);if(S.sel===o.id)S.sel=k.id;n++}touch(k)}
+   S.dupUi=false;S._dg=null;render();toast(`${n} fiche${n>1?'s':''} fusionnée${n>1?'s':''} (aucune info perdue)`,()=>{for(const p of backup){S.P.set(p.id,p);touch(p)}S._dg=null;render()})}
+});
+document.addEventListener('change',e=>{const el=e.target;if(el.dataset?.dupi==null)return;S.dupPick=S.dupPick||new Set();const i=+el.dataset.dupi;el.checked?S.dupPick.add(i):S.dupPick.delete(i);renderLayer()});
 
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
