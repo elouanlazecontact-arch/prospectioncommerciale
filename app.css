@@ -734,3 +734,6 @@ button.dk-t:hover{border-color:var(--accent);box-shadow:var(--shadow);transform:
 .warnbox{flex-wrap:wrap;align-items:center}.warnbox span{flex:1 1 200px;min-width:0}
 #app.terrain .fiche{padding-bottom:84px}
 .stsel button[aria-pressed="true"]{color:var(--c,var(--ink))}
+.wsconf{display:flex;flex-direction:column;gap:6px;padding:10px 12px;margin:-2px 0 6px;border-radius:var(--r-s);background:var(--hot-soft);font-size:13px}
+.wsconf-b{display:flex;flex-wrap:wrap;gap:6px}
+.ws-danger{background:var(--bad);color:#fff}

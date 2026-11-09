@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=60;
+const APP_V=61;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -765,7 +765,7 @@ function wsCount(id){let n=0;for(const p of S.P.values())if(wsOf(p)===id&&(!p._o
 function wsHtml(){const L=wsList(),c=curWs();const ed=S.wsEdit;
  return `<div class="modal" data-act="wsx"><div class="wsm"><h2>Espaces de travail</h2>
   <p class="fsub">Chaque espace a ses propres fiches, son agenda, ses statistiques et ses exports : rien ne se mélange. Pratique pour séparer deux activités (ex. Data Links et Becloud).</p>
-  <div class="wsl">${L.map(w=>`<div class="wsi${w.id===c.id?' on':''}"><button class="wsg" data-act="wsgo" data-v="${w.id}"><i style="background:${w.c||'#0B6B6A'}"></i><b>${esc(w.name)}</b><small>${wsCount(w.id)} fiche${wsCount(w.id)>1?'s':''}${w.id===c.id?' · espace actuel':''}</small></button><button class="btn btn-q btn-s" data-act="wsren" data-v="${w.id}">Renommer</button>${L.length>1&&!wsCount(w.id)?`<button class="btn btn-q btn-s" data-act="wsdel" data-v="${w.id}">Supprimer</button>`:''}</div>`).join('')}</div>
+  <div class="wsl">${L.map(w=>`<div class="wsi${w.id===c.id?' on':''}"><button class="wsg" data-act="wsgo" data-v="${w.id}"><i style="background:${w.c||'#0B6B6A'}"></i><b>${esc(w.name)}</b><small>${wsCount(w.id)} fiche${wsCount(w.id)>1?'s':''}${w.id===c.id?' · espace actuel':''}</small></button><button class="btn btn-q btn-s" data-act="wsren" data-v="${w.id}">Renommer</button>${L.length>1?`<button class="btn btn-q btn-s ws-del" data-act="wsdel" data-v="${w.id}">Supprimer</button>`:''}</div>${S.wsDel===w.id?(()=>{const n=wsCount(w.id),o=L.find(x=>x.id!==w.id);return `<div class="wsconf"><b>Supprimer l’espace « ${esc(w.name)} » ?</b>${n?`<span>Il contient ${n} fiche${n>1?'s':''}. Que veux-tu en faire ?</span><div class="wsconf-b">${L.filter(x=>x.id!==w.id).map(x=>`<button class="btn btn-g btn-s" data-act="wsdelok" data-v="${w.id}" data-to="${x.id}">Déplacer vers « ${esc(x.name)} »</button>`).join('')}<button class="btn btn-s ws-danger" data-act="wsdelok" data-v="${w.id}" data-to="">Supprimer aussi les ${n} fiche${n>1?'s':''}</button><button class="btn btn-q btn-s" data-act="wsdelno">Annuler</button></div>`:`<div class="wsconf-b"><button class="btn btn-s ws-danger" data-act="wsdelok" data-v="${w.id}" data-to="${o.id}">Oui, supprimer</button><button class="btn btn-q btn-s" data-act="wsdelno">Annuler</button></div>`}</div>`})():''}`).join('')}</div>
   ${ed?`<div class="wsnew"><label for="ws-name">${ed.id?'Nouveau nom':'Nom du nouvel espace'}</label><input class="in" id="ws-name" value="${esc(ed.name||'')}" placeholder="ex. Becloud" autocomplete="off">
     <div class="chips">${WS_COLORS.map(col=>`<button class="wsc" data-act="wscol" data-v="${col}" aria-pressed="${(ed.c||'')===col}" style="background:${col}" aria-label="Couleur"></button>`).join('')}</div>
     <div class="ident-row"><button class="btn btn-p" data-act="wssave">${ed.id?'Enregistrer':'Créer l’espace'}</button><button class="btn btn-g" data-act="wscancel">Annuler</button></div></div>`
@@ -964,7 +964,13 @@ const ACT={
  wssave:()=>{const n=($('#ws-name')?.value||'').trim();if(!n){$('#ws-name')?.focus();return}const L=wsList().map(w=>({...w}));const ed=S.wsEdit;
    if(ed.id){const w=L.find(x=>x.id===ed.id);w.name=n;w.c=ed.c===WS_COLORS[0]&&w.id==='main'?'':ed.c}else{const id='ws_'+rid();L.push({id,name:n,c:ed.c});S.settings.ws=L;saveSettings();S.wsEdit=null;wsSwitch(id);return}
    S.settings.ws=L;saveSettings();S.wsEdit=null;applyWs();renderLayer()},
- wsdel:b=>{if(wsCount(b.dataset.v))return;S.settings.ws=wsList().filter(w=>w.id!==b.dataset.v);saveSettings();if(S.ws===b.dataset.v)wsSwitch(wsList()[0].id);else renderLayer()},
+ wsdel:b=>{S.wsDel=S.wsDel===b.dataset.v?null:b.dataset.v;renderLayer()},
+ wsdelno:()=>{S.wsDel=null;renderLayer()},
+ wsdelok:b=>{const id=b.dataset.v,to=b.dataset.to;const w=wsList().find(x=>x.id===id);if(!w||wsList().length<2)return;let mv=0,del=0;
+   for(const p of [...S.P.values()]){if(wsOf(p)!==id||(p._owner&&p._owner!==USER?.id))continue;if(to){p.ws=to;touch(p);mv++}else{if(S.sel===p.id)S.sel=null;removeProspect(p.id);del++}}
+   S.settings.ws=wsList().filter(x=>x.id!==id);saveSettings();S.wsDel=null;
+   if(S.ws===id)wsSwitch(to||wsList()[0].id);else{renderLayer();render()}
+   toast(`Espace « ${w.name} » supprimé${mv?` · ${mv} fiche${mv>1?'s':''} déplacée${mv>1?'s':''} vers « ${(wsList().find(x=>x.id===to)||{}).name} »`:''}${del?` · ${del} fiche${del>1?'s':''} supprimée${del>1?'s':''}`:''}`)},
  mshelp:()=>{S.menu=false;S.msHelp=true;renderLayer()},
  mshx:(b,e)=>{if(e.target!==b&&!b.matches('button'))return;S.msHelp=false;renderLayer()},
  mslogin:async()=>{const v=($('#ms-id')?.value||S.settings.msClientId||'').trim();const o=$('#ms-r');if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)){if(o)o.textContent='Colle d’abord l’« ID d’application (client) » (format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Clique sur « Guide » pour le créer.';return}
