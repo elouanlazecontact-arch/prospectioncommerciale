@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=57;
+const APP_V=58;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -526,7 +526,7 @@ function renderAgendaCols(el,acts){const t=iso(today()),tm=iso(bizDays(today(),1
   const C=[['En retard',x=>x.a.date&&x.a.date<t,'late'],["Aujourd'hui",x=>x.a.date===t,'now'],[`${JOURS[jDate(tm).getDay()].replace(/^./,c=>c.toUpperCase())} ${jDate(tm).getDate()}`,x=>x.a.date>t&&x.a.date<=tm,''],['Cette semaine',x=>x.a.date>tm&&x.a.date<=wk,''],['Plus tard',x=>!x.a.date||x.a.date>wk,'']];
   const late=acts.filter(C[0][1]).length;
   el.innerHTML=`<div class="hello ag-top"><div><h1>Agenda</h1><p>${acts.length} action${acts.length>1?'s':''} ouverte${acts.length>1?'s':''}${late?` · <b style="color:var(--bad)">${late} en retard</b>`:''}</p></div>
-    <div class="ag-tools">${late?`<button class="btn btn-p btn-s" data-act="aglate">Reporter les ${late} retards à aujourd’hui</button>`:''}${msOn()?'<span class="ms-ok" title="RDV et rappels inscrits directement dans Outlook">📅 Outlook connecté</span>':'<button class="btn btn-g btn-s" data-act="mshelp">📅 Connecter Outlook</button>'}<button class="btn btn-g btn-s" data-act="agauto">↻ Relances auto</button>
+    <div class="ag-tools">${late?`<button class="btn btn-p btn-s" data-act="aglate">Reporter les ${late} retards à aujourd’hui</button>`:''}${msOn()?'<span class="ms-ok" title="RDV et rappels inscrits directement dans Outlook">📅 Outlook connecté</span>':'<button class="btn btn-g btn-s" data-act="mshelp">📅 Connecter Outlook</button>'}<button class="btn btn-g btn-s" data-act="agauto">↻ Relances auto</button><button class="btn btn-g btn-s" id="rembell" data-act="remperm" title="Alerte 30 min, 15 min avant et à l’heure de chaque rappel">🔔 Alertes</button>
     <label class="ag-sw"><input type="checkbox" id="af-on" ${S.settings.autoFollow!==false?'checked':''}> Relances automatiques</label></div></div>
    <div class="agcols">${C.map(([l,f,c])=>{const g=acts.filter(f);return `<section class="agcol ${c}"><h3>${esc(l)} <span>${g.length}</span></h3><div class="agcol-b">${g.length?g.map(agCard).join(''):`<div class="agcol-e">${c==='late'?'Rien en retard 👍':'—'}</div>`}</div></section>`}).join('')}</div>
    <p class="ag-help">Relances automatiques (une fois par jour) : un prospect « Contacté » ou « À rappeler » sans action prévue reçoit une relance après 5 jours ouvrés sans nouvelles (2 s’il est chaud, 10 s’il est froid). Après un devis : relance à 5 jours. Après un RDV effectué : envoi du compte rendu le lendemain. Un RDV passé sans mise à jour : vérification du statut.</p>`}
@@ -2706,13 +2706,66 @@ window.addEventListener('appinstalled',()=>{S.installEvt=null;const b=$('#instal
 /* Molette de la souris : défilement horizontal des onglets et filtres */
 document.addEventListener('wheel',e=>{const el=e.target.closest?.('.tabs,.filters');if(!el||el.scrollWidth<=el.clientWidth||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;el.scrollLeft+=e.deltaY;e.preventDefault()},{passive:false});
 /* ================= Démarrage ================= */
+/* ================= Alertes de rappel (30 min, 15 min, à l'heure) ================= */
+const REM_ST=[0,15,30];
+function remMine(){return [...S.P.values()].filter(p=>!p.exemple&&(!p._owner||p._owner===USER?.id))}
+function remWhen(a){if(!a.date||!/^\d{1,2}[:h]\d{2}$/.test(a.heure||''))return 0;const [h,m]=a.heure.split(/[:h]/).map(Number);const d=jDate(a.date);d.setHours(h,m,0,0);return d.getTime()}
+function remFired(){if(!S.remF){S.remF=lsGet('radar-remf',{});const lim=Date.now()-3*864e5;for(const k in S.remF)if(S.remF[k]<lim)delete S.remF[k]}return S.remF}
+function remSave(){try{localStorage.setItem('radar-remf',JSON.stringify(S.remF||{}))}catch{}}
+function remPhone(p){const c=p.contacts?.find(c=>c.decideur==='Oui'&&(c.tel||c.mobile))||p.contacts?.find(c=>c.tel||c.mobile);const d=c||p.contacts?.find(c=>c.decideur==='Oui')||p.contacts?.[0];return{ph:c?.tel||c?.mobile||p.ent?.tel||'',who:d?[d.prenom,d.nom].filter(Boolean).join(' '):''}}
+function remScan(){if(!S.P||!S.P.size)return;const now=Date.now(),F=remFired(),snz=lsGet('radar-snz',{});let ch=false;
+  for(const p of remMine())for(const a of p.actions||[]){if(a.fait)continue;
+    const sz=snz[a.id];if(sz&&sz<=now){delete snz[a.id];try{localStorage.setItem('radar-snz',JSON.stringify(snz))}catch{}remFire(p,a,0,true);continue}
+    const T=remWhen(a);if(!T||now>T+15*60e3||now<T-30*60e3)continue;
+    const st=REM_ST.find(s=>now>=T-s*60e3);if(st==null)continue;const base=a.id+'|'+a.date+'|'+a.heure+'|';
+    if(F[base+st])continue;for(const s of REM_ST)if(s>=st)F[base+s]=now;ch=true;remFire(p,a,st)}
+  if(ch)remSave();remBell()}
+function remLabel(a,st,again){const T=remWhen(a),left=Math.ceil((T-Date.now())/60e3);const h=(a.heure||'').replace(':','h');
+  if(again)return`Rappel reporté — prévu à ${h}`;if(st===0||left<=0)return left<-1?`En retard de ${-left} min — prévu à ${h}`:`C’est l’heure — ${h}`;return`Dans ${left} min — à ${h}`}
+function remFire(p,a,st,again){const {ph,who}=remPhone(p);const lbl=remLabel(a,st,again);const name=displayName(p);
+  let box=$('#remstack');if(!box){box=document.createElement('div');box.id='remstack';box.setAttribute('aria-live','assertive');document.body.appendChild(box)}
+  box.querySelector(`[data-rem="${a.id}"]`)?.remove();
+  const el=document.createElement('div');el.className='remc';el.dataset.rem=a.id;el.dataset.st=again?0:st;
+  el.innerHTML=`<div class="remc-h"><span class="remc-i">⏰</span><b>${esc(lbl)}</b><button class="remc-x" data-act="remx" data-a="${a.id}" aria-label="Fermer">✕</button></div>
+   <div class="remc-t"><span class="atype">${esc(a.type)}</span> ${esc(name)}</div>
+   ${who||ph?`<div class="remc-m">${esc([who,ph&&fmtTel(ph)].filter(Boolean).join(' · '))}</div>`:''}${a.note?`<div class="remc-n">${esc(a.note)}</div>`:''}
+   <div class="remc-b"><button class="btn btn-p btn-s" data-act="remopen" data-id="${p.id}" data-a="${a.id}">Ouvrir la fiche</button>${ph?`<a class="btn btn-g btn-s" href="tel:${esc(ph.replace(/[^\d+]/g,''))}">📞 Appeler</a>`:''}<button class="btn btn-q btn-s" data-act="remsnz" data-a="${a.id}">+10 min</button><button class="btn btn-q btn-s" data-act="remdone" data-id="${p.id}" data-a="${a.id}">✓ Fait</button></div>`;
+  box.prepend(el);
+  remSound(st===0||again);try{navigator.vibrate?.(st===0?[300,120,300,120,300]:[200,100,200])}catch{}
+  if(!document.hasFocus()){remTitle(lbl);remNotify(p,a,`${lbl} · ${a.type}`,[name,who,ph&&fmtTel(ph),a.note].filter(Boolean).join('\n'),st===0||again)}}
+function remSound(urgent){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;S.actx=S.actx||new C();const ac=S.actx;ac.resume?.();const n=urgent?3:2;
+  for(let i=0;i<n;i++){const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+i*0.32;o.type='sine';o.frequency.value=i%2?1046:880;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.25,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.26);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+0.28)}}catch{}}
+function remTitle(lbl){if(!S.remT0)S.remT0=document.title;clearInterval(S.remTI);let on=false;S.remTI=setInterval(()=>{on=!on;document.title=on?'⏰ '+lbl:S.remT0},1000);
+  const stop=()=>{clearInterval(S.remTI);document.title=S.remT0;window.removeEventListener('focus',stop)};window.addEventListener('focus',stop)}
+async function remNotify(p,a,title,body,urgent){if(!('Notification' in window)||Notification.permission!=='granted')return;
+  const opt={body,tag:'rem-'+a.id,renotify:true,requireInteraction:!!urgent,icon:S.mode==='terrain'?'mobile-192.png':'pc-192.png',data:{id:p.id,url:location.pathname+'#fiche='+p.id}};
+  try{const r=await navigator.serviceWorker?.getRegistration();if(r){await r.showNotification(title,opt);return}}catch{}
+  try{const n=new Notification(title,opt);n.onclick=()=>{window.focus();openFiche(p.id,'suivi');n.close()}}catch{}}
+function remPerm(){return 'Notification' in window?Notification.permission:'na'}
+function remBell(){const b=$('#rembell');if(!b)return;const s=remPerm();b.textContent=s==='granted'?'🔔 Alertes actives':'🔔 Activer les alertes';b.classList.toggle('btn-p',s==='default')}
+function remAsk(){const s=remPerm();if(s!=='default'||lsGet('radar-remask','')===iso(today()))return;try{localStorage.setItem('radar-remask',JSON.stringify(iso(today())))}catch{}
+  let box=$('#remstack');if(!box){box=document.createElement('div');box.id='remstack';document.body.appendChild(box)}
+  const el=document.createElement('div');el.className='remc remask';el.dataset.rem='ask';el.innerHTML=`<div class="remc-h"><span class="remc-i">🔔</span><b>Alertes de rappel</b><button class="remc-x" data-act="remx" data-a="ask" aria-label="Fermer">✕</button></div><div class="remc-n">Radar t’affiche une alerte 30 min, 15 min avant chaque rappel ou RDV, puis à l’heure. Autorise les notifications pour être prévenu même quand Radar est en arrière-plan.</div><div class="remc-b"><button class="btn btn-p btn-s" data-act="remperm">Autoriser</button><button class="btn btn-q btn-s" data-act="remx" data-a="ask">Plus tard</button></div>`;box.appendChild(el)}
+Object.assign(ACT,{
+ remx:b=>{$(`#remstack [data-rem="${b.dataset.a}"]`)?.remove()},
+ remopen:b=>{$(`#remstack [data-rem="${b.dataset.a}"]`)?.remove();openFiche(b.dataset.id,'suivi')},
+ remsnz:b=>{const s=lsGet('radar-snz',{});s[b.dataset.a]=Date.now()+10*60e3;try{localStorage.setItem('radar-snz',JSON.stringify(s))}catch{}$(`#remstack [data-rem="${b.dataset.a}"]`)?.remove();toast('Je te le rappelle dans 10 minutes')},
+ remdone:b=>{const p=S.P.get(b.dataset.id);const a=p?.actions?.find(x=>x.id===b.dataset.a);$(`#remstack [data-rem="${b.dataset.a}"]`)?.remove();if(!a)return;a.fait=true;a.faitLe=new Date().toISOString();touch(p);try{renderList()}catch{}try{renderAgenda()}catch{}toast(`${a.type} marqué comme fait`)},
+ remperm:async b=>{$('#remstack [data-rem="ask"]')?.remove();if(!('Notification' in window)){toast('Ce navigateur ne gère pas les notifications : les alertes s’afficheront dans Radar');return}
+   const r=await Notification.requestPermission();remBell();if(r==='granted'){remSound(false);remNotify({id:''},{id:'test'},'Radar — alertes activées','Tu seras prévenu 30 min, 15 min avant chaque rappel, puis à l’heure.',false)}else toast('Notifications refusées : les alertes s’afficheront seulement dans Radar (débloque-les via le cadenas de la barre d’adresse)')}
+});
+function remStart(){setInterval(remScan,20e3);setTimeout(remScan,3e3);setTimeout(remAsk,6e3);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')remScan()});
+  navigator.serviceWorker?.addEventListener('message',e=>{if(e.data?.type==='fiche'&&e.data.id)remGo(e.data.id)});
+  const m=(location.hash||'').match(/^#fiche=([\w-]+)/);if(m){history.replaceState(null,'',location.pathname+location.search);remGo(m[1])}}
+function remGo(id,n=0){if(S.P?.has(id))openFiche(id,'suivi');else if(n<40)setTimeout(()=>remGo(id,n+1),400)}
+
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* Mise à jour automatique : dès qu'une nouvelle version est en ligne, l'appli se recharge (sans perdre de saisie) */
   const checkV=async()=>{try{const t=await fetch('sw.js',{cache:'no-store'}).then(r=>r.text());const v=+(t.match(/radar-v(\d+)/)||[])[1];if(v>APP_V){const busy=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)||S.ask||S.fimp?.run&&!S.fimp.run.end;if(busy){S.updWait=true;return}toast('Nouvelle version de Radar : mise à jour…');setTimeout(()=>location.reload(),900)}}catch{}};
   if(location.protocol==='https:'){setInterval(checkV,5*60*1000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkV()});document.addEventListener('focusout',()=>{if(S.updWait)setTimeout(checkV,1500)});setTimeout(checkV,4000)}
   try{const h=(location.hash||'').match(/^#(?:gps)?(-?\d{1,2}\.\d+)_(-?\d{1,3}\.\d+)$/);if(h){S.gpsTried=true;S.view='around';setTimeout(()=>aroundSearch(`${h[1]},${h[2]}`),300)}}catch{}
-  initStore()})();
+  remStart();initStore()})();
 
 /* Glisser-déposer d'un fichier sur la fenêtre d'import */
 document.addEventListener('dragover',e=>{if(!S.fimpOpen||S.fimp?.rows)return;if([...(e.dataTransfer?.types||[])].includes('Files')){e.preventDefault();const d=$('#fdrop');if(d)d.classList.add('on')}});

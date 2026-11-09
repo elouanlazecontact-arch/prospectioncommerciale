@@ -669,3 +669,24 @@ body[data-ws]:not([data-ws="main"]) .top{box-shadow:inset 0 -3px 0 var(--accent)
 #app.poste .filters{flex-wrap:wrap;gap:5px;align-items:center}
 .fsel{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);height:24px}.fsel.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .row .sub .due{flex:none;overflow:visible}.row .sub>span:last-child{flex:1;min-width:0}
+
+/* Alertes de rappel */
+#remstack{position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100vw - 28px));pointer-events:none}
+.remc{pointer-events:auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-left:5px solid var(--cold);border-radius:var(--r);box-shadow:0 12px 32px -10px rgba(16,24,35,.35);padding:12px 14px;display:flex;flex-direction:column;gap:6px;animation:remin .25s ease-out}
+.remc[data-st="15"]{border-left-color:var(--warm)}
+.remc[data-st="0"]{border-left-color:var(--hot);animation:remin .25s ease-out,rempulse 1.6s ease-in-out 3}
+.remc.remask{border-left-color:var(--accent)}
+.remc-h{display:flex;align-items:center;gap:8px;font-size:14px}.remc-h b{flex:1}
+.remc[data-st="0"] .remc-h b{color:var(--hot)}
+.remc-i{font-size:18px}
+.remc-x{border:0;background:none;color:var(--ink-3);cursor:pointer;font-size:14px;padding:2px 4px}
+.remc-t{font-weight:600;font-size:15px}.remc-t .atype{margin-right:4px}
+.remc-m{color:var(--ink-2);font-size:13px}.remc-n{color:var(--ink-2);font-size:12.5px;max-height:4.5em;overflow:hidden}
+.remc-b{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+@keyframes remin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes rempulse{0%,100%{box-shadow:0 12px 32px -10px rgba(16,24,35,.35)}50%{box-shadow:0 0 0 4px var(--hot-soft),0 12px 32px -10px rgba(16,24,35,.35)}}
+html[data-app="terrain"] #remstack{top:auto;bottom:calc(76px + env(safe-area-inset-bottom));left:10px;right:10px;width:auto}
+.remc-b .btn{padding:5px 9px;font-size:12.5px}
+#remstack{max-height:calc(100vh - 28px);overflow:auto}
+html[data-app="terrain"] #remstack{max-height:62vh}
+html[data-app="terrain"] .remc{padding:10px 12px;gap:4px}
