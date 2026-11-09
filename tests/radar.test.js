@@ -114,6 +114,15 @@ const T = {
     ok(r.tel === '0147223344', 'le numéro importé complète la fiche existante');
     ok(r.nouv, 'la nouvelle société est créée'); await ctx.close();
   },
+  async 'Correcteur automatique des notes'(b) {
+    const { pg, ctx } = await page(b, 'pc.html');
+    await pg.evaluate(() => { const p = blank('tel'); p.ent = { nom: 'X' }; S.P.set(p.id, p); S.view = 'list'; openFiche(p.id, 'ent') });
+    await pg.click('#note-in'); await pg.keyboard.type('vu la secretaire mme durand, probleme de reseau. nrp rapl jeudi 14h ');
+    const v = await pg.$eval('#note-in', e => e.value);
+    ok(v === 'Vu la secrétaire Mme Durand, problème de réseau. nrp rapl jeudi 14h ', 'accents, majuscules et noms corrigés, abréviations gardées : ' + v);
+    await pg.fill('#note-in', ''); await pg.keyboard.type('le reseau '); await pg.keyboard.press('Backspace');
+    ok(await pg.$eval('#note-in', e => e.value) === 'Le reseau', 'retour arrière = mot d’origine'); await ctx.close();
+  },
   async 'Fluidité (400 fiches)'(b) {
     const { pg, ctx } = await page(b, 'pc.html');
     const r = await pg.evaluate(() => { for (let i = 0; i < 400; i++) { const p = blank('tel'); p.ent = { nom: 'Societe ' + i, tel: '01' + String(47000000 + i).padStart(8, '0') }; p.manual = i % 2; S.P.set(p.id, p) }

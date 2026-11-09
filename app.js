@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=62;
+const APP_V=63;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -490,7 +490,7 @@ function renderToday(){
   </div>`})()}
   ${S.mode==='terrain'?`<div class="card qn-card"><h2>📝 Notes rapides → fiche</h2><p class="qn-help">Colle ou tape tes notes prises à la va-vite : la fiche est créée, l’entreprise cherchée au registre et chaque info rangée automatiquement.</p>
     <input class="in" id="qn-nom" placeholder="Nom de l’entreprise ou SIRET (facultatif)" value="${esc(lsGet('radar-qn-nom',''))}" autocomplete="off">
-    <textarea class="in" id="qn-txt" rows="4" placeholder="ex. cabinet dupont, vu la secrétaire mme durand, dg absent, 8 pc sous w10, copieur canon en loc fin 06/27, rapl jeudi 14h">${esc(lsGet('radar-qn-txt',''))}</textarea>
+    <textarea class="in" id="qn-txt" spellcheck="true" lang="fr" rows="4" placeholder="ex. cabinet dupont, vu la secrétaire mme durand, dg absent, 8 pc sous w10, copieur canon en loc fin 06/27, rapl jeudi 14h">${esc(lsGet('radar-qn-txt',''))}</textarea>
     <button class="btn btn-p" data-act="qncreate">Créer la fiche et analyser</button></div>`:''}
   <div class="two">
     <div class="card"><h2>À faire maintenant <button class="btn btn-q btn-s" data-act="view" data-v="agenda">Tout l'agenda →</button></h2>
@@ -744,8 +744,8 @@ function notesHtml(p){
    <div class="np-h"><h2>${m==='poste'?'Appel en cours':'📝 Notes rapides · visite'}</h2>${S.sheet?`<button class="btn btn-q" data-act="sheetx">Fermer</button>`:''}</div>
    ${m==='poste'?`<div class="callbar">${ph?`<span class="who">${esc(c?[c.civ,c.prenom,c.nom].filter(Boolean).join(' ')+(c.fonction?' · '+c.fonction:''):'Standard')}</span><span class="ph">${esc(fmtTel(ph))}</span><button class="btn btn-g btn-s" data-act="copyph" data-v="${esc(ph)}">Copier</button><a class="btn btn-g btn-s" href="tel:${esc(String(ph).replace(/\s/g,''))}" style="text-decoration:none">Appeler</a>`:(p.ent?.tel?'':`<span class="links" style="width:100%">${phoneLinks(p)}</span>`)}
      ${S.call&&S.call.id===p.id?`<span class="timer" id="timer">00:00</span><button class="btn btn-q btn-s" data-act="callstop">Stop</button>`:`<button class="btn btn-p btn-s" data-act="callstart" style="margin-left:auto">▶ Chrono</button>`}</div>`:''}
-   <textarea class="in note" id="note-in" placeholder="${m==='poste'?'Tape comme tu parles : « dg mr martin, 12 postes, canon en leasing fin 06/27 pas content, av avast, pas de svg, rapl jeudi 14h »':'ex. « vu accueil, gerante mme lopez absente, 8 pers, copieur ricoh, repasser mardi matin »'}">${esc(draft)}</textarea>
-   <div class="hint"><span>Abréviations et fautes comprises.</span>${m==='poste'?'<span><kbd>Ctrl</kbd>+<kbd>Entrée</kbd> analyser</span>':''}</div>
+   <textarea class="in note" id="note-in" spellcheck="true" lang="fr" placeholder="${m==='poste'?'Tape comme tu parles : « dg mr martin, 12 postes, canon en leasing fin 06/27 pas content, av avast, pas de svg, rapl jeudi 14h »':'ex. « vu accueil, gerante mme lopez absente, 8 pers, copieur ricoh, repasser mardi matin »'}">${esc(draft)}</textarea>
+   <div class="hint"><span>Abréviations et fautes comprises · <button class="lnk" data-act="actog" title="Corrige accents et fautes de frappe dès l’espace. Retour arrière = annule la correction.">correction auto ${acOn()?'activée':'désactivée'}</button></span>${m==='poste'?'<span><kbd>Ctrl</kbd>+<kbd>Entrée</kbd> analyser</span>':''}</div>
    <button class="btn btn-p" data-act="analyze" ${S.aiBusy?'disabled':''}>${S.aiBusy?'Analyse en cours…':'Analyser et remplir la fiche'}</button>
    ${S.aiMsg||S.aiBusy?`<div class="ai" data-s="${S.aiBusy?'busy':''}">${S.aiBusy?'<span class="spin"></span>':''}<span>${esc(S.aiMsg)}</span></div>`:''}
    ${S.ask?askHtml():`<div><div class="lbl" style="margin-bottom:6px">Issue ${m==='poste'?'de l’appel':'de la visite'}</div><div class="outs">${outs.map(o=>`<button class="out ${o.cls||''}" data-act="out" data-v="${o.k}">${esc(o.l)}${o.key&&m==='poste'?`<kbd>Alt ${o.key}</kbd>`:''}</button>`).join('')}</div></div>`}
@@ -2858,6 +2858,7 @@ function mailHtml(){const M=S.mail,p=S.P.get(M.pid);if(!p)return'';const C=[...(
 function mailRead(){const M=S.mail;if(!M)return;const g=id=>$(id)?.value;if($('#ml-to'))M.to=g('#ml-to');if($('#ml-subj'))M.subject=g('#ml-subj');if($('#ml-body'))M.body=g('#ml-body')}
 function mailOpen(pid,k){const p=S.P.get(pid);if(!p)return;k=k||mailDefaultK(p);S.mail={pid,k,...mailBuild(p,k)};renderLayer()}
 Object.assign(ACT,{
+ actog:b=>{S.settings.autocorr=!acOn();saveSettings();b.textContent='correction auto '+(acOn()?'activée':'désactivée');toast(acOn()?'Correction automatique activée':'Correction automatique désactivée')},
  mailopen:b=>mailOpen(b.dataset.id||S.sel,b.dataset.v),
  mailx:(b,e)=>{if(b.classList.contains('modal')&&e.target!==b)return;S.mail=null;renderLayer()},
  mailk:b=>{const p=S.P.get(S.mail.pid);const to=$('#ml-to')?.value;S.mail={...S.mail,k:b.dataset.v,...mailBuild(p,b.dataset.v)};if(to)S.mail.to=to;renderLayer()},
@@ -2872,6 +2873,44 @@ Object.assign(ACT,{
    markManual(p,'mail');touch(p);S.mail=null;renderLayer();if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList();try{renderAgenda()}catch{}
    toast(`Mail noté dans l’historique${n?' · action Mail cochée':''}${M.k==='doc'||M.k==='nrp'?' · relance prévue dans 3 jours ouvrés':''}`)}
 });
+
+/* ================= Correcteur automatique pendant la frappe (notes) =================
+   Corrige le mot qui vient d'être tapé dès l'espace ou la ponctuation : accents, fautes de frappe,
+   marques et sigles. Les abréviations (rapl, dg, nrp…) sont gardées telles quelles : l'analyse les comprend.
+   Retour arrière juste après une correction = on remet le mot d'origine (et on ne le corrige plus). */
+const AC_EXTRA={ca:'ça',etre:'être',voila:'voilà',ete:'été',fevrier:'février',aout:'août',decembre:'décembre',noel:'Noël',paques:'Pâques',meme:'même',deja:'déjà',plutot:'plutôt',bientot:'bientôt',interessee:'intéressée',recu:'reçu',recue:'reçue',facon:'façon',garcon:'garçon',lecon:'leçon',francais:'français',francaise:'française',
+ apeller:'appeler',apeler:'appeler',appeller:'appeler',rapeller:'rappeler',rappeller:'rappeler',sociéte:'société',interresse:'intéressé',interressé:'intéressé',adresse:'adresse',addresse:'adresse',developement:'développement',dévelopement:'développement',
+ rendez:'rendez',vu:'vu',renseigne:'renseigné',connait:'connaît',parait:'paraît',sur:'sur',a:'a',ou:'ou',la:'la'};
+const AC_TA=new Set(['note-in','qn-txt']);
+const acOn=()=>S.settings?.autocorr!==false;
+function acWord(w,prev,start){if(!w||/[\d@\/_]/.test(w))return w;const low=w.toLowerCase(),n=norm(w);
+  S.acIgnore=S.acIgnore||new Set();if(S.acIgnore.has(low))return w;
+  const cap=w[0]!==low[0]&&w.slice(1)===low.slice(1);if(w!==low&&!cap)return w; /* sigle ou nom en capitales : on garde */
+  let out=w;
+  if(prev&&/^(m\.|mr\.?|mme|mlle|dr\.?|monsieur|madame|maitre|maître|docteur)$/i.test(prev))out=low[0].toUpperCase()+low.slice(1);
+  else if(BRAND[n]&&BRAND[n]!==n&&w===low)out=BRAND[n];
+  else if(DISP[n]&&w===low&&(DISP[n]===n.toUpperCase()||DISP[n].toLowerCase()===n))out=DISP[n];
+  else if(/[à-ÿ]/i.test(w)&&w.toLowerCase()!==n)out=AC_EXTRA[low]||w;
+  else if(AC_EXTRA[n]!=null)out=AC_EXTRA[n];
+  else if(ACC[n])out=ACC[n];
+  else if(w===low&&n.length>=5&&ABBR[n]==null&&DISP[n]==null){const fx=fixWord(n);if(fx!==n&&!/\s/.test(fx))out=ACC[fx]||AC_EXTRA[fx]||fx}
+  if(start&&out===w&&(DISP[n]!=null||ABBR[n]!=null))return w;
+  if((cap||start)&&out===out.toLowerCase())out=out[0].toUpperCase()+out.slice(1);
+  return out}
+function acRun(el,e){if(!acOn()||S.acBusy)return;const sep=e.inputType==='insertLineBreak'?'\n':e.data;if(e.inputType!=='insertLineBreak'&&!(e.inputType==='insertText'&&sep&&/^[\s,.;:!?)]$/.test(sep)))return;
+  const pos=el.selectionStart;if(pos!==el.selectionEnd)return;const before=el.value.slice(0,pos-1);
+  const m=before.match(/([A-Za-zÀ-ÿ0-9@\/_.-]*[A-Za-zÀ-ÿ0-9])$/);if(!m)return;let tok=m[1],ws=pos-1-tok.length;
+  const ap=tok.lastIndexOf("'");if(ap>=0){ws+=ap+1;tok=tok.slice(ap+1)}const ap2=before.slice(0,ws).match(/[’']$/);
+  if(!tok||/[.]/.test(tok.replace(/\.$/,'')))return;
+  const head=el.value.slice(0,ws);const prev=(head.match(/([A-Za-zÀ-ÿ.]+)\s+$/)||[])[1]||'';const start=!ap2&&(/^\s*$/.test(head)||/[.!?]\s+$|\n\s*$/.test(head));
+  const fixed=acWord(tok,prev,start);if(fixed===tok)return;
+  S.acBusy=true;try{el.setSelectionRange(ws,pos);if(!document.execCommand('insertText',false,fixed+sep)){el.setRangeText(fixed+sep,ws,pos,'end');el.dispatchEvent(new Event('input',{bubbles:true}))}}finally{S.acBusy=false}
+  S.ac={el,pos:ws+fixed.length+sep.length,orig:tok,fixed,sep,ws}}
+document.addEventListener('input',e=>{const el=e.target;if(el.tagName==='TEXTAREA'&&AC_TA.has(el.id))acRun(el,e);else if(S.ac&&S.ac.el!==el)S.ac=null},true);
+document.addEventListener('keydown',e=>{const a=S.ac;if(!a)return;const el=e.target;
+  if(e.key==='Backspace'&&el===a.el&&el.selectionStart===a.pos&&el.selectionEnd===a.pos&&!e.ctrlKey&&!e.altKey&&!e.metaKey){e.preventDefault();S.ac=null;S.acIgnore=S.acIgnore||new Set();S.acIgnore.add(a.orig.toLowerCase());
+    S.acBusy=true;try{el.setSelectionRange(a.ws,a.pos);if(!document.execCommand('insertText',false,a.orig)){el.setRangeText(a.orig,a.ws,a.pos,'end');el.dispatchEvent(new Event('input',{bubbles:true}))}}finally{S.acBusy=false}return}
+  if(e.key.length===1||e.key==='Backspace'||e.key==='Enter')S.ac=null},true);
 
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
