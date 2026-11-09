@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=58;
+const APP_V=59;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -130,14 +130,15 @@ const EXCL=/^(aucun|aucune|jamais|ne sait pas)/i;
 
 const OUT={
  poste:[
-  {k:'nrp',l:'Répondeur / NRP',key:'1',statut:'contacte',a:{type:'Rappel',in:1}},
-  {k:'barrage',l:'Barrage',key:'2',statut:'rappel',a:{type:'Rappel',in:2}},
+  {k:'nrp',l:'Répondeur / NRP',key:'1',statut:'contacte',a:{type:'Rappel',in:1},retry:true},
+  {k:'barrage',l:'Barrage',key:'2',statut:'rappel',a:{type:'Rappel',in:1},retry:true},
   {k:'rappel',l:'Rappel demandé',key:'3',statut:'rappel',a:{type:'Rappel',in:1},ask:true},
   {k:'doc',l:'Doc à envoyer',key:'4',statut:'contacte',a:{type:'Mail',in:0}},
   {k:'rdv',l:'RDV pris',key:'5',statut:'rdv',temp:'chaud',a:{type:'RDV',in:2},ask:true,cls:'rdv'},
   {k:'ko',l:'Pas intéressé',key:'6',statut:'ko',temp:'froid',cls:'ko'},
   {k:'faux',l:'Faux numéro',key:'7'},
   {k:'parle',l:'Échange sans suite',key:'8',statut:'contacte',a:{type:'Relance',in:14}},
+  {k:'temps',l:'Pas le temps',key:'9',statut:'rappel',a:{type:'Rappel',in:1},retry:true},
  ],
  terrain:[
   {k:'accueil',l:'Vu l’accueil',statut:'contacte',a:{type:'Rappel',in:1}},
@@ -385,7 +386,7 @@ function matches(p,q){if(!q)return true;const s=norm([p.ent?.nom,p.ent?.enseigne
   return norm(q).split(/\s+/).every(w=>s.includes(w.replace(/\s/g,'')))}
 function filtered(){const t=iso(today());
   return VP().filter(p=>matches(p,S.q)).filter(p=>{
-    if(S.filter==='all')return true;if(S.filter==='todo')return untreated(p);if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
+    if(S.filter==='all')return true;if(S.filter==='todo')return untreated(p);if(S.filter==='retry')return !!retryAct(p);if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
     if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
    .sort((a,b)=>{const na=nextAction(a),nb=nextAction(b);const ka=na?.date?na.date+(na.heure||''):'~',kb=nb?.date?nb.date+(nb.heure||''):'~';return ka<kb?-1:ka>kb?1:(a.createdAt||0)-(b.createdAt||0)})}
 function allActions(){const out=[];for(const p of VP())for(const a of (p.actions||[]))out.push({p,a});return out}
@@ -518,7 +519,7 @@ function autoFollow(force=false){if(S.settings.autoFollow===false)return 0;const
   if(n)toast(`${n} relance${n>1?'s':''} automatique${n>1?'s':''} ajoutée${n>1?'s':''} à l’agenda (prospects sans suivi)`);return n}
 function agCard(x){const p=x.p,a=x.a;const tel=p.contacts?.find(c=>c.decideur==='Oui'&&(c.tel||c.mobile))||p.contacts?.find(c=>c.tel||c.mobile);const ph=tel?.tel||tel?.mobile||p.ent?.tel||'';
   const late=a.date&&a.date<iso(today())?bizBetween(jDate(a.date),today()):0;
-  return `<div class="agc${a.gen?' auto':''}${late?' late':''}"><div class="agc-h"><span class="atype">${esc(a.type)}</span>${a.heure?`<b class="agc-t">${esc(a.heure.replace(':','h'))}</b>`:''}${late?`<span class="agc-late">${late} j de retard</span>`:''}${a.gen?'<span class="agc-auto" title="Relance créée automatiquement">auto</span>':''}</div>
+  return `<div class="agc${a.gen?' auto':''}${late?' late':''}"><div class="agc-h"><span class="atype">${esc(a.type)}</span>${a.heure?`<b class="agc-t">${esc(a.heure.replace(':','h'))}</b>`:''}${late?`<span class="agc-late">${late} j de retard</span>`:''}${a.gen?'<span class="agc-auto" title="Relance créée automatiquement">auto</span>':''}${a.retry?`<span class="agc-retry" title="Speech pas encore fait">${esc(a.retry)}</span>`:''}</div>
    <button class="agc-n" data-act="open" data-id="${p.id}" data-tab="suivi">${esc(displayName(p))}</button>
    ${a.note?`<div class="agc-note">${esc(a.note)}</div>`:''}<div class="agc-m">${esc([p.ent?.ville,ST[p.statut]?.l].filter(Boolean).join(' · '))}</div>
    <div class="agc-b"><button class="btn btn-p btn-s" data-act="done" data-id="${p.id}" data-a="${a.id}" title="Marquer comme fait">✓ Fait</button>${ph?`<a class="btn btn-g btn-s" href="tel:${esc(ph)}" title="${esc(fmtTel(ph))}">📞</a>`:''}<button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="1" title="Reporter au prochain jour ouvré">+1 j</button><button class="btn btn-q btn-s" data-act="agmove" data-id="${p.id}" data-a="${a.id}" data-v="5" title="Reporter d’une semaine">+1 sem</button></div></div>`}
@@ -558,7 +559,7 @@ async function regCreate(r,{open=true}={}){const p=blank(S.mode==='poste'?'tel':
   S.P.set(p.id,p);touch(p);if(open){S.q='';if($('#q'))$('#q').value='';openFiche(p.id,'ent')}findPhone(p,{silent:true}).then(()=>{if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}).catch(()=>{});return p}
 /* « À traiter » : aucune note, aucun appel / visite, statut jamais changé */
 const SYS_J=/^(import|créée|cr[ée]ee|complétée|fiche test|ajout)/i;
-function untreated(p){return p.statut==='nouveau'&&!(p.journal||[]).some(j=>j.canal==='tel'||j.canal==='terrain'||(String(j.texte||'').trim()&&!SYS_J.test(j.issue||'')&&!/^[\d\s]+$/.test(j.texte)))&&!(p.actions||[]).some(a=>!a.fait)}
+function untreated(p){return !p.manual&&p.statut==='nouveau'&&!(p.journal||[]).some(j=>j.canal==='tel'||j.canal==='terrain'||(String(j.texte||'').trim()&&!SYS_J.test(j.issue||'')&&!/^[\d\s]+$/.test(j.texte)))&&!(p.actions||[]).some(a=>!a.fait)}
 const initials=n=>String(n||'?').replace(/\b(sas|sarl|sa|scp|selarl|cabinet|etude|société|societe)\b/gi,'').trim().split(/[\s-]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';
 function rowHtml(p){const a=nextAction(p);const c=p.contacts?.find(x=>x.decideur==='Oui')||p.contacts?.[0];const st=ST[p.statut];
   return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
@@ -566,7 +567,9 @@ function rowHtml(p){const a=nextAction(p);const c=p.contacts?.find(x=>x.decideur
    <span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(st?.l||'')}</span>
    <span class="sub">${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
 function foldState(){if(!S.fold)S.fold=lsGet('radar-fold',{todo:true,clos:true});return S.fold}
+function retryAct(p){return (p.actions||[]).find(a=>!a.fait&&a.retry)}
 function groupedRows(L){const t=iso(today());const G=[
+   ['retry','📞 À rappeler · speech à faire',p=>!!retryAct(p)],
    ['due','🔔 À faire aujourd’hui',p=>{const a=nextAction(p);return a&&a.date&&a.date<=t}],
    ['plan','📅 Planifiés',p=>!!nextAction(p)],
    ['cours','💬 En cours, sans action prévue',p=>!['gagne','perdu','ko'].includes(p.statut)&&!untreated(p)],
@@ -578,12 +581,12 @@ function groupedRows(L){const t=iso(today());const G=[
   return out.map(([k,l,g])=>{const closed=!!F[k];return `<section class="fold${k==='todo'?' fold-todo':''}"><button class="fold-h" data-act="fold" data-v="${k}" aria-expanded="${!closed}"><span class="fold-ar">${closed?'▸':'▾'}</span><span class="fold-l">${l}</span><span class="fold-n">${g.length}</span></button>${closed?(k==='todo'?`<div class="fold-hint">Sociétés jamais appelées, sans note ni statut (imports, fiches créées). <button class="lnk" data-act="fold" data-v="todo">Ouvrir le dossier</button> · <button class="lnk" data-act="sesstodo">Lancer une session d’appels sur ces ${g.length} fiches</button></div>`:''):g.map(rowHtml).join('')}</section>`}).join('')}
 function renderList(){
   const el=$('#list');if(!el)return;const keepTop=el.scrollTop;queueMicrotask(()=>{if(el.isConnected)el.scrollTop=keepTop});const L=filtered();
-  const F=[['all','Tous'],['due','À faire'],['todo','Jamais traitées'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
+  const F=[['all','Tous'],['due','À faire'],['todo','Jamais traitées'],['retry','À rappeler'],['chaud','Chauds'],['terrain','Terrain'],...(S.lastBatch?.length?[['batch','Dernier ajout']]:[]),...([...S.P.values()].some(p=>p.rne?.status==='a_verifier')?[['rneko','Registre à confirmer']]:[]),...STATUTS.slice(0,6).map(s=>[s.k,s.l]),['ko','Pas intéressé']];
   el.innerHTML=`<div class="list-head"><div class="lh-acts lh-compact"><button class="btn btn-g btn-s" data-act="importopen" title="Colle une liste de sociétés, des notes ou des SIRET">＋ Coller une liste</button><button class="btn btn-g btn-s" data-act="fimpopen" title="Importer un fichier Excel, CSV ou PDF">📄 Importer</button><button class="btn btn-g btn-s" data-act="view" data-v="around" title="Entreprises autour de moi">📍</button></div>
    ${(()=>{const miss=VP().filter(p=>!p.ent?.tel&&(p.ent?.nom||p.ent?.enseigne));const r=S.phoneRun;return r&&!r.end?`<div class="ai" data-s="busy"><span class="spin"></span><span>Recherche des numéros : ${r.done.length}/${r.ids.length} · ${r.found} trouvé${r.found>1?'s':''}</span></div>`:r&&r.end?`<div class="ai"><span>${r.failed?'Le service gratuit OpenStreetMap ne répond pas en ce moment, réessaie plus tard. ':''}${r.found} numéro${r.found>1?'s':''} trouvé${r.found>1?'s':''} sur ${r.ids.length}. Pour les autres : ouvre la fiche, boutons PagesJaunes / Google.</span></div>`:miss.length?`<button class="btn btn-g btn-s" data-act="phoneall">📞 Chercher les numéros manquants (${miss.length})</button>`:''})()}${(()=>{const d=dupGroups().reduce((t,g)=>t+g.length-1,0);return d?`<button class="btn btn-s" style="background:var(--hot-soft,#fde8e4);color:var(--hot,#c2410c)" data-act="mergedups">⚠ ${d} doublon${d>1?'s':''} de SIRET : fusionner</button>`:''})()}<h2>Prospects <span>${L.length}${S.q||S.filter!=='all'?' / '+VP().length:''} ${VP().length?`<button class="btn btn-q btn-s" data-act="selmode">${S.selMode?'Terminer':'Sélectionner'}</button>`:''}</span></h2>
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
-   <div class="filters">${F.filter(([k])=>['all','due','todo','chaud','batch','rneko','terrain'].includes(k)).map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}<select class="fsel${STATUTS.some(x=>x.k===S.filter)?' on':''}" id="fstat" aria-label="Filtrer par statut"><option value="">Statut…</option>${STATUTS.map(x=>`<option value="${x.k}" ${S.filter===x.k?'selected':''}>${esc(x.l)} (${VP().filter(p=>p.statut===x.k).length})</option>`).join('')}</select></div></div>
+   <div class="filters">${F.filter(([k])=>['all','due','todo','retry','chaud','batch','rneko','terrain'].includes(k)).map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}<select class="fsel${STATUTS.some(x=>x.k===S.filter)?' on':''}" id="fstat" aria-label="Filtrer par statut"><option value="">Statut…</option>${STATUTS.map(x=>`<option value="${x.k}" ${S.filter===x.k?'selected':''}>${esc(x.l)} (${VP().filter(p=>p.statut===x.k).length})</option>`).join('')}</select></div></div>
    ${regSugHtml()}
    <div class="rows">${L.length?(S.filter==='all'&&!S.q&&!S.selMode?groupedRows(L):L.map(rowHtml).join(''))
    :VP().length?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
@@ -837,7 +840,8 @@ function openFiche(id,tab){S.sel=id;S.confirmDel=false;S.ask=null;S.aiMsg='';S.n
 function newProspect(){const p=blank(S.mode==='poste'?'tel':'terrain');S.P.set(p.id,p);touch(p);S.tab='ent';openFiche(p.id,'ent');setTimeout(()=>$('#ident-in')?.focus(),30)}
 function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?'<button>Annuler</button>':''}`;
   if(undo)t.querySelector('button').onclick=()=>{undo();t.remove()};$('#toast').append(t);setTimeout(()=>t.remove(),undo?7000:3200)}
-function setField(path,v){const p=cur();if(!p)return;
+const markManual=(p,path)=>{if(p&&!p.manual&&!/^(ent\.(nom|siret|siren)|source)$/.test(path||''))p.manual=Date.now()};
+function setField(path,v){const p=cur();if(!p)return;markManual(p,path);
   if(path==='source'){p.source={Téléphone:'tel',Terrain:'terrain',LinkedIn:'linkedin'}[v]||v;touch(p);return}
   if(p.est?.[path]){delete p.est[path];const l=$(`[data-k="${CSS.escape(path)}"]`)?.closest('.f')?.querySelector('.est');if(l)l.remove()}
   setP(p,path,v);if(['ent.effectif','ent.secteur','it.utilisateurs'].includes(path)&&p.est&&Object.keys(p.est).length){if(path==='ent.effectif'&&p.rne)p.rne.tranche='';applyEstimates(p);if(S.tab==='ent'&&path!=='it.utilisateurs'){const bx=$('#tabbody .brief');if(bx)bx.outerHTML=briefHtml(p)}}
@@ -858,9 +862,9 @@ const ACT={
  back:()=>{S.sel=null;S.sheet=false;render()},
  filter:b=>{S.filter=S.filter===b.dataset.v&&b.dataset.v!=='all'&&S.view==='list'?'all':b.dataset.v;if(S.view!=='list'||(S.mode==='terrain'&&S.sel)){S.view='list';if(S.mode==='terrain')S.sel=null;render()}else renderList()},
  tab:b=>{S.tab=b.dataset.v;S.flash.delete('tab:'+S.tab);$('#tabs').innerHTML=tabsHtml(cur());$('#tabbody').innerHTML=tabBody(cur())},
- statut:b=>{const p=cur();setStatut(p,b.dataset.v);touch(p);renderFiche();renderList()},
- temp:b=>{const p=cur();p.temperature=p.temperature===b.dataset.v?'':b.dataset.v;touch(p);renderFiche();renderList()},
- chip:b=>{const g=b.closest('.chips');const path=g.dataset.k,t=g.dataset.t,v=b.dataset.v;const p=cur();
+ statut:b=>{const p=cur();markManual(p,'statut');setStatut(p,b.dataset.v);touch(p);renderFiche();renderList()},
+ temp:b=>{const p=cur();markManual(p,'temp');p.temperature=p.temperature===b.dataset.v?'':b.dataset.v;touch(p);renderFiche();renderList()},
+ chip:b=>{const g=b.closest('.chips');const path=g.dataset.k,t=g.dataset.t,v=b.dataset.v;const p=cur();markManual(p,path);
   if(path==='source'){setField('source',v);g.outerHTML=chipsHtml({t:'single',o:['Téléphone','Terrain','LinkedIn','Recommandation','Salon']},'source',v,'source');return}
   const curv=getP(p,path);let nv;
   if(t==='single')nv=norm(curv)===norm(v)?'':v;
@@ -1019,8 +1023,12 @@ function addAction(p,a){p.actions=p.actions||[];if(!a.date&&!a.type)return false
   if(p.actions.some(x=>!x.fait&&x.type===a.type&&x.date===a.date))return false;
   // Une nouvelle relance remplace les rappels ouverts plus anciens
   if(['Rappel','Appel','Visite','Relance'].includes(a.type))p.actions.filter(x=>!x.fait&&['Rappel','Appel','Visite','Relance'].includes(x.type)&&x.date&&a.date&&x.date<=a.date).forEach(x=>{x.fait=true;x.faitLe=new Date().toISOString();x.auto=true});
-  p.actions.push({id:rid(),type:a.type||'Rappel',date:a.date||'',heure:a.heure||'',note:a.note||'',fait:false,createdAt:Date.now(),...(a.gen?{gen:true}:{})});return true}
+  p.actions.push({id:rid(),type:a.type||'Rappel',date:a.date||'',heure:a.heure||'',note:a.note||'',fait:false,createdAt:Date.now(),...(a.gen?{gen:true}:{}),...(a.retry?{retry:a.retry}:{})});return true}
 
+/* Rappel « speech pas fait » (NRP, barrage, pas le temps) : prochain jour ouvré, sur l'autre moment de la journée */
+function retrySlot(p){const now=new Date();const date=iso(bizDays(today(),1));let [h,m]=now.getHours()<12?[14,0]:[10,0];
+  const taken=new Set([...S.P.values()].flatMap(q=>(q.actions||[]).filter(a=>!a.fait&&a.date===date&&a.heure).map(a=>a.heure)));
+  for(let i=0;i<24&&taken.has(pad(h)+':'+pad(m));i++){m+=10;if(m>=60){m=0;h++}}return{date,heure:pad(h)+':'+pad(m)}}
 /* ================= Session d'appels ================= */
 function startSession(ids){const t=iso(today());if(Array.isArray(ids)&&ids.length){const q=ids.filter(id=>{const p=S.P.get(id);return p&&(p.ent?.tel||p.contacts?.some(c=>c.tel||c.mobile))});const rest=ids.filter(id=>!q.includes(id));const Q=[...q,...rest];S.session={q:Q,i:0};openFiche(Q[0],'ent');toast(`Session : ${Q.length} fiche${Q.length>1?'s':''} à traiter${rest.length?` (${rest.length} sans numéro en fin de liste)`:''}`);return}
   const due=VP().map(p=>({p,a:nextAction(p)})).filter(x=>x.a&&['Appel','Rappel','Relance'].includes(x.a.type)&&x.a.date&&x.a.date<=t).sort((x,y)=>(x.a.date+(x.a.heure||'99'))<(y.a.date+(y.a.heure||'99'))?-1:1).map(x=>x.p.id);
@@ -1235,8 +1243,9 @@ function parseLocal(text,p){
     // Statut & température
     if(/\brdv\b|rendez[- ]vous|\brdz\b|rdv pris|\brv\b/.test(c)&&!/pas de (rdv|rendez)|refuse|annul/.test(c)){out.statut='rdv';out.temperature=out.temperature||'chaud';const w=parseWhen(c,base);if(w)out.actions.push({type:'RDV',...w,note:raw})}
     else if(/barrage|filtr|bloque|refus\w* de (me )?(passer|transmettre)|veut pas (me )?(passer|transmettre)|ne passe pas/.test(c)){out.statut=out.statut||'rappel'}
-    else if(/pas interess|pas int\b|\bpi\b|aucun interet|ne veut pas|pas besoin|\bko\b|refus|raccroch|non merci|pas le temps/.test(c)){out.statut=out.statut||'ko';out.temperature='froid'}
-    else if(/\bnrp\b|repondeur|\brep\b|messagerie vocale|\bmsg\b|pas de rep|ne repond pas|injoignable|sonne dans le vide/.test(c)){out.statut=out.statut||'contacte';if(!out.actions.length)out.actions.push({type:'Rappel',date:iso(bizDays(base,1)),heure:'',note:'NRP'})}
+    else if(/pas interess|pas int\b|\bpi\b|aucun interet|ne veut pas|pas besoin|\bko\b|refus|raccroch|non merci/.test(c)&&!/pas le temps|pas dispo|occupe|en reunion|en rdv|rappeler plus tard/.test(c)){out.statut=out.statut||'ko';out.temperature='froid'}
+    else if(/pas le temps|pas dispo|occupe|en reunion|en rdv|rappeler plus tard|rappelez plus tard/.test(c)){out.statut=out.statut==='rdv'?'rdv':(out.statut||'rappel');if(!out.actions.length){const w=parseWhen(c,base);const r=w?.date?null:retrySlot();out.actions.push({type:'Rappel',date:w?.date||r.date,heure:w?.heure||r?.heure||'',note:'Pas le temps — speech à faire',retry:'Pas le temps'})}}
+    else if(/\bnrp\b|repondeur|\brep\b|messagerie vocale|\bmsg\b|pas de rep|ne repond pas|injoignable|sonne dans le vide/.test(c)){out.statut=out.statut||'contacte';if(!out.actions.length){const r=retrySlot();out.actions.push({type:'Rappel',date:r.date,heure:r.heure,note:'NRP — speech à faire',retry:'NRP'})}}
     else if(/barrage|filtre|secretaire bloque|veut pas passer/.test(c)){out.statut=out.statut||'rappel'}
     if(/rappel|rapl|rapel|rappeler|recontact|relanc|rapeller|re-?appeler|rappelle|callback|\bcb\b/.test(c)&&!/\b(il|elle) (me |nous )?rappel/.test(c)){const w=parseWhen(c,base);out.statut=out.statut==='rdv'?'rdv':(out.statut||'rappel');out.actions.push({type:/relanc/.test(c)?'Relance':'Rappel',date:w?.date||iso(bizDays(base,2)),heure:w?.heure||'',note:raw})}
     else if(/\b(il|elle) (me |nous )?rappel/.test(c)){const w=parseWhen(c,base);out.actions.push({type:'Relance',date:w?.date||iso(bizDays(base,3)),heure:w?.heure||'',note:'Attend son rappel : '+raw});out.statut=out.statut||'rappel'}
@@ -1307,7 +1316,7 @@ function applyPatch(p,patch,overwrite){
     for(const [k,v] of Object.entries(c))if(!filled(ex[k])||(k==='decideur'&&v==='Oui')){ex[k]=v;changed.add('contacts.'+i+'.'+k)}}
   // Actions
   let nAct=0;for(const a of (patch.actions||[])){if(!a)continue;const type=ATYPES.find(t=>norm(t)===norm(a.type))||'Rappel';let date=/^\d{4}-\d{2}-\d{2}$/.test(a.date||'')?a.date:'';let heure=/^\d{1,2}:\d{2}$/.test(a.heure||'')?a.heure.padStart(5,'0'):'';if(heure)heure=fitSlot(heure,type==='RDV'?60:0);if(date)date=workDay(date);
-    if(addAction(p,{type,date,heure,note:String(a.note||'').slice(0,160)})){nAct++;changed.add('actions')}}
+    if(addAction(p,{type,date,heure,retry:a.retry,note:String(a.note||'').slice(0,160)})){nAct++;changed.add('actions')}}
   if(patch.statut&&ST[patch.statut]){const k=patch.statut;if(k!==p.statut&&(RANK[k]>RANK[p.statut]||['ko','perdu','gagne'].includes(k)||p.statut==='nouveau')){setStatut(p,k);changed.add('statut')}}
   if(patch.temperature&&['froid','tiede','chaud'].includes(patch.temperature)&&patch.temperature!==p.temperature){p.temperature=patch.temperature;changed.add('temperature')}
   return[...changed]}
@@ -1333,7 +1342,7 @@ async function commitNote(p,text,o,ask){
   if(text)j.propre=cleanNote(text);const had=new Set((p.actions||[]).map(a=>a.id));let defAct=null;
   if(S.call&&S.call.id===p.id&&o){const s=Math.floor((Date.now()-S.call.t0)/1000);j.duree=`${pad(Math.floor(s/60))}:${pad(s%60)}`;S.call=null}
   if(o){if(o.statut)setStatut(p,(RANK[o.statut]>=RANK[p.statut]||['ko','perdu'].includes(o.statut)||p.statut==='nouveau')?o.statut:p.statut);if(o.temp)p.temperature=o.temp;
-    if(o.a){const n0=(p.actions||[]).length;const date=ask?.date||iso(bizDays(today(),o.a.in));const note=[o.k==='rdv'&&ask?.lieu,o.k==='doc'?'Envoyer la documentation':'',o.l].filter(Boolean)[0];addAction(p,{type:o.a.type,date,heure:ask?.heure||'',note:o.k==='rdv'?`RDV ${ask?.lieu||''}`.trim():note});if(!ask&&(p.actions||[]).length>n0){defAct=p.actions.at(-1);p.actions=p.actions.filter(a=>a!==defAct)}}
+    if(o.a){const n0=(p.actions||[]).length;const rs=o.retry&&!ask?retrySlot(p):null;const date=ask?.date||rs?.date||iso(bizDays(today(),o.a.in));const note=[o.k==='rdv'&&ask?.lieu,o.k==='doc'?'Envoyer la documentation':'',o.l].filter(Boolean)[0];addAction(p,{type:o.a.type,date,heure:ask?.heure||rs?.heure||'',retry:o.retry?(o.k==='nrp'?'NRP':o.l):undefined,note:o.k==='rdv'?`RDV ${ask?.lieu||''}`.trim():o.retry?`${o.k==='nrp'?'NRP':o.l} — speech à faire`:note});if(!ask&&(p.actions||[]).length>n0){defAct=p.actions.at(-1);p.actions=p.actions.filter(a=>a!==defAct)}}
     if(o.k==='rdv'&&ask){j.issue=`RDV pris · ${fmtDate(ask.date)}${ask.heure?' '+ask.heure:''}${ask.lieu?' · '+ask.lieu:''}`}}
   lsSet('radar-draft-'+p.id,null);if($('#note-in'))$('#note-in').value='';
   S.ask=null;
@@ -1341,7 +1350,7 @@ async function commitNote(p,text,o,ask){
   else{p.journal=p.journal||[];p.journal.push(j);touch(p);renderFiche();renderNotesOnly();renderList();toast(`${displayName(p)} : ${j.issue}`)}
   if(defAct){/* action par défaut de l'issue, sauf si la note fixe elle-même un rappel / RDV */
     const fromNote=(p.actions||[]).find(a=>!had.has(a.id)&&!a.fait&&a.date&&['Rappel','RDV','Appel','Relance'].includes(a.type));
-    if(fromNote){fromNote.note=cleanClause(fromNote.note||'')||defAct.note;fromNote.explicit=true}
+    if(fromNote){fromNote.note=cleanClause(fromNote.note||'')||defAct.note;fromNote.explicit=true;if(defAct.retry){fromNote.retry=defAct.retry;if(!fromNote.heure&&fromNote.date===defAct.date)fromNote.heure=defAct.heure}}
     else if(!p.actions.some(x=>!x.fait&&x.type===defAct.type&&x.date===defAct.date))p.actions.push(defAct)
     touch(p);if(S.sel===p.id){renderFiche();renderNotesOnly()}renderList()}
   calNew(p,had,o,defAct);
@@ -2688,7 +2697,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&document.activeElement?.id==='pos-in'){e.preventDefault();aroundSearch();return}
   if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();if(document.activeElement?.id==='ident-in')ACT.identify();else if(document.activeElement?.id==='na-note')ACT.addact();else if(S.sel)ACT.analyze();return}
   if(e.key==='Escape'){if(S.help||S.menu||S.sheet){S.help=S.menu=S.sheet=false;renderLayer()}else if(typing)document.activeElement.blur();return}
-  if(e.altKey&&S.mode==='poste'&&S.sel&&/^Digit[1-8]$/.test(e.code)){e.preventDefault();const n=+e.code.slice(5);
+  if(e.altKey&&S.mode==='poste'&&S.sel&&/^Digit[1-9]$/.test(e.code)){e.preventDefault();const n=+e.code.slice(5);
     if(e.shiftKey){const t=TABS[n-1];if(t){S.tab=t.id;S.flash.delete('tab:'+t.id);$('#tabs').innerHTML=tabsHtml(cur());$('#tabbody').innerHTML=tabBody(cur())}}
     else{const o=OUT.poste.find(x=>x.key===String(n));if(o){const b=$(`[data-act="out"][data-v="${o.k}"]`);if(b)ACT.out(b)}}return}
   if(typing||e.ctrlKey||e.metaKey||e.altKey)return;

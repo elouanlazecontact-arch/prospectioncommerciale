@@ -690,3 +690,5 @@ html[data-app="terrain"] #remstack{top:auto;bottom:calc(76px + env(safe-area-ins
 #remstack{max-height:calc(100vh - 28px);overflow:auto}
 html[data-app="terrain"] #remstack{max-height:62vh}
 html[data-app="terrain"] .remc{padding:10px 12px;gap:4px}
+.agc-retry{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--warm-soft);color:var(--warn)}
+.fold-h[data-v="retry"] .fold-l{color:var(--warn)}
