@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=65;
+const APP_V=66;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -643,7 +643,7 @@ function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.inn
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
   if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
   if(t.id==='ent'&&/^\d{9}$/.test(sirenOf(p))&&!(p.cpl?.at&&p.cpl.siren===sirenOf(p)&&p.cpl.at>iso(addDays(today(),-30))))setTimeout(()=>enrichSoon(p),0);
-  return `${t.id==='ent'?briefHtml(p)+identHtml(p):''}<div class="panel"><div class="grid">${gridHtml(p,t)}</div>${t.id==='ent'?sourcesHtml(p):''}</div>`}
+  return `${t.id==='ent'?briefHtml(p)+identHtml(p)+voisHtml(p):''}<div class="panel"><div class="grid">${gridHtml(p,t)}</div>${t.id==='ent'?sourcesHtml(p):''}</div>`}
 function gridHtml(p,t){let sec='',shown='',out='',n=0;
   for(const f of t.fields){if(f.sec)sec=f.sec;if(f.k==='ent.nom'||f.hidden||(f.reg&&!filled(getP(p,f.k))))continue;
     if(sec!==shown){if(n&&sec)out+=`<div class="gsec">${esc(sec)}</div>`;shown=sec}
@@ -3052,6 +3052,53 @@ function bodaccSignals(p){const out=[];const now=iso(today());const ago=m=>iso(a
   const d=(p.bodacc||[]).find(x=>x.f==='modification'&&x.d>=ago(18)&&/nomination|changement|démission|gérant|président|directeur/i.test(x.adm||x.t));if(d)out.push(['👤',`Changement de dirigeant publié le ${fmtD(d.d)} : nouvel interlocuteur, bonne fenêtre pour te présenter.`]);
   const ev=String(p.ent?.caEvol||'').match(/^([+−-]?\d+) %/);if(ev){const n=+ev[1].replace('−','-');if(n>=10)out.push(['📈',`Chiffre d’affaires en hausse de ${n} % : entreprise en croissance, besoins d’équipement et de structuration.`]);else if(n<=-15)out.push(['📉',`Chiffre d’affaires en baisse de ${-n} % : mets l’accent sur les économies (copieurs, télécom).`])}
   return out}
+
+/* ================= Voisins : 3 entreprises à moins de 100 m (PC) =================
+   Pas de fiche créée : une « sous-fiche » s'ouvre au clic. On peut ensuite créer la fiche d'un clic si on le veut. */
+const VOIS_R=100;
+function voisMin(x){const r=x.r||{},e=x.e||{};const tr=String(e.tranche_effectif_salarie||r.tranche_effectif_salarie||'');
+  const dirs=(r.dirigeants||[]).slice(0,3).map(d=>({n:d.denomination||[d.prenoms?.split(' ')[0],d.nom].filter(Boolean).join(' ').replace(/\b\w/g,c=>c.toUpperCase()).replace(/\B\w+/g,w=>w.toLowerCase()),q:d.qualite||''})).filter(d=>d.n);
+  return{siret:x.siret,siren:x.siren,name:x.name,denom:x.denom,naf:x.naf,lab:nafLabel(x.naf)||x.r?.libelle_activite_principale||'',adr:x.adr,dist:Math.round(x.dist),eff:x.eff,staff:!!tr&&!/^(00|NN)$/.test(tr),ei:x.ei,siege:x.siege,forme:x.forme,creation:r.date_creation||'',lat:x.lat,lon:x.lon,group:x.group,out:x.out||'',dirs}}
+function voisScore(v){let s=0;if(['liberal','sante','immo'].includes(v.group))s+=30;if(v.out)s-=50;if(v.staff)s+=15;if(v.ei)s-=10;if(v.siege)s+=5;if(knownProspect(v))s-=20;return s-v.dist/10}
+async function voisLoad(p,force){const sid=sirenOf(p);let pos=p.geo;S.voisBusy=S.voisBusy||new Set();if(S.voisBusy.has(p.id))return;S.voisBusy.add(p.id);
+  try{if(!pos){const q=[p.ent?.adresse,p.ent?.cp,p.ent?.ville].filter(Boolean).join(' ');if(!p.ent?.adresse||!(p.ent?.cp||p.ent?.ville)){p.vois={at:iso(today()),list:[],msg:'Ajoute l’adresse de la société pour voir ses voisins.'};return}
+      const g=await geocode(q).catch(()=>null);if(!g||g.score<0.5){p.vois={at:'',list:[],msg:'Adresse introuvable sur la carte : vérifie-la.'};return}pos={lat:g.lat,lon:g.lon};p.geo=pos}
+    const all=await nearEtabs(pos,VOIS_R);const L=all.filter(x=>!x.hidden&&x.siren!==sid&&x.siret!==p.ent?.siret).map(voisMin);
+    const seen=new Set();const uniq=L.filter(v=>{const k=v.siren+'|'+norm(v.name);if(seen.has(k))return false;seen.add(k);return true});
+    uniq.sort((a,b)=>voisScore(b)-voisScore(a));p.vois={at:iso(today()),list:uniq.slice(0,9),total:uniq.length,msg:uniq.length?'':'Aucune autre entreprise enregistrée à moins de 100 m.'};p.voisPage=0}
+  catch(e){p.vois={at:'',list:[],msg:'Recherche des voisins impossible pour le moment (registre injoignable).'}}
+  finally{S.voisBusy.delete(p.id);touch(p);if(S.sel===p.id&&S.tab==='ent'){const b=$('#vois');if(b)b.outerHTML=voisHtml(p)}}}
+function voisHtml(p){if(S.mode!=='poste')return'';const V=p.vois;const busy=S.voisBusy?.has(p.id);
+  if(!busy&&(p.geo||p.ent?.adresse)&&(!V||(V.at&&V.at<iso(addDays(today(),-60)))))setTimeout(()=>voisLoad(p),0);
+  const L=V?.list||[],pg=p.voisPage||0,shown=L.slice(pg*3,pg*3+3),open=S.voisOpen;
+  return `<section class="vois" id="vois"><div class="vois-h"><b>🏢 Voisins à moins de 100 m</b><span class="hint">idéal pour enchaîner les appels ou les visites dans le même immeuble</span>${L.length>3?`<button class="lnk" data-act="voismore">3 autres ↻</button>`:''}</div>
+   ${busy||(!V&&(p.geo||p.ent?.adresse))?'<div class="hint vois-msg">Recherche des entreprises autour…</div>':V?.msg?`<div class="hint vois-msg">${esc(V.msg)}${!V.at?' <button class="lnk" data-act="voisre">Réessayer</button>':''}</div>`:!V?'<div class="hint vois-msg">Ajoute l’adresse de la société pour voir ses voisins.</div>':''}
+   ${shown.map(v=>{const k=knownProspect(v);const o=open===v.siret;return `<div class="vrow${o?' open':''}"><button class="vrow-h" data-act="voisopen" data-v="${esc(v.siret)}" aria-expanded="${o}"><span class="av vav" style="--c:var(--ink-3)">${esc(initials(v.name))}</span><span class="vn"><b>${esc(v.name)}</b><small>${esc([v.lab,v.staff&&v.eff?v.eff+' sal.':'',v.ei?'entreprise individuelle':''].filter(Boolean).join(' · '))}</small></span><span class="vd num">${v.dist} m</span>${k?'<span class="srcc">déjà en fiche</span>':v.out?`<span class="srcc">${esc(v.out)}</span>`:''}<span class="vchev">${o?'▾':'▸'}</span></button>
+     ${o?voisSub(p,v,k):''}</div>`}).join('')}</section>`}
+function voisSub(p,v,k){const sir=v.siren,nm=encodeURIComponent(v.name),q=encodeURIComponent(v.name+' '+(v.adr?.ville||''));const a=v.adr||{};
+  return `<div class="vsub"><dl>
+   <dt>Activité</dt><dd>${esc(v.lab||'—')}${v.naf?` <small class="mono">${esc(v.naf)}</small>`:''}</dd>
+   <dt>Adresse</dt><dd>${esc([a.rue,a.cp,a.ville].filter(Boolean).join(' '))||'—'} <small>· à ${v.dist} m</small></dd>
+   ${v.denom&&v.denom!==v.name?`<dt>Raison sociale</dt><dd>${esc(v.denom)}${v.forme?' · '+esc(v.forme):''}</dd>`:v.forme?`<dt>Forme</dt><dd>${esc(v.forme)}</dd>`:''}
+   <dt>Effectif</dt><dd>${v.staff&&v.eff?esc(v.eff)+' salariés':'non publié ou sans salarié'}</dd>
+   ${v.creation?`<dt>Créée</dt><dd>${esc(fmtD(v.creation))}</dd>`:''}
+   ${v.dirs?.length?`<dt>Dirigeant${v.dirs.length>1?'s':''}</dt><dd>${v.dirs.map(d=>esc(d.n)+(d.q?` <small>(${esc(d.q)})</small>`:'')).join('<br>')}</dd>`:''}
+   <dt>Téléphone</dt><dd>${v.tel?`<a href="tel:${esc(v.tel.replace(/[^\d+]/g,''))}" class="mono">${esc(fmtTel(v.tel))}</a> <small>(${esc(v.telSrc||'Overture Maps')})</small>`:v.telTried?'non trouvé dans les bases gratuites':`<button class="lnk" data-act="voistel" data-v="${esc(v.siret)}">Chercher le numéro</button>`}</dd>
+   <dt>SIRET</dt><dd class="mono">${esc(fmtSiret(v.siret||''))}</dd></dl>
+   <div class="srcl"><a href="https://www.pappers.fr/entreprise/${sir}" target="_blank" rel="noopener">Pappers ↗</a><a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${sir}" target="_blank" rel="noopener">Annuaire ↗</a><a href="https://www.linkedin.com/search/results/companies/?keywords=${nm}" target="_blank" rel="noopener">LinkedIn ↗</a><a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Google ↗</a></div>
+   <div class="vsub-b">${k?`<button class="btn btn-g btn-s" data-act="open" data-id="${k.id}" data-tab="ent">Ouvrir sa fiche</button>`:`<button class="btn btn-g btn-s" data-act="voisadd" data-v="${esc(v.siret)}">＋ Créer une fiche pour cette société</button>`}</div></div>`}
+async function voisTel(p,v){try{const pl=await overturePlaces({lat:v.lat,lon:v.lon},90);let best=null,bs=0;for(const x of pl||[]){if(!x.phone&&!(x.phones||[]).length)continue;const s=Math.max(nameScore(v.name,x.name||''),nameScore(v.denom||'',x.name||''));if(s>bs){bs=s;best=x}}
+  if(best&&bs>=0.5){v.tel=best.phone||best.phones[0];v.telSrc='Overture Maps'}}catch{}v.telTried=true;touch(p);const b=$('#vois');if(b&&S.sel===p.id)b.outerHTML=voisHtml(p)}
+Object.assign(ACT,{
+ voisopen:b=>{S.voisOpen=S.voisOpen===b.dataset.v?null:b.dataset.v;const p=cur();const el=$('#vois');if(p&&el)el.outerHTML=voisHtml(p)},
+ voismore:()=>{const p=cur();if(!p?.vois)return;const n=Math.ceil(p.vois.list.length/3);p.voisPage=((p.voisPage||0)+1)%n;S.voisOpen=null;const el=$('#vois');if(el)el.outerHTML=voisHtml(p)},
+ voisre:()=>{const p=cur();if(!p)return;delete p.vois;voisLoad(p,true);const el=$('#vois');if(el)el.outerHTML=voisHtml(p)},
+ voistel:b=>{const p=cur();const v=p?.vois?.list.find(x=>x.siret===b.dataset.v);if(!v)return;b.textContent='Recherche…';b.disabled=true;voisTel(p,v)},
+ voisadd:async b=>{const p=cur();const v=p?.vois?.list.find(x=>x.siret===b.dataset.v);if(!v)return;if(knownProspect(v)){toast('Cette société a déjà une fiche');return}
+   b.disabled=true;b.textContent='Création…';const n=blank('tel');n.ws=p.ws;n.ent={nom:v.denom||v.name,enseigne:v.name!==v.denom?v.name:'',siret:v.siret,siren:v.siren,adresse:v.adr?.rue||'',cp:v.adr?.cp||'',ville:v.adr?.ville||'',...(v.tel?{tel:v.tel,telSource:v.telSrc}:{})};n.geo={lat:v.lat,lon:v.lon};
+   n.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Voisin repéré',texte:`À ${v.dist} m de ${displayName(p)}`});
+   S.P.set(n.id,n);touch(n);try{await applyRne(n,v.siret,{siret:v.siret,soft:true})}catch{}touch(n);const el=$('#vois');if(el)el.outerHTML=voisHtml(p);renderList();toast(`Fiche créée : ${displayName(n)} (rangée dans « À traiter »)`)}
+});
 
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
   if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});

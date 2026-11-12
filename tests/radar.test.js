@@ -156,6 +156,15 @@ const T = {
     ok(r.src.includes('inpi') && r.src.includes('bodacc'), 'sources affichées'); ok(r.sig >= 2, 'signaux : changement de dirigeant, procédure collective');
     ok(r.after < r.before, 'une procédure collective fait baisser la priorité'); ok(!errs.length, 'aucune erreur JS'); await ctx.close();
   },
+  async 'Voisins à 100 m (PC)'(b) {
+    const et = (siren, nom, naf, d, tr) => ({ siren, nom_complete: nom, nom_raison_sociale: nom, nature_juridique: '5710', activite_principale: naf, dirigeants: [], siege: { siret: siren + '00011' },
+      matching_etablissements: [{ siret: siren + '00011', latitude: String(48.88 + d), longitude: '2.3', adresse: '1 RUE X 75017 PARIS', code_postal: '75017', libelle_commune: 'PARIS', activite_principale: naf, tranche_effectif_salarie: tr, est_siege: true, etat_administratif: 'A' }] });
+    const { pg, ctx, errs } = await page(b, 'pc.html', null, { near_point: { total_pages: 1, results: [et('111111111', 'CABINET A', '69.10Z', .0002, '03'), et('222222222', 'BOULANGERIE', '10.71C', .0001, '02'), et('333333333', 'AGENCE IMMO', '68.31Z', .0004, '11'), et('444444444', 'MEDECIN', '86.21Z', .0003, '01'), et('999999999', 'MOI', '62.02A', 0, '03')] } });
+    const r = await pg.evaluate(async () => { const p = blank('tel'); p.ent = { nom: 'Moi', siren: '999999999' }; p.geo = { lat: 48.88, lon: 2.3 }; S.P.set(p.id, p); await voisLoad(p);
+      return { names: p.vois.list.slice(0, 3).map(v => v.name), n: S.P.size } });
+    ok(r.names.length === 3 && !r.names.includes('Moi') && r.names[0] === 'Cabinet A', '3 voisins, cibles en premier, sans la société elle-même : ' + r.names.join(', '));
+    ok(r.n === 1, 'aucune fiche créée automatiquement'); ok(!errs.length, 'aucune erreur JS'); await ctx.close();
+  },
   async 'Fluidité (400 fiches)'(b) {
     const { pg, ctx } = await page(b, 'pc.html');
     const r = await pg.evaluate(() => { for (let i = 0; i < 400; i++) { const p = blank('tel'); p.ent = { nom: 'Societe ' + i, tel: '01' + String(47000000 + i).padStart(8, '0') }; p.manual = i % 2; S.P.set(p.id, p) }

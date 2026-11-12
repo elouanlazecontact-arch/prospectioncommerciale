@@ -1,5 +1,5 @@
 /* Radar — fonctionnement hors ligne : l'appli s'ouvre même sans réseau. */
-const V = 'radar-v65';
+const V = 'radar-v66';
 /* Bibliothèques (Excel, carte, Outlook) : cache à part, qui ne change pas à chaque version de Radar.
    Une mise à jour ne retélécharge donc que les quelques fichiers de l'appli (≈ 150 Ko compressés), pas les 1,9 Mo de bibliothèques. */
 const LIB = 'radar-lib-1';
