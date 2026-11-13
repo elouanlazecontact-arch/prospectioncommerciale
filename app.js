@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=67;
+const APP_V=68;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -3119,11 +3119,12 @@ const CAC_RE=/commissaire|auditeur|liquidateur|administrateur judiciaire|mandata
 function pmOf(p){return String(p.ent?.holding||'').split(' · ').map(s=>{const [n,...q]=s.split(' : ');return{n:n.trim(),q:q.join(' : ').trim()}}).filter(x=>x.n)}
 const holdOf=p=>pmOf(p).filter(x=>!CAC_RE.test(x.q));
 const cacOf=p=>[...pmOf(p).filter(x=>CAC_RE.test(x.q)).map(x=>x.n),...String(p.ent?.cac||'').split(' · ')].filter(Boolean).map(x=>norm(x).replace(/\b(s\.?a\.?s?|sas|sarl)\b\.?/g,'').replace(/[^a-z0-9]/g,'')).filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).sort().join('|');
-const GRP_GEN=new Set(['france','paris','groupe','group','holding','societe','sas','sarl','sa','selarl','scp','eurl','sasu','cabinet','agence','conseil','consulting','services','service','entreprise','entreprises','international','comite','social','economique','ues','et','de','du','des','la','le','les','and','the','associes','partners','solutions','expertise','expertises','developpement','nouvelle','compagnie','francaise','ambulances','ambulance','92','75','production','productions','finance','media','creative','digital','immobilier','sci','dr','docteur']);
-const nameToks=p=>[...new Set(norm(displayName(p)).split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!GRP_GEN.has(w)))];
+const GRP_GEN=new Set(['france','paris','groupe','group','holding','societe','sas','sarl','sa','selarl','scp','eurl','sasu','cabinet','agence','conseil','consulting','services','service','entreprise','entreprises','international','comite','social','economique','ues','et','de','du','des','la','le','les','and','the','associes','partners','solutions','expertise','expertises','developpement','nouvelle','compagnie','francaise','ambulances','ambulance','92','75','production','productions','finance','media','creative','digital','immobilier','sci','dr','docteur','ouest','est','nord','sud','centre','investissement','investissements','invest','financiere','finances','french','limited','ltd','inc','gmbh','europe','europeenne','negoce','diffusion','editions','edition','serrurerie','plomberie','reseau','reseaux','marketing','ingenierie','deco','decoration','travaux','batiment','transport','transports','location','gestion','management','participations','capital','partenaires','sante','medical','dentaire','avocat','avocats','notaire','notaires','architecte','architectes','pharmacie','boulangerie','restaurant','hotel','auto','automobile','garage','taxi','nettoyage','securite','formation','ecole','studio','atelier','maison','residence','copropriete','copr','syndicat','association','fondation','club','sans','nom']);
+const nameToks=p=>{const ad=new Set(norm([p.ent?.adresse,p.ent?.ville].join(' ')).split(/[^a-z0-9]+/));return[...new Set(norm(displayName(p)).split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!/^\d+$/.test(w)&&!GRP_GEN.has(w)&&!ad.has(w)))]};
 const addrKey=p=>{const a=norm(p.ent?.adresse||'').replace(/\b(avenue|av)\b/g,'av').replace(/\b(boulevard|bd)\b/g,'bd').replace(/[^a-z0-9]/g,'');return a&&p.ent?.cp?a+'|'+p.ent.cp:''};
 function grpCompute(){let mx=0;for(const p of S.P.values())if((p.updatedAt||0)>mx)mx=p.updatedAt;const tok=S.P.size+':'+mx;if(S._grp&&S._grp.tok===tok)return S._grp.m;
-  const P=[...S.P.values()].filter(p=>!p.exemple&&(!p._owner||p._owner===USER?.id));const par=new Map(P.map(p=>[p.id,p.id]));const f=x=>{while(par.get(x)!==x){par.set(x,par.get(par.get(x)));x=par.get(x)}return x};const U=(a,b)=>{const x=f(a),y=f(b);if(x!==y)par.set(x,y)};
+  const P=[...S.P.values()].filter(p=>!p.exemple&&(!p._owner||p._owner===USER?.id)&&(p.ent?.nom||p.ent?.siren));
+  const tokAd=new Map();for(const p of P){const k=addrKey(p);for(const w of nameToks(p)){if(!tokAd.has(w))tokAd.set(w,new Set());tokAd.get(w).add(k)}}const distinct=w=>(tokAd.get(w)?.size||0)<=2;const par=new Map(P.map(p=>[p.id,p.id]));const f=x=>{while(par.get(x)!==x){par.set(x,par.get(par.get(x)));x=par.get(x)}return x};const U=(a,b)=>{const x=f(a),y=f(b);if(x!==y)par.set(x,y)};
   const B=(key,fn)=>{const m=new Map();for(const p of P){for(const k of [].concat(fn(p)||[])){if(!k)continue;if(!m.has(k))m.set(k,[]);m.get(k).push(p)}}for(const L of m.values())if(L.length>1&&L.length<40)for(const q of L.slice(1))U(L[0].id,q.id)};
   const sir=p=>String(p.ent?.siren||p.ent?.siret||'').replace(/\D/g,'').slice(0,9);
   B('siren',p=>sir(p).length===9?'s'+sir(p):'');                                    /* même société, plusieurs sites (et fiches liées entre espaces) */
@@ -3132,7 +3133,7 @@ function grpCompute(){let mx=0;for(const p of S.P.values())if((p.updatedAt||0)>m
   const byTel=new Map();for(const p of P){const t=String(p.ent?.tel||'').replace(/\D/g,'');if(t.length===10&&!/^0[67]/.test(t)){if(!byTel.has(t))byTel.set(t,[]);byTel.get(t).push(p)}}
   for(const L of byTel.values())if(L.length>1&&L.length<15&&new Set(L.map(p=>p.ent?.cp).filter(Boolean)).size<=1)for(const q of L.slice(1))U(L[0].id,q.id); /* même standard au même endroit */
   const byAd=new Map();for(const p of P){const k=addrKey(p);if(k){if(!byAd.has(k))byAd.set(k,[]);byAd.get(k).push(p)}}
-  for(const L of byAd.values()){if(L.length<2)continue;const tk=new Map();for(const p of L)for(const w of nameToks(p)){if(!tk.has(w))tk.set(w,[]);tk.get(w).push(p)}
+  for(const L of byAd.values()){if(L.length<2)continue;const tk=new Map();for(const p of L)for(const w of nameToks(p)){if(!distinct(w))continue;if(!tk.has(w))tk.set(w,[]);tk.get(w).push(p)}
     for(const [w,M] of tk)if(new Set(M.map(sir)).size>1)for(const q of M.slice(1))U(M[0].id,q.id);                 /* même adresse + nom commun */
     const cc=new Map();for(const p of L){const c=cacOf(p);if(c&&c.includes('|')){if(!cc.has(c))cc.set(c,[]);cc.get(c).push(p)}}
     for(const M of cc.values())if(M.length>1)for(const q of M.slice(1))U(M[0].id,q.id)}                            /* même adresse + mêmes commissaires aux comptes */
@@ -3140,18 +3141,18 @@ function grpCompute(){let mx=0;for(const p of S.P.values())if((p.updatedAt||0)>m
   const m=new Map();
   for(const L of G.values()){const sirens=new Set(L.map(sir).filter(Boolean));const sites=new Set(L.map(p=>p.ent?.siret||p.id));if(sirens.size<2&&sites.size<2)continue;
     const man=L.map(p=>p.ent?.groupeNom).find(Boolean);let name=man||'',why='';
+    if(!name&&sirens.size<2){name=displayName(L.find(p=>p.ent?.etab==='Siège')||L[0]);why=`même société, ${sites.size} sites`}
     if(!name){const hc=new Map();for(const p of L)for(const h of holdOf(p)){const k=niceCase(h.n);hc.set(k,(hc.get(k)||0)+1+(/group|holding|invest|particip/i.test(h.n)?2:0))}
       const best=[...hc].sort((a,b)=>b[1]-a[1])[0];if(best&&best[1]>=2){name=best[0];why='même société mère'}}
-    if(!name){const tc=new Map();for(const p of L)for(const w of nameToks(p))tc.set(w,(tc.get(w)||0)+1);const best=[...tc].filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]||b[0].length-a[0].length)[0];if(best){name=best[0][0].toUpperCase()+best[0].slice(1);why='nom et adresse communs'}}
-    if(!name&&sirens.size<2){name=displayName(L[0]);why=`même société, ${sites.size} sites`}
+    if(!name){const tc=new Map();for(const p of L)for(const w of nameToks(p))if(distinct(w))tc.set(w,(tc.get(w)||0)+1);const best=[...tc].filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]||b[0].length-a[0].length)[0];if(best){name=best[0][0].toUpperCase()+best[0].slice(1);why='nom et adresse communs'}}
     if(!name){const h=L.flatMap(holdOf)[0];if(h){name=niceCase(h.n);why='société mère'}}
     if(!name){const a=L[0].ent?.adresse;name=a?`Standard commun · ${niceCase(a)}`:displayName(L[0]);why='même standard et même adresse'}
-    const g={name:/group|^standard commun/i.test(name)||sirens.size<2?name:'Groupe '+name.replace(/^groupe\s+/i,''),why:why||'',ids:L.map(p=>p.id),n:sirens.size||sites.size,names:[...new Set(L.map(displayName))]};
+    const g={name:/group|^standard commun/i.test(name)||sirens.size<2?name:'Groupe '+name.replace(/^groupe\s+/i,''),why:why||'',ids:L.map(p=>p.id),n:sirens.size||sites.size,sites:sirens.size<2,names:[...new Set(L.map(displayName))]};
     for(const p of L)m.set(p.id,g)}
   S._grp={tok,m};return m}
 const grpOf=p=>p?grpCompute().get(p.id)||null:null;
 function grpChip(p,big){const g=grpOf(p);if(!g)return'';const others=g.names.filter(n=>n!==displayName(p));
-  return big?`<button class="grpc big" data-act="grpshow" data-v="${esc(g.name)}" title="${esc((g.why?g.why+' · ':'')+'avec : '+others.join(', '))}">◆ ${esc(g.name)} <small>· ${g.n} ${g.n>1?'sociétés':'société'} en fiche</small></button>`
+  return big?`<button class="grpc big" data-act="grpshow" data-v="${esc(g.name)}" title="${esc((g.why?g.why+' · ':'')+'avec : '+others.join(', '))}">◆ ${esc(g.name)} <small>· ${g.sites?g.ids.length+' sites en fiche':g.n+' sociétés en fiche'}</small></button>`
     :`<span class="grpc" title="${esc(g.name+' : '+others.join(', '))}">◆ ${esc(g.name.replace(/^Groupe /,''))}</span>`}
 Object.assign(ACT,{
  grpshow:b=>{S.grpF=b.dataset.v;S.q='';const q=$('#q');if(q)q.value='';S.filter='all';if(S.view!=='list'){S.view='list';render()}else renderList()},
