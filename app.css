@@ -803,3 +803,8 @@ button.dk-t:hover{border-color:var(--accent);box-shadow:var(--shadow);transform:
 .vsub{padding:4px 14px 14px 54px;display:flex;flex-direction:column;gap:10px;font-size:13px;background:var(--surface-2)}
 .vsub dl{display:grid;grid-template-columns:110px 1fr;gap:5px 12px;margin:0}.vsub dt{color:var(--ink-3);font-size:12px}.vsub dd{margin:0}.vsub small{color:var(--ink-3)}
 .vsub-b{display:flex;gap:8px}
+
+/* v67 : groupes */
+.grpc{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:650;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px;margin-right:6px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:1px}
+.grpc.big{font-size:12px;padding:3px 9px;border:0;cursor:pointer;max-width:none}.grpc.big small{font-weight:500;opacity:.8}.grpc.big:hover{filter:brightness(.95)}
+.grpbar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--accent-soft);border-bottom:1px solid var(--line);font-size:13px}.grpbar b{color:var(--accent)}.grpbar span{flex:1;color:var(--ink-2)}

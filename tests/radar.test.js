@@ -165,6 +165,28 @@ const T = {
     ok(r.names.length === 3 && !r.names.includes('Moi') && r.names[0] === 'Cabinet A', '3 voisins, cibles en premier, sans la société elle-même : ' + r.names.join(', '));
     ok(r.n === 1, 'aucune fiche créée automatiquement'); ok(!errs.length, 'aucune erreur JS'); await ctx.close();
   },
+  async 'Groupes de sociétés'(b) {
+    const { pg, ctx, errs } = await page(b, 'pc.html');
+    const r = await pg.evaluate(() => { const mk = (nom, siren, e) => { const p = blank('tel'); p.ent = { nom, siren, cp: '75017', ...e }; S.P.set(p.id, p); return p };
+      const cac = 'Salustro Reydel : commissaire aux comptes suppléant · Kpmg SA : commissaire aux comptes titulaire';
+      const d1 = mk('Dentsu France', '352567986', { adresse: '67 Avenue de Wagram' }), d2 = mk('Dentsu Creative France', '490746344', { adresse: '67 Av de Wagram', holding: cac }),
+        a1 = mk('Aegis Finance', '519185185', { adresse: '67 Avenue de Wagram', holding: cac }), x = mk('Boulangerie du coin', '111222333', { adresse: '67 Avenue de Wagram' }),
+        s1 = mk('Solvha', '912362142', { adresse: '27 Quai Alphonse le Gallo', cp: '92100', tel: '0141104700', holding: 'Meogroup : président de sas' }),
+        s2 = mk('Cost House', '452223688', { adresse: '33 Quai Alphonse le Gallo', cp: '92100', tel: '0141104700', holding: 'Cost House Development : président de sas' }),
+        k1 = mk('Cabinet Kpmg Client A', '999000111', { holding: 'Kpmg SA : commissaire aux comptes titulaire', cp: '69001' }), k2 = mk('Autre Client B', '999000222', { holding: 'Kpmg SA : commissaire aux comptes titulaire', cp: '13001' });
+      cleanAllContacts(); const g = p => grpOf(p)?.name || '';
+      return { d1: g(d1), d2: g(d2), a1: g(a1), x: g(x), s1: g(s1), s2: g(s2), k1: g(k1), cac: d2.ent.cac, hold: d2.ent.holding } });
+    ok(r.d1 === 'Groupe Dentsu' && r.d2 === r.d1 && r.a1 === r.d1, 'Dentsu France, Dentsu Creative et Aegis (même adresse, mêmes commissaires) → « Groupe Dentsu »');
+    ok(!r.x, 'une société sans lien à la même adresse reste seule');
+    ok(r.s1 && r.s1 === r.s2, 'même standard → même groupe (' + r.s1 + ')');
+    ok(!r.k1, 'un commissaire aux comptes commun ne crée pas de groupe');
+    ok(!r.hold && /Kpmg/.test(r.cac), 'commissaires aux comptes rangés à part (plus dans « société mère »)'); ok(!errs.length, 'aucune erreur JS'); await ctx.close();
+  },
+  async 'Ce qu’ils font (BODACC)'(b) {
+    const { pg, ctx } = await page(b, 'pc.html', null, { 'bodacc-datadila': { results: [{ dateparution: '2024-03-01', familleavis: 'immatriculation', familleavis_lib: 'Immatriculations', listeetablissements: JSON.stringify({ etablissement: { activite: 'Conseil en organisation, recrutement et formation des cadres dirigeants' } }) }] }, ratios_inpi_bce: { results: [] } });
+    const r = await pg.evaluate(async () => { const p = blank('tel'); p.ent = { nom: 'T', siren: '123456789' }; S.P.set(p.id, p); await enrichMore(p, true); return p.ent.metier });
+    ok(r === 'Conseil en organisation, recrutement et formation des cadres dirigeants', 'activité réelle déclarée récupérée : ' + r); await ctx.close();
+  },
   async 'Fluidité (400 fiches)'(b) {
     const { pg, ctx } = await page(b, 'pc.html');
     const r = await pg.evaluate(() => { for (let i = 0; i < 400; i++) { const p = blank('tel'); p.ent = { nom: 'Societe ' + i, tel: '01' + String(47000000 + i).padStart(8, '0') }; p.manual = i % 2; S.P.set(p.id, p) }

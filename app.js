@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=66;
+const APP_V=67;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -25,7 +25,8 @@ const TABS=[
   {k:'ent.forme',l:'Forme juridique',t:'single',o:['SAS','SASU','SARL','EURL','SA','SCP','SELARL','SCI','EI','Association'],w:2},
   {k:'ent.naf',l:'Code NAF',t:'mono',ph:'69.10Z'},
   {k:'ent.creation',l:'Date de création',t:'text',ph:'2014'},
-  {k:'ent.activite',l:'Activité',t:'text',w:2},
+  {k:'ent.activite',l:'Activité (code NAF)',t:'text',w:2},
+  {k:'ent.metier',l:'Ce qu’ils font (déclaré au registre)',t:'text',w:2},
   {k:'ent.effectif',l:'Effectif du site',t:'single',o:['1–5','6–10','11–19','20–49','50–99','100–249','250 +'],w:2},
   {k:'ent.adresse',l:'Adresse',t:'text',w:2,sec:'Coordonnées'},
   {k:'ent.cp',l:'Code postal',t:'mono'},
@@ -35,6 +36,7 @@ const TABS=[
   {k:'ent.site',l:'Site web',t:'text'},
   {k:'ent.sites',l:'Plusieurs sites',t:'single',o:['Non','Oui']},
   {k:'ent.groupe',l:'Décision au siège / réseau',t:'single',o:['Non','Oui'],w:2},
+  {k:'ent.groupeNom',l:'Groupe (laisser vide : détecté automatiquement)',t:'text',w:2},
   {k:'ent.notes',l:'Notes entreprise (infos qui ne rentrent dans aucune case)',t:'area',w:2,sec:'Notes'},
   {k:'ent.categorie',l:'Catégorie',t:'single',o:['Micro-entreprise','PME','ETI','Grande entreprise'],w:2,reg:true,sec:'Registre officiel'},
   {k:'ent.etab',l:'Cet établissement',t:'single',o:['Siège','Établissement secondaire'],reg:true},
@@ -46,7 +48,8 @@ const TABS=[
   {k:'ent.capital',l:'Capital social',t:'text',reg:true},
   {k:'ent.sante',l:'Santé financière',t:'text',w:2,reg:true},
   {k:'ent.convention',l:'Convention collective',t:'text',w:2,reg:true},
-  {k:'ent.holding',l:'Dirigeants personnes morales (holding)',t:'text',w:2,reg:true},
+  {k:'ent.holding',l:'Société mère / dirigeants personnes morales',t:'text',w:2,reg:true},
+  {k:'ent.cac',l:'Commissaires aux comptes',t:'text',w:2,reg:true},
  ]},
  {id:'contacts',l:'Contacts',custom:true},
  {id:'besoins',l:'Besoins',fields:[
@@ -251,7 +254,8 @@ function dedupeContacts(p){const L=p.contacts||[];if(L.length<2)return false;con
   for(const c of L){const k=cKey(c);if(seen.has(k))continue;const ex=out.find(x=>sameC(x,c)||(!cIdent(x)&&!cIdent(c)&&(x.fonction||'')===(c.fonction||'')));
     if(ex){for(const [k2,v] of Object.entries(c))if(k2!=='id'&&filled(v)&&!filled(ex[k2]))ex[k2]=v;continue}seen.add(k);out.push(c)}
   if(out.length!==L.length){p.contacts=out;return true}return false}
-function cleanAllContacts(){let n=0;for(const p of S.P.values()){if(p._owner&&p._owner!==USER?.id)continue;if(dedupeContacts(p)){S.queue.add(p.id);n++}}if(n){saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800)}return n}
+function migrateHolding(p){const L=pmOf(p);if(!L.some(x=>CAC_RE.test(x.q)))return false;const h=L.filter(x=>!CAC_RE.test(x.q)),c=L.filter(x=>CAC_RE.test(x.q));p.ent.holding=h.map(x=>x.n+(x.q?' : '+x.q:'')).join(' · ');if(!p.ent.cac)p.ent.cac=c.map(x=>x.n).join(' · ');return true}
+function cleanAllContacts(){let n=0;for(const p of S.P.values()){if(p._owner&&p._owner!==USER?.id)continue;const a=dedupeContacts(p),b=migrateHolding(p);if(a||b){if(b)p.updatedAt=Date.now();S.queue.add(p.id);n++}}if(n){saveLocalSoon();clearTimeout(timers.push);timers.push=setTimeout(pushQueue,800)}return n}
 const sameC=(x,y)=>(pName(x)&&pName(x)===pName(y))||(x.email&&x.email===y.email)||((x.tel||x.mobile)&&[y.tel,y.mobile].includes(x.tel||x.mobile));
 function linkMerge(dst,src){let ch=false;
   for(const sec of LINK_SECS){const S2=src[sec]||{};dst[sec]=dst[sec]||{};for(const [k,v] of Object.entries(S2)){if(LINK_SKIP.has(k)||!filled(v))continue;const cv=dst[sec][k];
@@ -393,7 +397,7 @@ const SQC=new WeakMap();
 function matches(p,q){if(!q)return true;let c=SQC.get(p);if(!c||c.u!==p.updatedAt){c={u:p.updatedAt,s:norm([p.ent?.nom,p.ent?.enseigne,p.ent?.ville,p.ent?.cp,p.ent?.siret,p.ent?.siren,p.ent?.tel,p.ent?.secteur,...(p.contacts||[]).flatMap(c=>[c.prenom,c.nom,c.tel,c.mobile,c.email])].join(' ')).replace(/\s/g,'')};SQC.set(p,c)}const s=c.s;
   return norm(q).split(/\s+/).every(w=>s.includes(w.replace(/\s/g,'')))}
 function filtered(){const t=iso(today());
-  return VP().filter(p=>matches(p,S.q)).filter(p=>{
+  return VP().filter(p=>matches(p,S.q)&&(!S.grpF||grpOf(p)?.name===S.grpF)).filter(p=>{
     if(S.filter==='all')return true;if(S.filter==='todo')return untreated(p);if(S.filter==='retry')return !!retryAct(p);if(S.filter==='due'){const a=nextAction(p);return a&&a.date&&a.date<=t}
     if(S.filter==='chaud')return p.temperature==='chaud';if(S.filter==='batch')return (S.lastBatch||[]).includes(p.id);if(S.filter==='terrain')return p.source==='terrain';if(S.filter==='rneko')return p.rne?.status==='a_verifier';return p.statut===S.filter})
    .map(p=>{const n=nextAction(p);return[p,n?.date?n.date+(n.heure||''):'~']}).sort((x,y)=>x[1]<y[1]?-1:x[1]>y[1]?1:(x[0].createdAt||0)-(y[0].createdAt||0)).map(x=>x[0])}
@@ -575,7 +579,7 @@ function rowHtml(p){const a=nextAction(p);const c=p.contacts?.find(x=>x.decideur
   return `<button class="row${S.selMode?' picking':''}" data-act="${S.selMode?'pick1':'open'}" data-id="${p.id}" aria-current="${S.selMode?S.picked.has(p.id):p.id===S.sel}">
    ${S.selMode?`<span class="pbox" aria-hidden="true">${S.picked.has(p.id)?'✓':''}</span>`:`<span class="av" style="--c:${st?.c||'var(--ink-3)'}">${esc(initials(displayName(p)))}${p.temperature?`<i class="tdot" data-t="${p.temperature}"></i>`:''}</span>`}
    <span class="nm">${esc(displayName(p))}${p.exemple?' <span class="lbl" style="font-size:10px">exemple</span>':''}</span><span class="pill st-${p.statut}">${esc(st?.l||'')}</span>
-   <span class="sub">${untreated(p)?prioBadge(p):''}${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
+   <span class="sub">${untreated(p)?prioBadge(p):''}${grpChip(p)}${isAdmin()&&S.who!=='me'?`<span class="own">${esc(memberName(p._owner))}</span>`:''}${a?`<span class="due ${dueClass(a)}">${esc(a.type)} · ${esc(fmtDate(a.date))}${a.heure?' '+esc(a.heure):''}</span>`:''}${p.ent?.tel&&!a?`<span class="tel">📞 ${esc(fmtTel(p.ent.tel))}</span>`:S.phoneRun&&S.phoneRun.ids.includes(p.id)&&!S.phoneRun.done.includes(p.id)?'<span>📞 recherche…</span>':''}<span>${esc([p.ent?.ville,c&&[c.prenom,c.nom].filter(Boolean).join(' ')||p.ent?.secteur].filter(Boolean).join(' · '))}</span></span></button>`}
 function foldState(){if(!S.fold)S.fold=lsGet('radar-fold',{todo:true,clos:true});return S.fold}
 function retryAct(p){return (p.actions||[]).find(a=>!a.fait&&a.retry)}
 function moreRows(g,k){const lim=(S.more||{})[k]||80;return g.slice(0,lim).map(rowHtml).join('')+(g.length>lim?`<button class="more-rows" data-act="morerows" data-v="${k}">Afficher les ${Math.min(200,g.length-lim)} suivantes · ${g.length-lim} restantes</button>`:'')}
@@ -599,8 +603,8 @@ function renderList(){
    ${S.selMode?`<div class="selbar"><button class="btn btn-g btn-s" data-act="pickall">Tout sélectionner (${L.length})</button><button class="btn btn-q btn-s" data-act="picknone">Aucune</button>
      ${S.picked.size?(S.confirmBulk?`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkdel">Confirmer : supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button><button class="btn btn-q btn-s" data-act="bulkno">Annuler</button>`:`<button class="btn btn-s" style="background:var(--bad);color:#fff" data-act="bulkask">Supprimer ${S.picked.size} fiche${S.picked.size>1?'s':''}</button>`):'<span class="lbl">Coche les fiches à supprimer</span>'}</div>`:''}
    <div class="filters">${F.filter(([k])=>['all','due','todo','retry','chaud','batch','rneko','terrain'].includes(k)).map(([k,l])=>`<button class="fchip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)}</button>`).join('')}<select class="fsel${STATUTS.some(x=>x.k===S.filter)?' on':''}" id="fstat" aria-label="Filtrer par statut"><option value="">Statut…</option>${STATUTS.map(x=>`<option value="${x.k}" ${S.filter===x.k?'selected':''}>${esc(x.l)} (${VP().filter(p=>p.statut===x.k).length})</option>`).join('')}</select></div></div>
-   ${regSugHtml()}
-   <div class="rows">${L.length?(S.filter==='all'&&!S.q&&!S.selMode?groupedRows(L):moreRows(L,'flat'))
+   ${regSugHtml()}${S.grpF?`<div class="grpbar"><b>◆ ${esc(S.grpF)}</b><span>${L.length} fiche${L.length>1?'s':''}</span><button class="btn btn-q btn-s" data-act="grpclear">✕ Tout afficher</button></div>`:''}
+   <div class="rows">${L.length?(S.filter==='all'&&!S.q&&!S.selMode&&!S.grpF?groupedRows(L):moreRows(L,'flat'))
    :VP().length?`<div class="empty">Aucun prospect ne correspond.<button class="btn btn-g btn-s" data-act="filter" data-v="all">Effacer les filtres</button></div>`:emptyStart()}</div>`;
 }
 
@@ -636,13 +640,13 @@ function renderFiche0(){
   flashApply();setTimeout(()=>{autoEnrich(cur());autoPhone(cur())},400);
 }
 function fmetaHtml(p,sub){sub=sub||[p.ent?.secteur,[p.ent?.cp,p.ent?.ville].filter(Boolean).join(' '),p.ent?.effectif&&p.ent.effectif+' sal. sur ce site'].filter(Boolean);
-  return `${p.ent?.enseigne?`<span class="ens">${esc(p.ent.enseigne)}</span>`:''}${p.ent?.siret?`<span>SIRET <span class="mono">${esc(fmtSiret(p.ent.siret))}</span></span>`:p.ent?.siren?`<span>SIREN <span class="mono">${esc(fmtSiret(p.ent.siren))}</span></span>`:'<span style="color:var(--ink-3)">SIRET non renseigné</span>'}${sub.map(s=>`<span>${esc(s)}</span>`).join('')}${p.ent?.tel?`<span class="mono">${esc(fmtTel(p.ent.tel))}</span>`:''}${p.rne?.status==='ok'?'<span class="badge-dec">✓ Registre</span>':p.rne?.status==='a_verifier'?'<span class="tag">Registre à confirmer</span>':''}<span style="color:var(--ink-3)">${p.source==='terrain'?'Terrain':p.source==='linkedin'?'LinkedIn':'Téléphone'}</span>`}
+  return `${grpChip(p,true)}${p.ent?.enseigne?`<span class="ens">${esc(p.ent.enseigne)}</span>`:''}${p.ent?.siret?`<span>SIRET <span class="mono">${esc(fmtSiret(p.ent.siret))}</span></span>`:p.ent?.siren?`<span>SIREN <span class="mono">${esc(fmtSiret(p.ent.siren))}</span></span>`:'<span style="color:var(--ink-3)">SIRET non renseigné</span>'}${sub.map(s=>`<span>${esc(s)}</span>`).join('')}${p.ent?.tel?`<span class="mono">${esc(fmtTel(p.ent.tel))}</span>`:''}${p.rne?.status==='ok'?'<span class="badge-dec">✓ Registre</span>':p.rne?.status==='a_verifier'?'<span class="tag">Registre à confirmer</span>':''}<span style="color:var(--ink-3)">${p.source==='terrain'?'Terrain':p.source==='linkedin'?'LinkedIn':'Téléphone'}</span>`}
 function tabsHtml(p){return TABS.map((t,i)=>{const [n,tot]=tabCount(p,t);return `<button class="tab${S.flash.has('tab:'+t.id)?' flash':''}" role="tab" data-act="tab" data-v="${t.id}" aria-selected="${S.tab===t.id}" title="${S.mode==='poste'?'Alt+'+(i+1):''}">${t.l}<span class="cnt${tot&&n===tot?' full':''}">${tot?n+'/'+tot:n}</span></button>`}).join('')}
 function refreshMeta(){const p=cur();if(!p)return;const m=$('#fmeta');if(m)m.innerHTML=fmetaHtml(p);const t=$('#tabs');if(t)t.innerHTML=tabsHtml(p);
   const q=qualif(p),r=$('.ring');if(r){r.querySelector('svg').outerHTML=ringSvg(q);$('#ringv').textContent=q+'%'}}
 function tabBody(p){const t=TABS.find(x=>x.id===S.tab)||TABS[0];
   if(t.id==='contacts')return contactsHtml(p);if(t.id==='suivi')return suiviHtml(p);if(t.id==='cr')return crHtml(p);
-  if(t.id==='ent'&&/^\d{9}$/.test(sirenOf(p))&&!(p.cpl?.at&&p.cpl.siren===sirenOf(p)&&p.cpl.at>iso(addDays(today(),-30))))setTimeout(()=>enrichSoon(p),0);
+  if(t.id==='ent'&&/^\d{9}$/.test(sirenOf(p))&&!(p.cpl?.at&&p.cpl.v===2&&p.cpl.siren===sirenOf(p)&&p.cpl.at>iso(addDays(today(),-30))))setTimeout(()=>enrichSoon(p),0);
   return `${t.id==='ent'?briefHtml(p)+identHtml(p)+voisHtml(p):''}<div class="panel"><div class="grid">${gridHtml(p,t)}</div>${t.id==='ent'?sourcesHtml(p):''}</div>`}
 function gridHtml(p,t){let sec='',shown='',out='',n=0;
   for(const f of t.fields){if(f.sec)sec=f.sec;if(f.k==='ent.nom'||f.hidden||(f.reg&&!filled(getP(p,f.k))))continue;
@@ -858,7 +862,7 @@ function newProspect(){const p=blank(S.mode==='poste'?'tel':'terrain');S.P.set(p
 function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?'<button>Annuler</button>':''}`;
   if(undo)t.querySelector('button').onclick=()=>{undo();t.remove()};$('#toast').append(t);setTimeout(()=>t.remove(),undo?7000:3200)}
 const markManual=(p,path)=>{if(p&&!p.manual&&!/^(ent\.(nom|siret|siren)|source)$/.test(path||''))p.manual=Date.now()};
-function setField(path,v){const p=cur();if(!p)return;markManual(p,path);
+function setField(path,v){const p=cur();if(!p)return;markManual(p,path);if(path==='ent.metier')p.ent.metierManual=!!String(v||'').trim();
   if(path==='source'){p.source={Téléphone:'tel',Terrain:'terrain',LinkedIn:'linkedin'}[v]||v;touch(p);return}
   if(p.est?.[path]){delete p.est[path];const l=$(`[data-k="${CSS.escape(path)}"]`)?.closest('.f')?.querySelector('.est');if(l)l.remove()}
   setP(p,path,v);if(['ent.effectif','ent.secteur','it.utilisateurs'].includes(path)&&p.est&&Object.keys(p.est).length){if(path==='ent.effectif'&&p.rne)p.rne.tranche='';applyEstimates(p);if(S.tab==='ent'&&path!=='it.utilisateurs'){const bx=$('#tabbody .brief');if(bx)bx.outerHTML=briefHtml(p)}}
@@ -1548,7 +1552,7 @@ function reToPatch(r,e){
   const fin=r.finances&&Object.entries(r.finances).sort((a,b)=>b[0]-a[0])[0];
   if(fin&&!grp){const [y,f]=fin;if(f.ca>0)set['ent.ca']=`${eur(f.ca)} (${y})`;if(f.resultat_net!=null)set['ent.resultat']=`${eur(f.resultat_net)} (${y})`}
   const idcc=(e?.liste_idcc||(grp?[]:r.complements?.liste_idcc)||[]).filter(x=>x&&x!=='9999');if(idcc.length)set['ent.convention']=idcc.map(c=>IDCC[c.replace(/^0+/,'')]?`${IDCC[c.replace(/^0+/,'')]} (IDCC ${c})`:`IDCC ${c}`).join(', ');
-  const pm=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);if(pm.length&&!grp)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
+  const pm0=(r.dirigeants||[]).filter(d=>/morale/i.test(d.type_dirigeant||'')&&d.denomination);const cac=pm0.filter(d=>CAC_RE.test(d.qualite||''));if(cac.length&&!grp)set['ent.cac']=cac.slice(0,3).map(d=>niceCase(d.denomination)).join(' · ');const pm=pm0.filter(d=>!CAC_RE.test(d.qualite||''));if(pm.length&&!grp)set['ent.holding']=pm.slice(0,3).map(d=>`${niceCase(d.denomination)}${d.qualite?' : '+d.qualite.toLowerCase():''}`).join(' · ');
   const contacts=(local||(grp&&(r.nombre_etablissements_ouverts||0)>5)?[]:(r.dirigeants||[])).filter(d=>/physique/i.test(d.type_dirigeant||'physique')&&d.nom&&!NOT_DIR.test(d.qualite||'')).slice(0,3)
     .map(d=>({prenom:niceCase(String(d.prenoms||d.prenom||'').split(/[\s,]+/)[0]),nom:niceCase(d.nom),fonction:fonctionRne(d.qualite),decideur:'Oui',note:'Dirigeant au registre'+(d.qualite?' : '+d.qualite:'')}));
   return{set,contacts}}
@@ -1704,6 +1708,8 @@ function briefData(p){const e=estimates(p);const sec=p.ent?.secteur||'';const si
   if(p.ent?.etab==='Établissement secondaire')sig.push(['🏢','Site secondaire d’une entreprise multi-sites : la décision IT / achats peut se prendre au siège. Demande qui décide.']);
   if(false)sig.push(['🏢',`${p.ent.nbEtabs} établissements ouverts${p.ent.etab?' · celui-ci : '+p.ent.etab.toLowerCase():''} : interconnexion, téléphonie et parc à harmoniser.`]);
   if(p.ent?.holding)sig.push(['🧩',`Dirigée par une société (${p.ent.holding}) : la décision peut se prendre au niveau de la holding.`]);
+  if(p.ent?.metier)sig.unshift(['🏷️',`Ce qu’ils font : ${p.ent.metier}`]);
+  {const g=grpOf(p);if(g){const o=g.names.filter(n=>n!==displayName(p));sig.push(['◆',`${g.name}${g.why?' ('+g.why+')':''} : ${o.length} autre${o.length>1?'s':''} fiche${o.length>1?'s':''} (${o.slice(0,4).join(', ')}${o.length>4?'…':''}). Coordonne tes appels pour ne pas les solliciter deux fois.`])}}
   sig.push(...bodaccSignals(p));
   if(p.ent?.ca)sig.push(['💶',`CA ${p.ent.ca}${p.ent.caEvol?' ('+p.ent.caEvol.split(' (')[0]+' sur un an)':''}${p.ent.resultat?' · résultat '+p.ent.resultat:''}`]);
   if(p.ent?.categorie==='PME'||!p.ent?.categorie)sig.push(['🧾','Facture électronique : réception obligatoire depuis le 1er sept. 2026, émission obligatoire au 1er sept. 2027 pour les PME et TPE. Argument scan / GED / dématérialisation.']);
@@ -3011,7 +3017,8 @@ const sirenOf=p=>String(p.rne?.siren||p.ent?.siren||p.ent?.siret||'').replace(/\
 async function getJ(u,ms=9000){const r=await fetch(u,{signal:AbortSignal.timeout(ms)});if(!r.ok)throw new Error(r.status);return r.json()}
 async function inpiFin(siren){const j=await getJ('https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/ratios_inpi_bce/records?where='+encodeURIComponent(`siren="${siren}"`)+'&order_by=date_cloture_exercice%20desc&limit=6');
   const seen=new Set();return (j.results||[]).filter(x=>x.chiffre_d_affaires!=null&&!seen.has(x.date_cloture_exercice)&&seen.add(x.date_cloture_exercice))}
-async function bodaccOf(siren){const j=await getJ('https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?where='+encodeURIComponent(`registre="${siren}"`)+'&order_by=dateparution%20desc&limit=20&select=dateparution,familleavis,familleavis_lib,listepersonnes,modificationsgenerales,jugement,acte,depot,url_complete');return j.results||[]}
+async function bodaccOf(siren){const j=await getJ('https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?where='+encodeURIComponent(`registre="${siren}"`)+'&order_by=dateparution%20desc&limit=20&select=dateparution,familleavis,familleavis_lib,listepersonnes,listeetablissements,modificationsgenerales,jugement,acte,depot,url_complete');let L=j.results||[];
+  if(!L.some(x=>/activite/.test(x.listeetablissements||''))){try{const k=await getJ('https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?where='+encodeURIComponent(`registre="${siren}" and listeetablissements is not null`)+'&order_by=dateparution%20desc&limit=3&select=dateparution,familleavis,familleavis_lib,listeetablissements,url_complete');L=L.concat((k.results||[]).map(x=>({...x,_act:1})))}catch{}}return L}
 const jparse=s=>{try{return typeof s==='string'?JSON.parse(s):s||{}}catch{return{}}};
 function bodaccItems(L){return L.map(x=>{const per=jparse(x.listepersonnes).personne||{};const mod=jparse(x.modificationsgenerales);const jug=jparse(x.jugement);const dep=jparse(x.depot);const act=jparse(x.acte);
   let t=x.familleavis_lib||'Annonce';const adm=String(per.administration||'');
@@ -3021,10 +3028,12 @@ function bodaccItems(L){return L.map(x=>{const per=jparse(x.listepersonnes).pers
   else if(x.familleavis==='modification')t=(mod.descriptif?String(mod.descriptif).replace(/^./,c=>c.toUpperCase()):'Modification')+(adm?' : '+adm.slice(0,160):'');
   else if(x.familleavis==='radiation')t='Radiation du registre';
   else if(x.familleavis==='creation'||x.familleavis==='immatriculation')t='Immatriculation'+(act.descriptif?' – '+String(act.descriptif).slice(0,100):'');
-  return{d:x.dateparution,f:x.familleavis,t,u:x.url_complete||'',cap:per.capital?.montantCapital,forme:per.formeJuridique,adm}})}
+  const et=jparse(x.listeetablissements).etablissement;const actv=[].concat(et||[]).map(e=>e?.activite).find(Boolean)||per.activite||'';
+  return{d:x.dateparution,f:x.familleavis,t,u:x.url_complete||'',cap:per.capital?.montantCapital,forme:per.formeJuridique,adm,act:String(actv).trim(),_act:x._act}})}
+const actNice=s=>{s=String(s||'').replace(/\s+/g,' ').trim();if(!s)return'';if(s===s.toUpperCase())s=s.toLowerCase();s=s[0].toUpperCase()+s.slice(1);return s.length>320?s.slice(0,317).replace(/\s\S*$/,'')+'…':s}
 const fmtD=d=>{const x=jDate(String(d).slice(0,10));return x?`${x.getDate()} ${MOIS[x.getMonth()]} ${x.getFullYear()}`:String(d)};
 async function enrichMore(p,force){const siren=sirenOf(p);if(!/^\d{9}$/.test(siren))return 0;const t=iso(today());
-  if(!force&&p.cpl?.at&&p.cpl.siren===siren&&p.cpl.at>iso(addDays(today(),-30)))return 0;
+  if(!force&&p.cpl?.at&&p.cpl.siren===siren&&p.cpl.v===2&&p.cpl.at>iso(addDays(today(),-30)))return 0;
   const [fin,bod]=await Promise.allSettled([inpiFin(siren),bodaccOf(siren)]);let n=0;const src=new Set(p.cpl?.src||[]);
   if(p.rne?.status==='ok')src.add(p.rne.src||'re');p.ent=p.ent||{};
   if(fin.status==='fulfilled'&&fin.value.length&&!isGroupP(p)){const [a,b]=fin.value;const y=String(a.date_cloture_exercice).slice(0,4);src.add('inpi');
@@ -3032,11 +3041,11 @@ async function enrichMore(p,force){const siren=sirenOf(p);if(!/^\d{9}$/.test(sir
     if(b&&b.chiffre_d_affaires>0){const ev=Math.round((a.chiffre_d_affaires/b.chiffre_d_affaires-1)*100);const s=`${ev>0?'+':''}${ev} % (${String(b.date_cloture_exercice).slice(0,4)} → ${y})`;if(p.ent.caEvol!==s){p.ent.caEvol=s;n++}}
     const sante=[a.marge_ebe!=null&&`marge EBE ${Math.round(a.marge_ebe)} %`,a.autonomie_financiere!=null&&`autonomie financière ${Math.round(a.autonomie_financiere)} %`,a.ratio_de_liquidite!=null&&`liquidité ${Math.round(a.ratio_de_liquidite)} %`].filter(Boolean).join(' · ');
     if(sante&&p.ent.sante!==sante){p.ent.sante=sante+` (${y})`;n++}}
-  if(bod.status==='fulfilled'){const L=bodaccItems(bod.value);if(L.length){src.add('bodacc');const old=JSON.stringify(p.bodacc||[]);p.bodacc=L.slice(0,8);if(JSON.stringify(p.bodacc)!==old)n++;
+  if(bod.status==='fulfilled'){const L=bodaccItems(bod.value);if(L.length){src.add('bodacc');const A=L.find(x=>x.act);if(A&&!p.ent.metierManual){const m=actNice(A.act);if(m&&p.ent.metier!==m){p.ent.metier=m;n++}}const old=JSON.stringify(p.bodacc||[]);p.bodacc=L.filter(x=>!x._act).slice(0,8).map(({act,_act,...r})=>r);if(JSON.stringify(p.bodacc)!==old)n++;
     const c=L.find(x=>x.cap);if(c&&!p.ent.capital){p.ent.capital=eur(+c.cap);n++}
     const fj=L.find(x=>x.forme)?.forme;if(fj&&!p.ent.forme){const m=['SASU','SAS','SARL','EURL','SA','SCP','SELARL','SCI'].find(k=>new RegExp('\\b'+k+'\\b','i').test(fj)||(k==='SAS'&&/actions simplifiée/i.test(fj))||(k==='SARL'&&/responsabilité limitée/i.test(fj))||(k==='SA'&&/^société anonyme/i.test(fj)));if(m){p.ent.forme=m;n++}}}}
   for(const x of [p.ent.telSource,p.ent.siteSource,p.ent.emailSource]){const v=String(x||'');if(/overture/i.test(v))src.add('overture');else if(/google/i.test(v))src.add('google');else if(/here/i.test(v))src.add('here');else if(/osm|openstreetmap/i.test(v))src.add('OpenStreetMap')}
-  const ne=[fin,bod].filter(x=>x.status==='rejected').length;p.cpl={at:ne===2?'':t,siren,src:[...src],err:ne};PRC.delete(p);touch(p);if(S.sel===p.id&&S.tab==='ent')renderFiche();return n}
+  const ne=[fin,bod].filter(x=>x.status==='rejected').length;p.cpl={at:ne===2?'':t,v:2,siren,src:[...src],err:ne};PRC.delete(p);touch(p);if(S.sel===p.id&&S.tab==='ent')renderFiche();return n}
 const isGroupP=p=>p.ent?.categorie==='Grande entreprise'&&p.ent?.groupe==='Oui';
 const CPLQ=[];let cplBusy=false;
 function enrichSoon(p,force){if(!p||CPLQ.includes(p.id))return;S.cplTried=S.cplTried||new Set();if(!force&&S.cplTried.has(p.id))return;S.cplTried.add(p.id);CPLQ.push(p.id);if(force)S.cplForce=(S.cplForce||new Set()).add(p.id);cplPump()}
@@ -3077,7 +3086,9 @@ function voisHtml(p){if(S.mode!=='poste')return'';const V=p.vois;const busy=S.vo
      ${o?voisSub(p,v,k):''}</div>`}).join('')}</section>`}
 function voisSub(p,v,k){const sir=v.siren,nm=encodeURIComponent(v.name),q=encodeURIComponent(v.name+' '+(v.adr?.ville||''));const a=v.adr||{};
   return `<div class="vsub"><dl>
-   <dt>Activité</dt><dd>${esc(v.lab||'—')}${v.naf?` <small class="mono">${esc(v.naf)}</small>`:''}</dd>
+   <dt>Ce qu’ils font</dt><dd>${v.metier?esc(v.metier):v.metierTried?'<small>non détaillé au registre</small>':'<small>recherche…</small>'}</dd>
+   <dt>Code NAF</dt><dd>${esc(v.lab||'—')}${v.naf?` <small class="mono">${esc(v.naf)}</small>`:''}</dd>
+   ${(()=>{const k2=knownProspect(v);const g=k2&&grpOf(k2);return g?`<dt>Groupe</dt><dd>◆ ${esc(g.name)}</dd>`:''})()}
    <dt>Adresse</dt><dd>${esc([a.rue,a.cp,a.ville].filter(Boolean).join(' '))||'—'} <small>· à ${v.dist} m</small></dd>
    ${v.denom&&v.denom!==v.name?`<dt>Raison sociale</dt><dd>${esc(v.denom)}${v.forme?' · '+esc(v.forme):''}</dd>`:v.forme?`<dt>Forme</dt><dd>${esc(v.forme)}</dd>`:''}
    <dt>Effectif</dt><dd>${v.staff&&v.eff?esc(v.eff)+' salariés':'non publié ou sans salarié'}</dd>
@@ -3090,7 +3101,8 @@ function voisSub(p,v,k){const sir=v.siren,nm=encodeURIComponent(v.name),q=encode
 async function voisTel(p,v){try{const pl=await overturePlaces({lat:v.lat,lon:v.lon},90);let best=null,bs=0;for(const x of pl||[]){if(!x.phone&&!(x.phones||[]).length)continue;const s=Math.max(nameScore(v.name,x.name||''),nameScore(v.denom||'',x.name||''));if(s>bs){bs=s;best=x}}
   if(best&&bs>=0.5){v.tel=best.phone||best.phones[0];v.telSrc='Overture Maps'}}catch{}v.telTried=true;touch(p);const b=$('#vois');if(b&&S.sel===p.id)b.outerHTML=voisHtml(p)}
 Object.assign(ACT,{
- voisopen:b=>{S.voisOpen=S.voisOpen===b.dataset.v?null:b.dataset.v;const p=cur();const el=$('#vois');if(p&&el)el.outerHTML=voisHtml(p)},
+ voisopen:b=>{S.voisOpen=S.voisOpen===b.dataset.v?null:b.dataset.v;const p=cur();const el=$('#vois');if(p&&el)el.outerHTML=voisHtml(p);const v=p?.vois?.list.find(x=>x.siret===S.voisOpen);
+   if(v&&!v.metierTried){bodaccOf(v.siren).then(L=>{const A=bodaccItems(L).find(x=>x.act);if(A)v.metier=actNice(A.act)}).catch(()=>{}).finally(()=>{v.metierTried=true;touch(p);const e2=$('#vois');if(e2&&S.sel===p.id)e2.outerHTML=voisHtml(p)})}},
  voismore:()=>{const p=cur();if(!p?.vois)return;const n=Math.ceil(p.vois.list.length/3);p.voisPage=((p.voisPage||0)+1)%n;S.voisOpen=null;const el=$('#vois');if(el)el.outerHTML=voisHtml(p)},
  voisre:()=>{const p=cur();if(!p)return;delete p.vois;voisLoad(p,true);const el=$('#vois');if(el)el.outerHTML=voisHtml(p)},
  voistel:b=>{const p=cur();const v=p?.vois?.list.find(x=>x.siret===b.dataset.v);if(!v)return;b.textContent='Recherche…';b.disabled=true;voisTel(p,v)},
@@ -3098,6 +3110,52 @@ Object.assign(ACT,{
    b.disabled=true;b.textContent='Création…';const n=blank('tel');n.ws=p.ws;n.ent={nom:v.denom||v.name,enseigne:v.name!==v.denom?v.name:'',siret:v.siret,siren:v.siren,adresse:v.adr?.rue||'',cp:v.adr?.cp||'',ville:v.adr?.ville||'',...(v.tel?{tel:v.tel,telSource:v.telSrc}:{})};n.geo={lat:v.lat,lon:v.lon};
    n.journal.push({id:rid(),date:new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,19),canal:'note',issue:'Voisin repéré',texte:`À ${v.dist} m de ${displayName(p)}`});
    S.P.set(n.id,n);touch(n);try{await applyRne(n,v.siret,{siret:v.siret,soft:true})}catch{}touch(n);const el=$('#vois');if(el)el.outerHTML=voisHtml(p);renderList();toast(`Fiche créée : ${displayName(n)} (rangée dans « À traiter »)`)}
+});
+
+/* ================= Groupes : regrouper les sociétés d'un même groupe pour ne pas se perdre =================
+   Indices (du plus sûr au moins sûr) : même SIREN (plusieurs sites) · même société mère / président personne morale
+   · même standard téléphonique · même adresse + nom commun (ex. « Dentsu ») · même adresse + mêmes commissaires aux comptes. */
+const CAC_RE=/commissaire|auditeur|liquidateur|administrateur judiciaire|mandataire/i;
+function pmOf(p){return String(p.ent?.holding||'').split(' · ').map(s=>{const [n,...q]=s.split(' : ');return{n:n.trim(),q:q.join(' : ').trim()}}).filter(x=>x.n)}
+const holdOf=p=>pmOf(p).filter(x=>!CAC_RE.test(x.q));
+const cacOf=p=>[...pmOf(p).filter(x=>CAC_RE.test(x.q)).map(x=>x.n),...String(p.ent?.cac||'').split(' · ')].filter(Boolean).map(x=>norm(x).replace(/\b(s\.?a\.?s?|sas|sarl)\b\.?/g,'').replace(/[^a-z0-9]/g,'')).filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).sort().join('|');
+const GRP_GEN=new Set(['france','paris','groupe','group','holding','societe','sas','sarl','sa','selarl','scp','eurl','sasu','cabinet','agence','conseil','consulting','services','service','entreprise','entreprises','international','comite','social','economique','ues','et','de','du','des','la','le','les','and','the','associes','partners','solutions','expertise','expertises','developpement','nouvelle','compagnie','francaise','ambulances','ambulance','92','75','production','productions','finance','media','creative','digital','immobilier','sci','dr','docteur']);
+const nameToks=p=>[...new Set(norm(displayName(p)).split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!GRP_GEN.has(w)))];
+const addrKey=p=>{const a=norm(p.ent?.adresse||'').replace(/\b(avenue|av)\b/g,'av').replace(/\b(boulevard|bd)\b/g,'bd').replace(/[^a-z0-9]/g,'');return a&&p.ent?.cp?a+'|'+p.ent.cp:''};
+function grpCompute(){let mx=0;for(const p of S.P.values())if((p.updatedAt||0)>mx)mx=p.updatedAt;const tok=S.P.size+':'+mx;if(S._grp&&S._grp.tok===tok)return S._grp.m;
+  const P=[...S.P.values()].filter(p=>!p.exemple&&(!p._owner||p._owner===USER?.id));const par=new Map(P.map(p=>[p.id,p.id]));const f=x=>{while(par.get(x)!==x){par.set(x,par.get(par.get(x)));x=par.get(x)}return x};const U=(a,b)=>{const x=f(a),y=f(b);if(x!==y)par.set(x,y)};
+  const B=(key,fn)=>{const m=new Map();for(const p of P){for(const k of [].concat(fn(p)||[])){if(!k)continue;if(!m.has(k))m.set(k,[]);m.get(k).push(p)}}for(const L of m.values())if(L.length>1&&L.length<40)for(const q of L.slice(1))U(L[0].id,q.id)};
+  const sir=p=>String(p.ent?.siren||p.ent?.siret||'').replace(/\D/g,'').slice(0,9);
+  B('siren',p=>sir(p).length===9?'s'+sir(p):'');                                    /* même société, plusieurs sites (et fiches liées entre espaces) */
+  B('mere',p=>holdOf(p).map(x=>'h'+norm(x.n).replace(/[^a-z0-9]/g,'')));               /* même société mère / présidente */
+  B('own',p=>'h'+norm(p.ent?.nom||'').replace(/[^a-z0-9]/g,''));                       /* la holding elle-même est en fiche */
+  const byTel=new Map();for(const p of P){const t=String(p.ent?.tel||'').replace(/\D/g,'');if(t.length===10&&!/^0[67]/.test(t)){if(!byTel.has(t))byTel.set(t,[]);byTel.get(t).push(p)}}
+  for(const L of byTel.values())if(L.length>1&&L.length<15&&new Set(L.map(p=>p.ent?.cp).filter(Boolean)).size<=1)for(const q of L.slice(1))U(L[0].id,q.id); /* même standard au même endroit */
+  const byAd=new Map();for(const p of P){const k=addrKey(p);if(k){if(!byAd.has(k))byAd.set(k,[]);byAd.get(k).push(p)}}
+  for(const L of byAd.values()){if(L.length<2)continue;const tk=new Map();for(const p of L)for(const w of nameToks(p)){if(!tk.has(w))tk.set(w,[]);tk.get(w).push(p)}
+    for(const [w,M] of tk)if(new Set(M.map(sir)).size>1)for(const q of M.slice(1))U(M[0].id,q.id);                 /* même adresse + nom commun */
+    const cc=new Map();for(const p of L){const c=cacOf(p);if(c&&c.includes('|')){if(!cc.has(c))cc.set(c,[]);cc.get(c).push(p)}}
+    for(const M of cc.values())if(M.length>1)for(const q of M.slice(1))U(M[0].id,q.id)}                            /* même adresse + mêmes commissaires aux comptes */
+  const G=new Map();for(const p of P){const r=f(p.id);if(!G.has(r))G.set(r,[]);G.get(r).push(p)}
+  const m=new Map();
+  for(const L of G.values()){const sirens=new Set(L.map(sir).filter(Boolean));const sites=new Set(L.map(p=>p.ent?.siret||p.id));if(sirens.size<2&&sites.size<2)continue;
+    const man=L.map(p=>p.ent?.groupeNom).find(Boolean);let name=man||'',why='';
+    if(!name){const hc=new Map();for(const p of L)for(const h of holdOf(p)){const k=niceCase(h.n);hc.set(k,(hc.get(k)||0)+1+(/group|holding|invest|particip/i.test(h.n)?2:0))}
+      const best=[...hc].sort((a,b)=>b[1]-a[1])[0];if(best&&best[1]>=2){name=best[0];why='même société mère'}}
+    if(!name){const tc=new Map();for(const p of L)for(const w of nameToks(p))tc.set(w,(tc.get(w)||0)+1);const best=[...tc].filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]||b[0].length-a[0].length)[0];if(best){name=best[0][0].toUpperCase()+best[0].slice(1);why='nom et adresse communs'}}
+    if(!name&&sirens.size<2){name=displayName(L[0]);why=`même société, ${sites.size} sites`}
+    if(!name){const h=L.flatMap(holdOf)[0];if(h){name=niceCase(h.n);why='société mère'}}
+    if(!name){const a=L[0].ent?.adresse;name=a?`Standard commun · ${niceCase(a)}`:displayName(L[0]);why='même standard et même adresse'}
+    const g={name:/group|^standard commun/i.test(name)||sirens.size<2?name:'Groupe '+name.replace(/^groupe\s+/i,''),why:why||'',ids:L.map(p=>p.id),n:sirens.size||sites.size,names:[...new Set(L.map(displayName))]};
+    for(const p of L)m.set(p.id,g)}
+  S._grp={tok,m};return m}
+const grpOf=p=>p?grpCompute().get(p.id)||null:null;
+function grpChip(p,big){const g=grpOf(p);if(!g)return'';const others=g.names.filter(n=>n!==displayName(p));
+  return big?`<button class="grpc big" data-act="grpshow" data-v="${esc(g.name)}" title="${esc((g.why?g.why+' · ':'')+'avec : '+others.join(', '))}">◆ ${esc(g.name)} <small>· ${g.n} ${g.n>1?'sociétés':'société'} en fiche</small></button>`
+    :`<span class="grpc" title="${esc(g.name+' : '+others.join(', '))}">◆ ${esc(g.name.replace(/^Groupe /,''))}</span>`}
+Object.assign(ACT,{
+ grpshow:b=>{S.grpF=b.dataset.v;S.q='';const q=$('#q');if(q)q.value='';S.filter='all';if(S.view!=='list'){S.view='list';render()}else renderList()},
+ grpclear:()=>{S.grpF=null;renderList()}
 });
 
 (function boot(){S.mode=document.documentElement.dataset.app==='terrain'?'terrain':'poste';S.view='today';
