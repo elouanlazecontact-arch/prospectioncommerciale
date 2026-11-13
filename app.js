@@ -1,6 +1,6 @@
 
 "use strict";
-const APP_V=68;
+const APP_V=69;
 /* ================= Données de référence ================= */
 const STATUTS=[
  {k:'nouveau',l:'À qualifier',c:'var(--ink-3)'},{k:'contacte',l:'Contacté',c:'var(--cold)'},{k:'rappel',l:'À rappeler',c:'var(--warm)'},
@@ -3130,8 +3130,8 @@ function grpCompute(){let mx=0;for(const p of S.P.values())if((p.updatedAt||0)>m
   B('siren',p=>sir(p).length===9?'s'+sir(p):'');                                    /* même société, plusieurs sites (et fiches liées entre espaces) */
   B('mere',p=>holdOf(p).map(x=>'h'+norm(x.n).replace(/[^a-z0-9]/g,'')));               /* même société mère / présidente */
   B('own',p=>'h'+norm(p.ent?.nom||'').replace(/[^a-z0-9]/g,''));                       /* la holding elle-même est en fiche */
-  const byTel=new Map();for(const p of P){const t=String(p.ent?.tel||'').replace(/\D/g,'');if(t.length===10&&!/^0[67]/.test(t)){if(!byTel.has(t))byTel.set(t,[]);byTel.get(t).push(p)}}
-  for(const L of byTel.values())if(L.length>1&&L.length<15&&new Set(L.map(p=>p.ent?.cp).filter(Boolean)).size<=1)for(const q of L.slice(1))U(L[0].id,q.id); /* même standard au même endroit */
+  const byTel=new Map();for(const p of P){const t=String(p.ent?.tel||'').replace(/\D/g,'');if(t.length===10&&!/^0[67]/.test(t)&&!/^(copr|synd|syndicat|asl |association syndicale)/i.test(norm(p.ent?.nom||''))){if(!byTel.has(t))byTel.set(t,[]);byTel.get(t).push(p)}}
+  for(const L of byTel.values())if(L.length>1&&L.length<=3&&new Set(L.map(p=>p.ent?.cp).filter(Boolean)).size<=1)for(const q of L.slice(1))U(L[0].id,q.id); /* même standard au même endroit */
   const byAd=new Map();for(const p of P){const k=addrKey(p);if(k){if(!byAd.has(k))byAd.set(k,[]);byAd.get(k).push(p)}}
   for(const L of byAd.values()){if(L.length<2)continue;const tk=new Map();for(const p of L)for(const w of nameToks(p)){if(!distinct(w))continue;if(!tk.has(w))tk.set(w,[]);tk.get(w).push(p)}
     for(const [w,M] of tk)if(new Set(M.map(sir)).size>1)for(const q of M.slice(1))U(M[0].id,q.id);                 /* même adresse + nom commun */
